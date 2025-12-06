@@ -608,19 +608,6 @@ client.on('ready', () => {
     client.user.setActivity('.tx để chơi | .diemdanh nhận quà', { type: 'PLAYING' });
 });
 
-// Web server để Render không kill bot
-const express = require("express");
-const app = express();
-const port = process.env.PORT || 10000;
-
-app.get("/", (req, res) => {
-    res.send("Bot is running!");
-});
-
-app.listen(port, () => {
-    console.log("Server đang chạy tại port " + port);
-});
-
 client.login(process.env.TOKEN);
 
 // Keep bot alive on Render
@@ -632,4 +619,5 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
   console.log("🌐 Server is running to keep Render alive.");
 });
+
 
