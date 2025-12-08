@@ -1,10 +1,4 @@
-# Environment
-.env
 node_modules/
-
-# Database - KHÔNG push lên GitHub
+.env
 database/database.json
-
-# Logs
-*.log
-npm-debug.log*
+database/backup_before_restore.json
