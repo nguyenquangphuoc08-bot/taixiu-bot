@@ -1,11 +1,18 @@
-{
   "name": "discord-taixiu-bot",
   "version": "2.0.0",
-  "description": "Bot game Tài Xỉu Discord với hệ thống backup",
+  "description": "Bot game Tài Xỉu Discord với backup hệ thống",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "keywords": [
+    "discord",
+    "bot",
+    "taixiu",
+    "game"
+  ],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
     "discord.js": "^14.14.1",
     "dotenv": "^16.3.1",
