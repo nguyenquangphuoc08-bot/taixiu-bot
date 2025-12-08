@@ -2,6 +2,8 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder } = require('discord.js');
 const { createCanvas } = require('canvas');
 const fs = require('fs');
+const https = require('https');
+const http = require('http');
 
 const client = new Client({
     intents: [
@@ -11,10 +13,13 @@ const client = new Client({
     ]
 });
 
-// ===== SAFE DEPLOY: Lưu phiên cược vào database =====
+// ===== CẤU HÌNH - THAY ĐỔI Ở ĐÂY =====
+const ADMIN_ID = '1100660298073002004'; // Thay bằng Discord ID của bạn
+const BACKUP_CHANNEL_ID = '1447477880329338962'; // Thay bằng ID channel backup
+
+// ===== DATABASE =====
 const DB_PATH = './database/database.json';
 
-// Tạo thư mục database nếu chưa có
 if (!fs.existsSync('./database')) {
     fs.mkdirSync('./database', { recursive: true });
 }
@@ -24,7 +29,7 @@ let database = {
     history: [],
     jackpot: 0,
     lastCheckin: {},
-    activeBettingSession: null // Lưu phiên cược đang chạy
+    activeBettingSession: null
 };
 
 if (fs.existsSync(DB_PATH)) {
@@ -63,13 +68,11 @@ function getUser(userId) {
         saveDB();
     }
     
-    // Reset nhiệm vụ hằng ngày nếu qua ngày mới
     const today = new Date().toDateString();
     if (database.users[userId].dailyQuests.lastReset !== today) {
         database.users[userId].dailyQuests.lastReset = today;
         database.users[userId].dailyQuests.quests = generateDailyQuests();
         
-        // Kiểm tra chuỗi: nếu hôm qua không hoàn thành → reset streak
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         if (database.users[userId].dailyQuests.lastCompleted !== yesterday.toDateString()) {
@@ -82,7 +85,6 @@ function getUser(userId) {
     return database.users[userId];
 }
 
-// ===== DAILY QUESTS SYSTEM =====
 function generateDailyQuests() {
     return [
         { id: 1, name: '🎲 Chơi 5 phiên Tài Xỉu', target: 5, current: 0, reward: 1000000, completed: false },
@@ -112,21 +114,19 @@ function checkAllQuestsCompleted(userId) {
     return user.dailyQuests.quests.every(q => q.completed);
 }
 
-// Quản lý phiên cược
 let bettingSession = null;
 
-// ===== KHÔI PHỤC PHIÊN CƯỢC SAU KHI RESTART =====
+// ===== BOT READY =====
 client.once('clientReady', async () => {
     console.log(`✅ Bot ${client.user.tag} đã online!`);
     client.user.setActivity('.tx để chơi | .daily nhiệm vụ', { type: 'PLAYING' });
     
-    // Kiểm tra phiên cược bị gián đoạn
+    // Khôi phục phiên cược bị gián đoạn
     if (database.activeBettingSession) {
         console.log('🔄 Phát hiện phiên cược bị gián đoạn, đang hoàn tiền...');
         
         const session = database.activeBettingSession;
         
-        // Hoàn tiền cho tất cả người chơi
         for (const [userId, bet] of Object.entries(session.bets)) {
             const user = getUser(userId);
             user.balance += bet.amount;
@@ -135,7 +135,6 @@ client.once('clientReady', async () => {
         
         saveDB();
         
-        // Gửi thông báo vào channel
         try {
             const channel = await client.channels.fetch(session.channelId);
             const embed = new EmbedBuilder()
@@ -155,12 +154,112 @@ Vui lòng bắt đầu phiên mới bằng lệnh \`.tx\`
             console.error('Không thể gửi thông báo hoàn tiền:', e);
         }
         
-        // Xóa phiên cược khỏi database
         database.activeBettingSession = null;
         saveDB();
     }
+    
+    // Backup khi khởi động
+    try {
+        const channel = await client.channels.fetch(BACKUP_CHANNEL_ID);
+        
+        const backup = JSON.stringify(database, null, 2);
+        const attachment = new AttachmentBuilder(Buffer.from(backup), { 
+            name: `startup_backup_${Date.now()}.json` 
+        });
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🚀 BOT VỪA KHỞI ĐỘNG')
+            .setColor('#2ecc71')
+            .setDescription(`
+Bot đã online và tạo backup khởi động!
+
+**Database hiện tại:**
+👥 Người chơi: ${Object.keys(database.users).length}
+📊 Lịch sử: ${database.history.length} phiên  
+🎰 Hũ: ${database.jackpot.toLocaleString('en-US')} Mcoin
+            `)
+            .setFooter({ text: 'Backup khi khởi động' })
+            .setTimestamp();
+        
+        await channel.send({ embeds: [embed], files: [attachment] });
+        console.log('✅ Backup khởi động thành công!');
+        
+    } catch (e) {
+        console.error('❌ Lỗi backup khởi động:', e.message);
+    }
 });
 
+// ===== AUTO BACKUP MỖI 6 GIỜ =====
+setInterval(async () => {
+    try {
+        const channel = await client.channels.fetch(BACKUP_CHANNEL_ID);
+        
+        const backup = JSON.stringify(database, null, 2);
+        const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+        const attachment = new AttachmentBuilder(Buffer.from(backup), { 
+            name: `auto_backup_${timestamp}.json` 
+        });
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🤖 AUTO BACKUP - 6 GIỜ')
+            .setColor('#3498db')
+            .setDescription(`
+**Thống kê database:**
+👥 Tổng người chơi: **${Object.keys(database.users).length}**
+📊 Lịch sử phiên: **${database.history.length}** phiên
+🎰 Hũ hiện tại: **${database.jackpot.toLocaleString('en-US')}** Mcoin
+💰 Tổng tiền hệ thống: **${Object.values(database.users).reduce((sum, u) => sum + u.balance, 0).toLocaleString('en-US')}** Mcoin
+⏳ Phiên đang chạy: ${database.activeBettingSession ? '✅ Có' : '❌ Không'}
+            `)
+            .setFooter({ text: 'Backup tự động mỗi 6 giờ' })
+            .setTimestamp();
+        
+        await channel.send({ embeds: [embed], files: [attachment] });
+        console.log(`✅ [${new Date().toLocaleString('vi-VN')}] Auto backup thành công!`);
+        
+    } catch (e) {
+        console.error('❌ Lỗi auto backup:', e.message);
+    }
+}, 6 * 60 * 60 * 1000);
+
+// ===== BACKUP KHI BOT TẮT =====
+process.on('SIGTERM', async () => {
+    console.log('⚠️ Bot nhận tín hiệu tắt, đang backup...');
+    
+    try {
+        const channel = await client.channels.fetch(BACKUP_CHANNEL_ID);
+        
+        const backup = JSON.stringify(database, null, 2);
+        const attachment = new AttachmentBuilder(Buffer.from(backup), { 
+            name: `shutdown_backup_${Date.now()}.json` 
+        });
+        
+        const embed = new EmbedBuilder()
+            .setTitle('⚠️ BACKUP KHẨN CẤP - BOT TẮT')
+            .setColor('#e74c3c')
+            .setDescription(`
+Bot đang tắt (deploy/restart), đã backup data!
+
+**Thống kê:**
+👥 Người chơi: ${Object.keys(database.users).length}
+📊 Lịch sử: ${database.history.length} phiên
+🎰 Hũ: ${database.jackpot.toLocaleString('en-US')} Mcoin
+            `)
+            .setTimestamp();
+        
+        await channel.send({ embeds: [embed], files: [attachment] });
+        console.log('✅ Backup trước khi tắt thành công!');
+        
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+    } catch (e) {
+        console.error('❌ Lỗi backup trước khi tắt:', e.message);
+    } finally {
+        process.exit(0);
+    }
+});
+
+// ===== GAME FUNCTIONS =====
 function rollDice() {
     const dice1 = Math.floor(Math.random() * 6) + 1;
     const dice2 = Math.floor(Math.random() * 6) + 1;
@@ -181,7 +280,6 @@ function checkJackpot(dice1, dice2, dice3) {
     return dice1 === dice2 && dice2 === dice3;
 }
 
-// Vẽ xúc xắc bằng Canvas
 function drawDice(number) {
     const canvas = createCanvas(100, 100);
     const ctx = canvas.getContext('2d');
@@ -287,7 +385,7 @@ function createHistoryChart() {
     return canvas.toBuffer();
 }
 
-// Commands
+// ===== COMMANDS =====
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     
@@ -308,7 +406,6 @@ client.on('messageCreate', async (message) => {
             phienNumber: (database.history.length + 1)
         };
         
-        // LƯU PHIÊN CƯỢC VÀO DATABASE
         database.activeBettingSession = {
             channelId: message.channel.id,
             bets: {},
@@ -405,20 +502,17 @@ client.on('messageCreate', async (message) => {
                     const user = getUser(userId);
                     let win = false;
                     
-                    // Update quest: Chơi phiên
                     updateQuest(userId, 1);
-                    
-                    // Update quest: Cược tổng
                     updateQuest(userId, 3, bet.amount);
                     
                     if (bet.type === 'tai' && result.tai) {
                         win = true;
                         user.tai++;
-                        updateQuest(userId, 4); // Thắng Tài
+                        updateQuest(userId, 4);
                     } else if (bet.type === 'xiu' && result.xiu) {
                         win = true;
                         user.xiu++;
-                        updateQuest(userId, 5); // Thắng Xỉu
+                        updateQuest(userId, 5);
                     } else if (bet.type === 'chan' && result.chan) {
                         win = true;
                         user.chan++;
@@ -434,7 +528,6 @@ client.on('messageCreate', async (message) => {
                         const winAmount = Math.floor(bet.amount * 1.9);
                         user.balance += winAmount;
                         
-                        // Update quest: Thắng
                         updateQuest(userId, 2);
                         
                         if (isJackpot) {
@@ -513,7 +606,7 @@ ${isJackpot && jackpotWinners.length === 0 ? '\n⚠️ **Không có người th�
         }, 5000);
     }
     
-    // Command: .daily - Nhiệm vụ hằng ngày
+    // Command: .daily
     if (command === '.daily') {
         const user = getUser(message.author.id);
         const quests = user.dailyQuests.quests;
@@ -545,7 +638,6 @@ ${streak < 3 ? '⚠️ Làm đủ nhiệm vụ 3 ngày liên tục để nhận 
             inline: false
         });
         
-        // Kiểm tra hoàn thành tất cả
         if (checkAllQuestsCompleted(message.author.id)) {
             const bonusReward = 5000000;
             const totalReward = quests.reduce((sum, q) => sum + q.reward, 0) + bonusReward;
@@ -563,7 +655,7 @@ ${streak < 3 ? '⚠️ Làm đủ nhiệm vụ 3 ngày liên tục để nhận 
         await message.reply({ embeds: [embed] });
     }
     
-    // Command: .claimall - Nhận thưởng khi hoàn thành tất cả
+    // Command: .claimall
     if (command === '.claimall') {
         const user = getUser(message.author.id);
         
@@ -688,159 +780,6 @@ ${multiplier === 2 ? '\n✨ **X2 nhờ chuỗi 3+ ngày làm nhiệm vụ!**' : 
         await message.reply({ embeds: [embed] });
     }
     
-    // Command: .dbinfo - Xem thông tin database (Admin only)
-    if (command === '.dbinfo') {
-        // Thay YOUR_DISCORD_ID bằng ID Discord của bạn
-        const ADMIN_ID = '1100660298073002004'; // Lấy ID: click chuột phải vào tên → Copy ID
-        
-        if (message.author.id !== ADMIN_ID) {
-            return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
-        }
-        
-        const totalUsers = Object.keys(database.users).length;
-        const totalBalance = Object.values(database.users).reduce((sum, u) => sum + u.balance, 0);
-        const totalHistory = database.history.length;
-        const dbExists = fs.existsSync(DB_PATH);
-        
-        let dbSize = 0;
-        if (dbExists) {
-            const stats = fs.statSync(DB_PATH);
-            dbSize = (stats.size / 1024).toFixed(2); // KB
-        }
-        
-        const embed = new EmbedBuilder()
-            .setTitle('🗄️ THÔNG TIN DATABASE')
-            .setColor('#3498db')
-            .setDescription(`
-**File:** ${dbExists ? '✅ Tồn tại' : '❌ Không tồn tại'}
-**Đường dẫn:** \`${DB_PATH}\`
-**Kích thước:** ${dbSize} KB
-            `)
-            .addFields(
-                { name: '👥 Tổng người chơi', value: `${totalUsers}`, inline: true },
-                { name: '💰 Tổng tiền hệ thống', value: `${totalBalance.toLocaleString('en-US')}`, inline: true },
-                { name: '📊 Lịch sử phiên', value: `${totalHistory}`, inline: true },
-                { name: '🎰 Hũ hiện tại', value: `${database.jackpot.toLocaleString('en-US')}`, inline: true },
-                { name: '⏳ Phiên đang chạy', value: database.activeBettingSession ? '✅ Có' : '❌ Không', inline: true },
-                { name: '⏰ Uptime', value: `${Math.floor(process.uptime() / 60)} phút`, inline: true }
-            )
-            .setFooter({ text: `Bot: ${client.user.tag}` })
-            .setTimestamp();
-        
-        await message.reply({ embeds: [embed] });
-    }
-    
-    // Command: .backup - Backup database (Admin only)
-    if (command === '.backup') {
-        const ADMIN_ID = '1100660298073002004'; // Thay bằng ID của bạn
-        
-        if (message.author.id !== ADMIN_ID) {
-            return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
-        }
-        
-        const backup = JSON.stringify(database, null, 2);
-        const attachment = new AttachmentBuilder(Buffer.from(backup), { 
-            name: `backup_${new Date().toISOString().split('T')[0]}.json` 
-        });
-        
-        const embed = new EmbedBuilder()
-            .setTitle('📦 DATABASE BACKUP')
-            .setColor('#2ecc71')
-            .setDescription(`
-Backup được tạo lúc: ${new Date().toLocaleString('vi-VN')}
-
-**Thống kê:**
-- Người chơi: ${Object.keys(database.users).length}
-- Lịch sử: ${database.history.length} phiên
-- Hũ: ${database.jackpot.toLocaleString('en-US')} Mcoin
-
-**Lưu ý:** Tải file này về và giữ an toàn!
-            `)
-            .setTimestamp();
-        
-        await message.reply({ 
-            embeds: [embed],
-            files: [attachment] 
-        });
-    }
-    
-    // Command: .restore - Restore database từ backup (Admin only)
-    if (command === '.restore') {
-        const ADMIN_ID = '1100660298073002004';
-        
-        if (message.author.id !== ADMIN_ID) {
-            return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
-        }
-        
-        return message.reply(`
-📥 **HƯỚNG DẪN RESTORE DATABASE:**
-
-1️⃣ Gửi file backup \`.json\` vào channel này
-2️⃣ Kèm theo comment: \`restore confirm\`
-3️⃣ Bot sẽ tự động restore
-
-⚠️ **Cảnh báo:** Restore sẽ GHI ĐÈ toàn bộ data hiện tại!
-        `);
-    }
-    
-    // Xử lý restore khi gửi file kèm "restore confirm"
-    if (message.content.toLowerCase() === 'restore confirm' && message.attachments.size > 0) {
-        const ADMIN_ID = '1100660298073002004';
-        
-        if (message.author.id !== ADMIN_ID) {
-            return message.reply('❌ Chỉ admin mới được restore database!');
-        }
-        
-        const attachment = message.attachments.first();
-        
-        if (!attachment.name.endsWith('.json')) {
-            return message.reply('❌ File phải có định dạng `.json`!');
-        }
-        
-        try {
-            // Tải file backup
-            const response = await fetch(attachment.url);
-            const backupData = await response.json();
-            
-            // Kiểm tra cấu trúc data
-            if (!backupData.users || !backupData.history) {
-                return message.reply('❌ File backup không đúng định dạng!');
-            }
-            
-            // Backup data cũ trước khi restore (phòng ngừa)
-            const oldBackup = JSON.stringify(database, null, 2);
-            fs.writeFileSync('./database/backup_before_restore.json', oldBackup);
-            
-            // Restore data mới
-            database = backupData;
-            saveDB();
-            
-            const embed = new EmbedBuilder()
-                .setTitle('✅ RESTORE THÀNH CÔNG!')
-                .setColor('#2ecc71')
-                .setDescription(`
-Database đã được khôi phục từ backup!
-
-**Thống kê sau restore:**
-- Người chơi: ${Object.keys(database.users).length}
-- Lịch sử: ${database.history.length} phiên
-- Hũ: ${database.jackpot.toLocaleString('en-US')} Mcoin
-- Phiên đang chạy: ${database.activeBettingSession ? '✅ Có' : '❌ Không'}
-
-🔒 **Data cũ đã được backup tại:** \`./database/backup_before_restore.json\`
-                `)
-                .setTimestamp();
-            
-            await message.reply({ embeds: [embed] });
-            
-            console.log('✅ Database restored successfully!');
-            
-        } catch (error) {
-            console.error('❌ Lỗi restore:', error);
-            return message.reply(`❌ Lỗi khi restore database:\n\`\`\`${error.message}\`\`\``);
-        }
-    }
-    
     // Command: .tang
     if (command === '.tang' || command === '.give') {
         const targetUser = message.mentions.users.first();
@@ -881,9 +820,261 @@ Database đã được khôi phục từ backup!
         
         await message.reply({ embeds: [embed] });
     }
+    
+    // Command: .backupnow (Admin only)
+    if (command === '.backupnow') {
+        if (message.author.id !== ADMIN_ID) {
+            return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+        }
+        
+        try {
+            const backup = JSON.stringify(database, null, 2);
+            const attachment = new AttachmentBuilder(Buffer.from(backup), { 
+                name: `manual_backup_${Date.now()}.json` 
+            });
+            
+            const embed = new EmbedBuilder()
+                .setTitle('💾 BACKUP THỦ CÔNG')
+                .setColor('#9b59b6')
+                .setDescription(`
+**Backup được tạo bởi:** <@${message.author.id}>
+
+**Thống kê:**
+👥 Người chơi: ${Object.keys(database.users).length}
+📊 Lịch sử: ${database.history.length} phiên
+🎰 Hũ: ${database.jackpot.toLocaleString('en-US')} Mcoin
+💰 Tổng tiền: ${Object.values(database.users).reduce((sum, u) => sum + u.balance, 0).toLocaleString('en-US')} Mcoin
+⏳ Phiên chạy: ${database.activeBettingSession ? '✅ Có' : '❌ Không'}
+                `)
+                .setFooter({ text: 'Backup thủ công' })
+                .setTimestamp();
+            
+            await message.reply({ embeds: [embed], files: [attachment] });
+            
+        } catch (e) {
+            return message.reply(`❌ Lỗi tạo backup: \`${e.message}\``);
+        }
+    }
+    
+    // Command: .dbinfo (Admin only)
+    if (command === '.dbinfo') {
+        if (message.author.id !== ADMIN_ID) {
+            return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+        }
+        
+        const totalUsers = Object.keys(database.users).length;
+        const totalBalance = Object.values(database.users).reduce((sum, u) => sum + u.balance, 0);
+        const totalHistory = database.history.length;
+        const dbExists = fs.existsSync(DB_PATH);
+        
+        let dbSize = 0;
+        if (dbExists) {
+            const stats = fs.statSync(DB_PATH);
+            dbSize = (stats.size / 1024).toFixed(2);
+        }
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🗄️ THÔNG TIN DATABASE')
+            .setColor('#3498db')
+            .setDescription(`
+**File:** ${dbExists ? '✅ Tồn tại' : '❌ Không tồn tại'}
+**Đường dẫn:** \`${DB_PATH}\`
+**Kích thước:** ${dbSize} KB
+            `)
+            .addFields(
+                { name: '👥 Tổng người chơi', value: `${totalUsers}`, inline: true },
+                { name: '💰 Tổng tiền hệ thống', value: `${totalBalance.toLocaleString('en-US')}`, inline: true },
+                { name: '📊 Lịch sử phiên', value: `${totalHistory}`, inline: true },
+                { name: '🎰 Hũ hiện tại', value: `${database.jackpot.toLocaleString('en-US')}`, inline: true },
+                { name: '⏳ Phiên đang chạy', value: database.activeBettingSession ? '✅ Có' : '❌ Không', inline: true },
+                { name: '⏰ Uptime', value: `${Math.floor(process.uptime() / 60)} phút`, inline: true }
+            )
+            .setFooter({ text: `Bot: ${client.user.tag}` })
+            .setTimestamp();
+        
+        await message.reply({ embeds: [embed] });
+    }
+    
+    // Command: .backup (Admin only)
+    if (command === '.backup') {
+        if (message.author.id !== ADMIN_ID) {
+            return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+        }
+        
+        const backup = JSON.stringify(database, null, 2);
+        const attachment = new AttachmentBuilder(Buffer.from(backup), { 
+            name: `backup_${new Date().toISOString().split('T')[0]}.json` 
+        });
+        
+        const embed = new EmbedBuilder()
+            .setTitle('📦 DATABASE BACKUP')
+            .setColor('#2ecc71')
+            .setDescription(`
+Backup được tạo lúc: ${new Date().toLocaleString('vi-VN')}
+
+**Thống kê:**
+- Người chơi: ${Object.keys(database.users).length}
+- Lịch sử: ${database.history.length} phiên
+- Hũ: ${database.jackpot.toLocaleString('en-US')} Mcoin
+
+**Lưu ý:** Tải file này về và giữ an toàn!
+            `)
+            .setTimestamp();
+        
+        await message.reply({ 
+            embeds: [embed],
+            files: [attachment] 
+        });
+    }
+    
+    // Command: .restore (Admin only)
+    if (command === '.restore') {
+        if (message.author.id !== ADMIN_ID) {
+            return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+        }
+        
+        return message.reply(`
+📥 **HƯỚNG DẪN RESTORE DATABASE:**
+
+1️⃣ Gửi file backup \`.json\` vào channel này
+2️⃣ Kèm theo comment: \`restore confirm\`
+3️⃣ Bot sẽ tự động restore
+
+⚠️ **Cảnh báo:** Restore sẽ GHI ĐÈ toàn bộ data hiện tại!
+        `);
+    }
+    
+    // Xử lý restore khi gửi file kèm "restore confirm"
+    if (message.content.toLowerCase().includes('restore confirm') && message.attachments.size > 0) {
+        if (message.author.id !== ADMIN_ID) {
+            return message.reply('❌ Chỉ admin mới được restore database!');
+        }
+        
+        const attachment = message.attachments.first();
+        
+        if (!attachment.name.endsWith('.json')) {
+            return message.reply('❌ File phải có định dạng `.json`!');
+        }
+        
+        const processingMsg = await message.reply('⏳ Đang xử lý restore...');
+        
+        try {
+            const backupData = await new Promise((resolve, reject) => {
+                https.get(attachment.url, (res) => {
+                    let data = '';
+                    
+                    if (res.statusCode !== 200) {
+                        reject(new Error(`HTTP Error: ${res.statusCode}`));
+                        return;
+                    }
+                    
+                    res.setEncoding('utf8');
+                    res.on('data', chunk => data += chunk);
+                    res.on('end', () => {
+                        try {
+                            resolve(JSON.parse(data));
+                        } catch (e) {
+                            reject(new Error('File JSON không hợp lệ hoặc bị lỗi'));
+                        }
+                    });
+                }).on('error', (e) => {
+                    reject(new Error(`Không thể tải file: ${e.message}`));
+                });
+            });
+            
+            if (!backupData.users || typeof backupData.users !== 'object') {
+                return processingMsg.edit('❌ File backup thiếu hoặc sai cấu trúc `users`!');
+            }
+            
+            if (!Array.isArray(backupData.history)) {
+                return processingMsg.edit('❌ File backup thiếu hoặc sai cấu trúc `history`!');
+            }
+            
+            const oldBackup = JSON.stringify(database, null, 2);
+            const backupDir = './database';
+            if (!fs.existsSync(backupDir)) {
+                fs.mkdirSync(backupDir, { recursive: true });
+            }
+            fs.writeFileSync('./database/backup_before_restore.json', oldBackup);
+            
+            database = backupData;
+            
+            if (typeof database.jackpot !== 'number') database.jackpot = 0;
+            if (!database.lastCheckin) database.lastCheckin = {};
+            if (database.activeBettingSession !== null && typeof database.activeBettingSession !== 'object') {
+                database.activeBettingSession = null;
+            }
+            
+            saveDB();
+            
+            const embed = new EmbedBuilder()
+                .setTitle('✅ RESTORE THÀNH CÔNG!')
+                .setColor('#2ecc71')
+                .setDescription(`
+Database đã được khôi phục từ backup!
+
+**Thống kê sau restore:**
+👥 Người chơi: **${Object.keys(database.users).length}**
+📊 Lịch sử: **${database.history.length}** phiên
+🎰 Hũ: **${database.jackpot.toLocaleString('en-US')}** Mcoin
+⏳ Phiên đang chạy: ${database.activeBettingSession ? '✅ Có' : '❌ Không'}
+
+🔒 **Data cũ đã backup tại:** \`./database/backup_before_restore.json\`
+                `)
+                .setFooter({ text: 'Đã restore lúc' })
+                .setTimestamp();
+            
+            await processingMsg.edit({ content: null, embeds: [embed] });
+            
+            console.log('✅ Database restored successfully by', message.author.tag);
+            
+        } catch (error) {
+            console.error('❌ Lỗi restore:', error);
+            return processingMsg.edit({
+                content: `❌ **Lỗi khi restore database:**\n\`\`\`${error.message}\`\`\`\n\n💡 Kiểm tra:\n- File JSON có đúng format không?\n- File có bị lỗi/hỏng không?`
+            });
+        }
+    }
+    
+    // Command: .help
+    if (command === '.help' || command === '.h') {
+        const embed = new EmbedBuilder()
+            .setTitle('📚 HƯỚNG DẪN SỬ DỤNG BOT')
+            .setColor('#3498db')
+            .setDescription('**Danh sách lệnh:**')
+            .addFields(
+                { 
+                    name: '🎲 Game Tài Xỉu', 
+                    value: '`.tx` - Bắt đầu phiên cược mới\n`.lichsu` hoặc `.ls` - Xem lịch sử 20 phiên', 
+                    inline: false 
+                },
+                { 
+                    name: '💰 Quản lý tiền', 
+                    value: '`.mcoin` - Xem số dư và thống kê\n`.tang @user [số tiền]` - Tặng tiền cho người khác\n`.diemdanh` hoặc `.dd` - Điểm danh nhận 3M (8h/lần)', 
+                    inline: false 
+                },
+                { 
+                    name: '📋 Nhiệm vụ', 
+                    value: '`.daily` - Xem nhiệm vụ hằng ngày\n`.claimall` - Nhận thưởng khi hoàn thành tất cả', 
+                    inline: false 
+                }
+            )
+            .setFooter({ text: 'Chúc bạn chơi vui vẻ! 🎉' })
+            .setTimestamp();
+        
+        if (message.author.id === ADMIN_ID) {
+            embed.addFields({
+                name: '🔧 Lệnh Admin',
+                value: '`.dbinfo` - Thông tin database\n`.backup` - Tạo backup\n`.backupnow` - Backup thủ công\n`.restore` - Khôi phục database',
+                inline: false
+            });
+        }
+        
+        await message.reply({ embeds: [embed] });
+    }
 });
 
-// Button & Modal handlers
+// ===== BUTTON & MODAL HANDLERS =====
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton()) {
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
@@ -971,7 +1162,6 @@ client.on('interactionCreate', async (interaction) => {
             amount: amount
         };
         
-        // LƯU VÀO DATABASE
         database.activeBettingSession.bets[interaction.user.id] = {
             type: betType,
             amount: amount
@@ -998,17 +1188,14 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
+// ===== LOGIN & KEEP ALIVE =====
 client.login(process.env.TOKEN);
 
-// Keep bot alive on Render
-const http = require('http');
 const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Bot is running!');
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is running!');
 });
+
 server.listen(process.env.PORT || 3000, () => {
-  console.log("🌐 Server is running to keep Render alive.");
+    console.log("🌐 Server is running to keep Render alive.");
 });
-
-
-
