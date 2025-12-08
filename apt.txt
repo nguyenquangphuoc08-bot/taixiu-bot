@@ -1,0 +1,6 @@
+libcairo2
+libpango1.0-0
+libjpeg62-turbo
+libpng16-16
+libgif7
+librsvg2-2
