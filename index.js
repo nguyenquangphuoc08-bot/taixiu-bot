@@ -1479,6 +1479,8 @@ newEmbed.spliceFields(1, 1, {
     value: Object.keys(bettingSession?.bets || {}).length,
     inline: true
 });
+
+}
             
 } catch (e) {
     console.log("❌ Lỗi khi update embed:", e);
@@ -1496,6 +1498,7 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
+
 
 
 
