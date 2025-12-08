@@ -691,7 +691,7 @@ ${multiplier === 2 ? '\n✨ **X2 nhờ chuỗi 3+ ngày làm nhiệm vụ!**' : 
     // Command: .dbinfo - Xem thông tin database (Admin only)
     if (command === '.dbinfo') {
         // Thay YOUR_DISCORD_ID bằng ID Discord của bạn
-        const ADMIN_ID = 'YOUR_DISCORD_ID'; // Lấy ID: click chuột phải vào tên → Copy ID
+        const ADMIN_ID = '1100660298073002004'; // Lấy ID: click chuột phải vào tên → Copy ID
         
         if (message.author.id !== ADMIN_ID) {
             return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
@@ -732,7 +732,7 @@ ${multiplier === 2 ? '\n✨ **X2 nhờ chuỗi 3+ ngày làm nhiệm vụ!**' : 
     
     // Command: .backup - Backup database (Admin only)
     if (command === '.backup') {
-        const ADMIN_ID = 'YOUR_DISCORD_ID'; // Thay bằng ID của bạn
+        const ADMIN_ID = '1100660298073002004'; // Thay bằng ID của bạn
         
         if (message.author.id !== ADMIN_ID) {
             return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
@@ -951,3 +951,4 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
   console.log("🌐 Server is running to keep Render alive.");
 });
+
