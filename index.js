@@ -1328,6 +1328,11 @@ ${result.usesLeft > 0 ? `⏳ Code còn **${result.usesLeft} lượt**` : '🔒 C
                     name: '📋 Nhiệm vụ', 
                     value: '`.daily` - Xem nhiệm vụ hằng ngày\n`.claimall` - Nhận thưởng khi hoàn thành tất cả', 
                     inline: false 
+                },
+                { 
+                    name: '🎁 Giftcode', 
+                    value: '`.code <code>` - Nhập giftcode nhận thưởng', 
+                    inline: false 
                 }
             )
             .setFooter({ text: 'Chúc bạn chơi vui vẻ! 🎉' })
@@ -1338,12 +1343,16 @@ ${result.usesLeft > 0 ? `⏳ Code còn **${result.usesLeft} lượt**` : '🔒 C
                 name: '🔧 Lệnh Admin',
                 value: '`.dbinfo` - Thông tin database\n`.backup` - Tạo backup\n`.backupnow` - Backup thủ công\n`.restore` - Khôi phục database',
                 inline: false
+            },
+            {
+                name: '🎁 Quản lý Giftcode (Admin)',
+                value: '`.giftcode [tiền] [giờ]` - Tạo code\n`.codelist` - Xem danh sách code\n`.delcode <code>` - Xóa 1 code\n`.delallcode` - Xóa tất cả code',
+                inline: false
             });
         }
         
         await message.reply({ embeds: [embed] });
     }
-});
 
 // ===== BUTTON & MODAL HANDLERS =====
 client.on('interactionCreate', async (interaction) => {
@@ -1470,6 +1479,7 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
+
 
 
 
