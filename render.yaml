@@ -4,8 +4,8 @@ services:
     env: node
     plan: free
     region: singapore
-    buildCommand: |
-      apt-get update
-      apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev pixman
-      npm install
+    buildCommand: chmod +x render-build.sh && ./render-build.sh
     startCommand: node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
