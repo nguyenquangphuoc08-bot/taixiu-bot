@@ -1486,7 +1486,9 @@ await msg.edit({ embeds: [newEmbed] });
             console.log("❌ Lỗi khi update embed:", e);
         }
     }
-});  // Đóng client.on('interactionCreate')
+});
+
+});
 
 // ===== LOGIN & KEEP ALIVE =====
 client.login(process.env.TOKEN);
