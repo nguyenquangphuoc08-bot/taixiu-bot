@@ -1,7 +1,7 @@
-libcairo2
-libpango1.0-0
-libjpeg62-turbo
-libpng16-16
-libgif7
-librsvg2-2
-fonts-dejavu
+build-essential
+libcairo2-dev
+libpango1.0-dev
+libjpeg-dev
+libgif-dev
+libpixman-1-dev
+fonts-dejavu-core
