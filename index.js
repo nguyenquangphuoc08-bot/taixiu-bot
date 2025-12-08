@@ -1454,18 +1454,37 @@ client.on('interactionCreate', async (interaction) => {
         });
         
         try {
-            const channel = await client.channels.fetch(bettingSession.channelId);
-            const msg = await channel.messages.fetch(bettingSession.messageId);
-            const embed = msg.embeds[0];
-            const newEmbed = EmbedBuilder.from(embed);
-            newEmbed.spliceFields(1, 1, { 
-                name: '👥 Người chơi', 
-                value: Object.keys(bettingSession.bets).length.toString(), 
-                inline: true 
-            });
-            await msg.edit({ embeds: [newEmbed] });
-        } catch (e) {}
+    const channel = await client.channels.fetch(bettingSession.channelId).catch(() => null);
+    if (!channel) {
+        console.log("⚠ Không tìm thấy kênh.");
+        return;
     }
+
+    const msg = await channel.messages.fetch(bettingSession.messageId).catch(() => null);
+    if (!msg) {
+        console.log("⚠ Không tìm thấy tin nhắn để cập nhật.");
+        return;
+    }
+
+    if (!msg.embeds || !msg.embeds[0]) {
+        console.log("⚠ Tin nhắn không có embed.");
+        return;
+    }
+
+    const embed = msg.embeds[0];
+    const newEmbed = EmbedBuilder.from(embed);
+
+    newEmbed.spliceFields(1, 1, {
+        name: "👥 Người chơi",
+        value: Object.keys(bettingSession.bets).length.toString(),
+        inline: true
+    });
+
+    await msg.edit({ embeds: [newEmbed] });
+
+} catch (e) {
+    console.log("❌ Lỗi khi update embed:", e);
+        }
 });
 
 // ===== LOGIN & KEEP ALIVE =====
@@ -1479,3 +1498,4 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
+
