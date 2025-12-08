@@ -1,18 +1,16 @@
 {
-  "name": "discord-taixiu-bot",
-  "version": "2.0.0",
-  "description": "Bot Tai Xiu Discord",
+  "name": "taixiu-bot",
+  "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "discord.js": "14.14.1",
-    "dotenv": "16.3.1",
-    "canvas": "2.11.2"
+    "discord.js": "^14.14.1",
+    "canvas": "^2.11.2",
+    "dotenv": "^16.3.1"
   },
   "engines": {
     "node": "18.x"
   }
 }
-
