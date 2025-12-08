@@ -1,6 +1,7 @@
+{
   "name": "discord-taixiu-bot",
   "version": "2.0.0",
-  "description": "Bot game Tài Xỉu Discord với backup hệ thống",
+  "description": "Bot game Tai Xiu Discord voi backup he thong",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -21,4 +22,4 @@
   "engines": {
     "node": ">=18.0.0"
   }
-
+}
