@@ -1476,16 +1476,17 @@ const newEmbed = EmbedBuilder.from(embed);
 
 newEmbed.spliceFields(1, 1, {
     name: "👥 Người chơi",
-    value: Object.keys(bettingSession?.bets || {}).length,
+    value: Object.keys(bettingSession?.bets || {}).length.toString(),
     inline: true
 });
 
-}
-            
+await msg.edit({ embeds: [newEmbed] });
+
 } catch (e) {
     console.log("❌ Lỗi khi update embed:", e);
-        }
 }
+    }
+});
 
 // ===== LOGIN & KEEP ALIVE =====
 client.login(process.env.TOKEN);
@@ -1498,6 +1499,7 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
+
 
 
 
