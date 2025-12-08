@@ -779,8 +779,66 @@ Backup được tạo lúc: ${new Date().toLocaleString('vi-VN')}
 2️⃣ Kèm theo comment: \`restore confirm\`
 3️⃣ Bot sẽ tự động restore
 
-⚠️ **Cảnh bánh:** Restore sẽ GHI ĐÈ toàn bộ data hiện tại!
+⚠️ **Cảnh báo:** Restore sẽ GHI ĐÈ toàn bộ data hiện tại!
         `);
+    }
+    
+    // Xử lý restore khi gửi file kèm "restore confirm"
+    if (message.content.toLowerCase() === 'restore confirm' && message.attachments.size > 0) {
+        const ADMIN_ID = '1100660298073002004';
+        
+        if (message.author.id !== ADMIN_ID) {
+            return message.reply('❌ Chỉ admin mới được restore database!');
+        }
+        
+        const attachment = message.attachments.first();
+        
+        if (!attachment.name.endsWith('.json')) {
+            return message.reply('❌ File phải có định dạng `.json`!');
+        }
+        
+        try {
+            // Tải file backup
+            const response = await fetch(attachment.url);
+            const backupData = await response.json();
+            
+            // Kiểm tra cấu trúc data
+            if (!backupData.users || !backupData.history) {
+                return message.reply('❌ File backup không đúng định dạng!');
+            }
+            
+            // Backup data cũ trước khi restore (phòng ngừa)
+            const oldBackup = JSON.stringify(database, null, 2);
+            fs.writeFileSync('./database/backup_before_restore.json', oldBackup);
+            
+            // Restore data mới
+            database = backupData;
+            saveDB();
+            
+            const embed = new EmbedBuilder()
+                .setTitle('✅ RESTORE THÀNH CÔNG!')
+                .setColor('#2ecc71')
+                .setDescription(`
+Database đã được khôi phục từ backup!
+
+**Thống kê sau restore:**
+- Người chơi: ${Object.keys(database.users).length}
+- Lịch sử: ${database.history.length} phiên
+- Hũ: ${database.jackpot.toLocaleString('en-US')} Mcoin
+- Phiên đang chạy: ${database.activeBettingSession ? '✅ Có' : '❌ Không'}
+
+🔒 **Data cũ đã được backup tại:** \`./database/backup_before_restore.json\`
+                `)
+                .setTimestamp();
+            
+            await message.reply({ embeds: [embed] });
+            
+            console.log('✅ Database restored successfully!');
+            
+        } catch (error) {
+            console.error('❌ Lỗi restore:', error);
+            return message.reply(`❌ Lỗi khi restore database:\n\`\`\`${error.message}\`\`\``);
+        }
     }
     
     // Command: .tang
@@ -951,5 +1009,6 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
   console.log("🌐 Server is running to keep Render alive.");
 });
+
 
 
