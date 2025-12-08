@@ -5,6 +5,16 @@ const fs = require('fs');
 const https = require('https');
 const http = require('http');
 
+// TEST CANVAS NGAY KHI LOAD
+console.log('🧪 Testing Canvas module...');
+console.log('   createCanvas type:', typeof createCanvas);
+try {
+    const testCanvas = createCanvas(100, 100);
+    console.log('   ✅ Canvas test: OK');
+} catch (e) {
+    console.error('   ❌ Canvas test FAILED:', e.message);
+}
+console.log('');
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -139,6 +149,13 @@ function checkJackpot(dice1, dice2, dice3) {
 
 function drawDice(number) {
     try {
+        console.log(`🎲 Drawing dice: ${number}`);
+        
+        // Kiểm tra module canvas
+        if (typeof createCanvas !== 'function') {
+            console.error('❌ createCanvas is not a function! Canvas module not loaded properly.');
+            return null;
+        }
         const canvas = createCanvas(100, 100);
         const ctx = canvas.getContext('2d');
         
@@ -184,33 +201,64 @@ function drawDice(number) {
 
 function createDiceImage(dice1, dice2, dice3) {
     try {
-        console.log(`🎲 Creating dice image: ${dice1}-${dice2}-${dice3}`);
+        console.log(`🎲 [createDiceImage] Starting: ${dice1}-${dice2}-${dice3}`);
+        
+        // Test canvas availability
+        if (typeof createCanvas !== 'function') {
+            console.error('❌ [createDiceImage] createCanvas is not a function!');
+            console.error('Canvas module:', typeof createCanvas);
+            return null;
+        }
+        
+        console.log('✅ [createDiceImage] Canvas module OK');
         
         const canvas = createCanvas(340, 130);
         const ctx = canvas.getContext('2d');
         
+        if (!ctx) {
+            console.error('❌ [createDiceImage] Cannot get canvas context!');
+            return null;
+        }
+        
+        console.log('✅ [createDiceImage] Context created');
+        
         // Nền trong suốt
         ctx.clearRect(0, 0, 340, 130);
         
+        console.log('🎨 [createDiceImage] Drawing individual dice...');
         const d1 = drawDice(dice1);
         const d2 = drawDice(dice2);
         const d3 = drawDice(dice3);
         
         if (!d1 || !d2 || !d3) {
-            console.error('Failed to create dice canvases');
+            console.error('❌ [createDiceImage] Failed to create dice canvases');
+            console.error(`   d1: ${!!d1}, d2: ${!!d2}, d3: ${!!d3}`);
             return null;
         }
         
+        console.log('✅ [createDiceImage] All dice created');
+        
+        // Vẽ 3 con xúc xắc
         ctx.drawImage(d1, 10, 15, 100, 100);
         ctx.drawImage(d2, 120, 15, 100, 100);
         ctx.drawImage(d3, 230, 15, 100, 100);
         
+        console.log('✅ [createDiceImage] Dice drawn on canvas');
+        
+        // Tạo buffer
         const buffer = canvas.toBuffer('image/png');
-        console.log('✅ Dice image created successfully!');
+        
+        if (!buffer || buffer.length === 0) {
+            console.error('❌ [createDiceImage] Buffer is empty or invalid');
+            return null;
+        }
+        
+        console.log(`✅ [createDiceImage] SUCCESS! Buffer size: ${buffer.length} bytes`);
         return buffer;
         
     } catch (error) {
-        console.error('❌ Error creating dice image:', error.message);
+        console.error('❌ [createDiceImage] EXCEPTION:', error.message);
+        console.error('Stack trace:', error.stack);
         return null;
     }
 }
@@ -1275,3 +1323,4 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
+
