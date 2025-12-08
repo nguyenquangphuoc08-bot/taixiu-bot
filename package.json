@@ -1,25 +1,18 @@
 {
   "name": "discord-taixiu-bot",
   "version": "2.0.0",
-  "description": "Bot game Tai Xiu Discord voi backup he thong",
+  "description": "Bot Tai Xiu Discord",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": [
-    "discord",
-    "bot",
-    "taixiu",
-    "game"
-  ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "dotenv": "^16.3.1",
-    "canvas": "^2.11.2"
+    "discord.js": "14.14.1",
+    "dotenv": "16.3.1",
+    "canvas": "2.11.2"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.x"
   }
 }
+
