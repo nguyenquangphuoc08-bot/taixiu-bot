@@ -12,6 +12,13 @@ const client = new Client({
 });
 
 // ===== SAFE DEPLOY: Lưu phiên cược vào database =====
+const DB_PATH = './database/database.json';
+
+// Tạo thư mục database nếu chưa có
+if (!fs.existsSync('./database')) {
+    fs.mkdirSync('./database', { recursive: true });
+}
+
 let database = {
     users: {},
     history: [],
@@ -20,12 +27,21 @@ let database = {
     activeBettingSession: null // Lưu phiên cược đang chạy
 };
 
-if (fs.existsSync('./database.json')) {
-    database = JSON.parse(fs.readFileSync('./database.json', 'utf8'));
+if (fs.existsSync(DB_PATH)) {
+    try {
+        database = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+        console.log('✅ Đã load database thành công!');
+    } catch (e) {
+        console.error('❌ Lỗi đọc database, tạo mới:', e);
+    }
 }
 
 function saveDB() {
-    fs.writeFileSync('./database.json', JSON.stringify(database, null, 2));
+    try {
+        fs.writeFileSync(DB_PATH, JSON.stringify(database, null, 2));
+    } catch (e) {
+        console.error('❌ Lỗi lưu database:', e);
+    }
 }
 
 function getUser(userId) {
