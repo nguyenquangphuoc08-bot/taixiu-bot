@@ -11,12 +11,13 @@ const client = new Client({
     ]
 });
 
-// Database
+// ===== SAFE DEPLOY: Lưu phiên cược vào database =====
 let database = {
     users: {},
     history: [],
     jackpot: 0,
-    lastCheckin: {}
+    lastCheckin: {},
+    activeBettingSession: null // Lưu phiên cược đang chạy
 };
 
 if (fs.existsSync('./database.json')) {
@@ -35,15 +36,114 @@ function getUser(userId) {
             xiu: 0,
             chan: 0,
             le: 0,
-            jackpotWins: 0
+            jackpotWins: 0,
+            dailyQuests: {
+                lastReset: new Date().toDateString(),
+                quests: generateDailyQuests(),
+                streak: 0,
+                lastCompleted: null
+            }
         };
         saveDB();
     }
+    
+    // Reset nhiệm vụ hằng ngày nếu qua ngày mới
+    const today = new Date().toDateString();
+    if (database.users[userId].dailyQuests.lastReset !== today) {
+        database.users[userId].dailyQuests.lastReset = today;
+        database.users[userId].dailyQuests.quests = generateDailyQuests();
+        
+        // Kiểm tra chuỗi: nếu hôm qua không hoàn thành → reset streak
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        if (database.users[userId].dailyQuests.lastCompleted !== yesterday.toDateString()) {
+            database.users[userId].dailyQuests.streak = 0;
+        }
+        
+        saveDB();
+    }
+    
     return database.users[userId];
+}
+
+// ===== DAILY QUESTS SYSTEM =====
+function generateDailyQuests() {
+    return [
+        { id: 1, name: '🎲 Chơi 5 phiên Tài Xỉu', target: 5, current: 0, reward: 1000000, completed: false },
+        { id: 2, name: '🎯 Thắng 3 lần cược', target: 3, current: 0, reward: 1000000, completed: false },
+        { id: 3, name: '💰 Cược tổng 500K Mcoin', target: 500000, current: 0, reward: 1000000, completed: false },
+        { id: 4, name: '🔵 Thắng Tài 2 lần', target: 2, current: 0, reward: 1000000, completed: false },
+        { id: 5, name: '🔴 Thắng Xỉu 2 lần', target: 2, current: 0, reward: 1000000, completed: false }
+    ];
+}
+
+function updateQuest(userId, questId, amount = 1) {
+    const user = getUser(userId);
+    const quest = user.dailyQuests.quests.find(q => q.id === questId);
+    
+    if (quest && !quest.completed) {
+        quest.current += amount;
+        if (quest.current >= quest.target) {
+            quest.current = quest.target;
+            quest.completed = true;
+        }
+        saveDB();
+    }
+}
+
+function checkAllQuestsCompleted(userId) {
+    const user = getUser(userId);
+    return user.dailyQuests.quests.every(q => q.completed);
 }
 
 // Quản lý phiên cược
 let bettingSession = null;
+
+// ===== KHÔI PHỤC PHIÊN CƯỢC SAU KHI RESTART =====
+client.once('ready', async () => {
+    console.log(`✅ Bot ${client.user.tag} đã online!`);
+    client.user.setActivity('.tx để chơi | .daily nhiệm vụ', { type: 'PLAYING' });
+    
+    // Kiểm tra phiên cược bị gián đoạn
+    if (database.activeBettingSession) {
+        console.log('🔄 Phát hiện phiên cược bị gián đoạn, đang hoàn tiền...');
+        
+        const session = database.activeBettingSession;
+        
+        // Hoàn tiền cho tất cả người chơi
+        for (const [userId, bet] of Object.entries(session.bets)) {
+            const user = getUser(userId);
+            user.balance += bet.amount;
+            console.log(`💰 Hoàn ${bet.amount} Mcoin cho user ${userId}`);
+        }
+        
+        saveDB();
+        
+        // Gửi thông báo vào channel
+        try {
+            const channel = await client.channels.fetch(session.channelId);
+            const embed = new EmbedBuilder()
+                .setTitle('⚠️ PHIÊN CƯỢC BỊ GIÁN ĐOẠN')
+                .setColor('#e67e22')
+                .setDescription(`
+Bot đã được cập nhật/restart trong lúc có phiên cược đang chạy.
+
+**✅ ĐÃ HOÀN TIỀN CHO TẤT CẢ NGƯỜI CHƠI**
+
+Vui lòng bắt đầu phiên mới bằng lệnh \`.tx\`
+                `)
+                .setTimestamp();
+            
+            await channel.send({ embeds: [embed] });
+        } catch (e) {
+            console.error('Không thể gửi thông báo hoàn tiền:', e);
+        }
+        
+        // Xóa phiên cược khỏi database
+        database.activeBettingSession = null;
+        saveDB();
+    }
+});
 
 function rollDice() {
     const dice1 = Math.floor(Math.random() * 6) + 1;
@@ -70,16 +170,13 @@ function drawDice(number) {
     const canvas = createCanvas(100, 100);
     const ctx = canvas.getContext('2d');
     
-    // Nền trắng
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, 100, 100);
     
-    // Viền đen
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 2;
     ctx.strokeRect(5, 5, 90, 90);
     
-    // Vẽ chấm đen
     ctx.fillStyle = '#000000';
     const dotSize = 10;
     
@@ -101,7 +198,6 @@ function drawDice(number) {
     return canvas;
 }
 
-// Tạo ảnh 3 xúc xắc
 function createDiceImage(dice1, dice2, dice3) {
     const canvas = createCanvas(330, 120);
     const ctx = canvas.getContext('2d');
@@ -119,17 +215,14 @@ function createDiceImage(dice1, dice2, dice3) {
     return canvas.toBuffer();
 }
 
-// Biểu đồ lịch sử đẹp
 function createHistoryChart() {
     const last20 = database.history.slice(-20);
     const canvas = createCanvas(800, 300);
     const ctx = canvas.getContext('2d');
     
-    // Nền
     ctx.fillStyle = '#2C2F33';
     ctx.fillRect(0, 0, 800, 300);
     
-    // Tiêu đề
     ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 20px Arial';
     ctx.fillText('LỊCH SỬ 20 PHIÊN GẦN NHẤT', 250, 30);
@@ -141,7 +234,6 @@ function createHistoryChart() {
         return canvas.toBuffer();
     }
     
-    // Vẽ biểu đồ cột
     const barWidth = 35;
     const spacing = 5;
     const maxHeight = 200;
@@ -151,23 +243,19 @@ function createHistoryChart() {
         const barHeight = (h.total / 18) * maxHeight;
         const y = 270 - barHeight;
         
-        // Màu cột
         ctx.fillStyle = h.tai ? '#3498db' : '#e74c3c';
         ctx.fillRect(x, y, barWidth, barHeight);
         
-        // Viền
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 1;
         ctx.strokeRect(x, y, barWidth, barHeight);
         
-        // Số
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 14px Arial';
         ctx.textAlign = 'center';
         ctx.fillText(h.total, x + barWidth / 2, y - 5);
     });
     
-    // Chú thích
     ctx.fillStyle = '#3498db';
     ctx.fillRect(20, 280, 20, 15);
     ctx.fillStyle = '#FFFFFF';
@@ -204,6 +292,14 @@ client.on('messageCreate', async (message) => {
             phienNumber: (database.history.length + 1)
         };
         
+        // LƯU PHIÊN CƯỢC VÀO DATABASE
+        database.activeBettingSession = {
+            channelId: message.channel.id,
+            bets: {},
+            startTime: Date.now()
+        };
+        saveDB();
+        
         const jackpotDisplay = database.jackpot ? database.jackpot.toLocaleString('en-US') : '0';
         
         const embed = new EmbedBuilder()
@@ -218,6 +314,7 @@ client.on('messageCreate', async (message) => {
 ✅ Thắng nhận **1.9x** tiền cược
 ❌ Thua mất tiền cược
 🎰 **Nổ hũ x20** khi 3 xúc xắc trùng nhau!
+⚠️ **Chỉ người THẮNG cược mới nhận hũ!**
 
 💎 **HŨ HIỆN TẠI: ${jackpotDisplay} Mcoin**
 📊 Mỗi cược cộng 2/3 vào hũ
@@ -252,7 +349,6 @@ client.on('messageCreate', async (message) => {
         const sentMessage = await message.reply({ embeds: [embed], components: [row] });
         bettingSession.messageId = sentMessage.id;
         
-        // Đếm ngược
         let timeLeft = 30;
         const countdown = setInterval(async () => {
             timeLeft -= 5;
@@ -273,10 +369,11 @@ client.on('messageCreate', async (message) => {
                         components: []
                     });
                     bettingSession = null;
+                    database.activeBettingSession = null;
+                    saveDB();
                     return;
                 }
                 
-                // Tung xúc xắc
                 const { dice1, dice2, dice3, total } = rollDice();
                 const result = checkResult(total);
                 const isJackpot = checkJackpot(dice1, dice2, dice3);
@@ -292,12 +389,20 @@ client.on('messageCreate', async (message) => {
                     const user = getUser(userId);
                     let win = false;
                     
+                    // Update quest: Chơi phiên
+                    updateQuest(userId, 1);
+                    
+                    // Update quest: Cược tổng
+                    updateQuest(userId, 3, bet.amount);
+                    
                     if (bet.type === 'tai' && result.tai) {
                         win = true;
                         user.tai++;
+                        updateQuest(userId, 4); // Thắng Tài
                     } else if (bet.type === 'xiu' && result.xiu) {
                         win = true;
                         user.xiu++;
+                        updateQuest(userId, 5); // Thắng Xỉu
                     } else if (bet.type === 'chan' && result.chan) {
                         win = true;
                         user.chan++;
@@ -306,32 +411,36 @@ client.on('messageCreate', async (message) => {
                         user.le++;
                     }
                     
-                    // Cộng 2/3 tiền cược vào hũ
                     const jackpotAdd = Math.floor(bet.amount * 2 / 3);
                     database.jackpot = (database.jackpot || 0) + jackpotAdd;
                     
                     if (win) {
                         const winAmount = Math.floor(bet.amount * 1.9);
                         user.balance += winAmount;
+                        
+                        // Update quest: Thắng
+                        updateQuest(userId, 2);
+                        
+                        if (isJackpot) {
+                            const currentJackpot = database.jackpot || 0;
+                            const jackpotAmount = currentJackpot * 20;
+                            user.balance += jackpotAmount;
+                            user.jackpotWins++;
+                            jackpotWinners.push(`<@${userId}>: +${jackpotAmount.toLocaleString('en-US')} 🎰💎`);
+                        }
+                        
                         winners.push(`<@${userId}>: +${winAmount.toLocaleString('en-US')} 💰`);
                     } else {
                         losers.push(`<@${userId}>: -${bet.amount.toLocaleString('en-US')} 💸`);
                     }
-                    
-                    // Nổ hũ - nhận x20 tiền hũ
-                    if (isJackpot) {
-                        const currentJackpot = database.jackpot || 0;
-                        const jackpotAmount = currentJackpot * 20;
-                        user.balance += jackpotAmount;
-                        user.jackpotWins++;
-                        jackpotWinners.push(`<@${userId}>: +${jackpotAmount.toLocaleString('en-US')} 🎰💎`);
-                        database.jackpot = 0; // Reset hũ sau khi nổ
-                    }
+                }
+                
+                if (isJackpot && jackpotWinners.length > 0) {
+                    database.jackpot = 0;
                 }
                 
                 saveDB();
                 
-                // Tạo ảnh xúc xắc
                 const diceBuffer = createDiceImage(dice1, dice2, dice3);
                 const attachment = new AttachmentBuilder(diceBuffer, { name: 'dice.png' });
                 
@@ -343,11 +452,12 @@ client.on('messageCreate', async (message) => {
 **⇒ Kết quả: ${dice1} + ${dice2} + ${dice3} = ${total}**
 **Chung cược: ${result.tai ? '🔵 TÀI' : '🔴 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
 ${isJackpot ? '\n🎰 **NỔ HŨ!!! 3 XÚC XẮC TRÙNG NHAU!!!** 🎰' : ''}
+${isJackpot && jackpotWinners.length === 0 ? '\n⚠️ **Không có người thắng - Hũ tiếp tục tăng!**' : ''}
                     `);
                 
                 if (isJackpot && jackpotWinners.length > 0) {
                     resultEmbed.addFields({
-                        name: '🎰 JACKPOT!!!',
+                        name: '🎰 JACKPOT - CHỈ NGƯỜI THẮNG NHẬN!!!',
                         value: jackpotWinners.join('\n'),
                         inline: false
                     });
@@ -381,13 +491,108 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! 3 XÚC XẮC TRÙNG NHAU!!!** 🎰' : ''}
                 });
                 
                 bettingSession = null;
+                database.activeBettingSession = null;
+                saveDB();
             }
         }, 5000);
+    }
+    
+    // Command: .daily - Nhiệm vụ hằng ngày
+    if (command === '.daily') {
+        const user = getUser(message.author.id);
+        const quests = user.dailyQuests.quests;
+        const streak = user.dailyQuests.streak;
+        
+        const embed = new EmbedBuilder()
+            .setTitle('📋 NHIỆM VỤ HẰNG NGÀY')
+            .setColor('#9b59b6')
+            .setDescription(`
+🔥 **Chuỗi ngày: ${streak} ngày** ${streak >= 3 ? '(x2 điểm danh!)' : ''}
+${streak >= 3 ? '✨ Làm đủ nhiệm vụ hôm nay để giữ chuỗi và nhận x2 điểm danh!' : ''}
+${streak < 3 ? '⚠️ Làm đủ nhiệm vụ 3 ngày liên tục để nhận x2 điểm danh!' : ''}
+            `);
+        
+        let questText = '';
+        let completedCount = 0;
+        
+        quests.forEach(q => {
+            const status = q.completed ? '✅' : '⏳';
+            const progress = `${q.current}/${q.target}`;
+            questText += `${status} **${q.name}**\n`;
+            questText += `   └ Tiến độ: ${progress} | Thưởng: ${q.reward.toLocaleString('en-US')} Mcoin\n\n`;
+            if (q.completed) completedCount++;
+        });
+        
+        embed.addFields({
+            name: `📊 Tiến độ: ${completedCount}/5 nhiệm vụ`,
+            value: questText,
+            inline: false
+        });
+        
+        // Kiểm tra hoàn thành tất cả
+        if (checkAllQuestsCompleted(message.author.id)) {
+            const bonusReward = 5000000;
+            const totalReward = quests.reduce((sum, q) => sum + q.reward, 0) + bonusReward;
+            
+            embed.addFields({
+                name: '🎉 HOÀN THÀNH TẤT CẢ!',
+                value: `Tổng thưởng: **${totalReward.toLocaleString('en-US')} Mcoin**\nGõ \`.claimall\` để nhận thưởng!`,
+                inline: false
+            });
+        }
+        
+        embed.setFooter({ text: 'Reset lúc 00:00 hằng ngày | Không làm = mất chuỗi' })
+            .setTimestamp();
+        
+        await message.reply({ embeds: [embed] });
+    }
+    
+    // Command: .claimall - Nhận thưởng khi hoàn thành tất cả
+    if (command === '.claimall') {
+        const user = getUser(message.author.id);
+        
+        if (!checkAllQuestsCompleted(message.author.id)) {
+            return message.reply('❌ Bạn chưa hoàn thành tất cả nhiệm vụ!');
+        }
+        
+        const quests = user.dailyQuests.quests;
+        const questReward = quests.reduce((sum, q) => sum + q.reward, 0);
+        const bonusReward = 5000000;
+        const totalReward = questReward + bonusReward;
+        
+        user.balance += totalReward;
+        user.dailyQuests.streak++;
+        user.dailyQuests.lastCompleted = new Date().toDateString();
+        saveDB();
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🎉 NHẬN THƯỞNG THÀNH CÔNG!')
+            .setColor('#2ecc71')
+            .setDescription(`
+Chúc mừng bạn đã hoàn thành tất cả nhiệm vụ hôm nay!
+
+💰 **Thưởng nhiệm vụ:** ${questReward.toLocaleString('en-US')} Mcoin
+🎁 **Thưởng hoàn thành:** ${bonusReward.toLocaleString('en-US')} Mcoin
+✨ **TỔNG:** ${totalReward.toLocaleString('en-US')} Mcoin
+
+🔥 **Chuỗi ngày mới:** ${user.dailyQuests.streak} ngày
+${user.dailyQuests.streak >= 3 ? '🎊 Bạn được nhận **X2 điểm danh** khi gõ .diemdanh!' : ''}
+            `)
+            .addFields({
+                name: '💎 Số dư mới',
+                value: `${user.balance.toLocaleString('en-US')} Mcoin`
+            })
+            .setTimestamp();
+        
+        await message.reply({ embeds: [embed] });
     }
     
     // Command: .mcoin
     if (command === '.mcoin') {
         const user = getUser(message.author.id);
+        const streak = user.dailyQuests.streak;
+        const completedQuests = user.dailyQuests.quests.filter(q => q.completed).length;
+        
         const embed = new EmbedBuilder()
             .setTitle('💰 SỐ DƯ CỦA BẠN')
             .setColor('#2ecc71')
@@ -398,14 +603,16 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! 3 XÚC XẮC TRÙNG NHAU!!!** 🎰' : ''}
                 { name: '🟣 Chẵn', value: `${user.chan}`, inline: true },
                 { name: '🟡 Lẻ', value: `${user.le}`, inline: true },
                 { name: '🎰 Nổ hũ', value: `${user.jackpotWins} lần`, inline: true },
-                { name: '💎 Hũ hiện tại', value: `${(database.jackpot || 0).toLocaleString('en-US')}`, inline: true }
+                { name: '💎 Hũ hiện tại', value: `${(database.jackpot || 0).toLocaleString('en-US')}`, inline: true },
+                { name: '🔥 Chuỗi ngày', value: `${streak} ngày ${streak >= 3 ? '(x2 DD!)' : ''}`, inline: true },
+                { name: '📋 Nhiệm vụ hôm nay', value: `${completedQuests}/5`, inline: true }
             )
             .setTimestamp();
         
         await message.reply({ embeds: [embed] });
     }
     
-    // Command: .ls / .lichsu
+    // Command: .lichsu
     if (command === '.lichsu' || command === '.ls') {
         const chartBuffer = createHistoryChart();
         const attachment = new AttachmentBuilder(chartBuffer, { name: 'history.png' });
@@ -434,7 +641,10 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! 3 XÚC XẮC TRÙNG NHAU!!!** 🎰' : ''}
         }
         
         const user = getUser(userId);
-        const reward = 3000000;
+        const streak = user.dailyQuests.streak;
+        const multiplier = streak >= 3 ? 2 : 1;
+        const reward = 3000000 * multiplier;
+        
         user.balance += reward;
         database.lastCheckin[userId] = now;
         saveDB();
@@ -442,18 +652,27 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! 3 XÚC XẮC TRÙNG NHAU!!!** 🎰' : ''}
         const embed = new EmbedBuilder()
             .setTitle('🎁 ĐIỂM DANH THÀNH CÔNG!')
             .setColor('#2ecc71')
-            .setDescription(`Bạn nhận được **${reward.toLocaleString('en-US')} Mcoin**!`)
-            .addFields({
-                name: '💰 Số dư mới',
-                value: `${user.balance.toLocaleString('en-US')} Mcoin`
-            })
-            .setFooter({ text: 'Quay lại sau 8 giờ để điểm danh tiếp!' })
+            .setDescription(`
+Bạn nhận được **${reward.toLocaleString('en-US')} Mcoin**!
+${multiplier === 2 ? '\n✨ **X2 nhờ chuỗi 3+ ngày làm nhiệm vụ!**' : ''}
+            `)
+            .addFields(
+                {
+                    name: '💰 Số dư mới',
+                    value: `${user.balance.toLocaleString('en-US')} Mcoin`
+                },
+                {
+                    name: '🔥 Chuỗi nhiệm vụ',
+                    value: `${streak} ngày ${streak >= 3 ? '(Đang x2!)' : '(Cần 3+ ngày để x2)'}`
+                }
+            )
+            .setFooter({ text: 'Quay lại sau 8 giờ | Làm .daily để giữ chuỗi!' })
             .setTimestamp();
         
         await message.reply({ embeds: [embed] });
     }
     
-    // Command: .tang [user] [amount]
+    // Command: .tang
     if (command === '.tang' || command === '.give') {
         const targetUser = message.mentions.users.first();
         const amount = parseInt(args[2]);
@@ -583,6 +802,13 @@ client.on('interactionCreate', async (interaction) => {
             amount: amount
         };
         
+        // LƯU VÀO DATABASE
+        database.activeBettingSession.bets[interaction.user.id] = {
+            type: betType,
+            amount: amount
+        };
+        saveDB();
+        
         await interaction.reply({ 
             content: `✅ Đã đặt **${amount.toLocaleString('en-US')} Mcoin** vào ${betNames[betType]}!`, 
             ephemeral: true 
@@ -603,11 +829,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-client.on('ready', () => {
-    console.log(`✅ Bot ${client.user.tag} đã online!`);
-    client.user.setActivity('.tx để chơi | .diemdanh nhận quà', { type: 'PLAYING' });
-});
-
 client.login(process.env.TOKEN);
 
 // Keep bot alive on Render
@@ -619,5 +840,3 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
   console.log("🌐 Server is running to keep Render alive.");
 });
-
-
