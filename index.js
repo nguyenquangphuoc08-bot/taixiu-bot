@@ -203,62 +203,47 @@ function createDiceImage(dice1, dice2, dice3) {
     try {
         console.log(`🎲 [createDiceImage] Starting: ${dice1}-${dice2}-${dice3}`);
         
-        // Test canvas availability
         if (typeof createCanvas !== 'function') {
-            console.error('❌ [createDiceImage] createCanvas is not a function!');
-            console.error('Canvas module:', typeof createCanvas);
+            console.error('❌ createCanvas is not a function!');
             return null;
         }
-        
-        console.log('✅ [createDiceImage] Canvas module OK');
         
         const canvas = createCanvas(340, 130);
         const ctx = canvas.getContext('2d');
         
         if (!ctx) {
-            console.error('❌ [createDiceImage] Cannot get canvas context!');
+            console.error('❌ Cannot get canvas context!');
             return null;
         }
         
-        console.log('✅ [createDiceImage] Context created');
-        
-        // Nền trong suốt
         ctx.clearRect(0, 0, 340, 130);
         
-        console.log('🎨 [createDiceImage] Drawing individual dice...');
         const d1 = drawDice(dice1);
         const d2 = drawDice(dice2);
         const d3 = drawDice(dice3);
         
         if (!d1 || !d2 || !d3) {
-            console.error('❌ [createDiceImage] Failed to create dice canvases');
-            console.error(`   d1: ${!!d1}, d2: ${!!d2}, d3: ${!!d3}`);
+            console.error('❌ Failed to create dice canvases');
             return null;
         }
         
-        console.log('✅ [createDiceImage] All dice created');
-        
-        // Vẽ 3 con xúc xắc
         ctx.drawImage(d1, 10, 15, 100, 100);
         ctx.drawImage(d2, 120, 15, 100, 100);
         ctx.drawImage(d3, 230, 15, 100, 100);
         
-        console.log('✅ [createDiceImage] Dice drawn on canvas');
-        
-        // Tạo buffer
         const buffer = canvas.toBuffer('image/png');
         
         if (!buffer || buffer.length === 0) {
-            console.error('❌ [createDiceImage] Buffer is empty or invalid');
+            console.error('❌ Buffer is empty');
             return null;
         }
         
-        console.log(`✅ [createDiceImage] SUCCESS! Buffer size: ${buffer.length} bytes`);
+        console.log(`✅ [createDiceImage] SUCCESS! Buffer: ${buffer.length} bytes`);
+        console.log(`   Buffer is Buffer: ${Buffer.isBuffer(buffer)}`);
         return buffer;
         
     } catch (error) {
-        console.error('❌ [createDiceImage] EXCEPTION:', error.message);
-        console.error('Stack trace:', error.stack);
+        console.error('❌ [createDiceImage] Error:', error.message);
         return null;
     }
 }
@@ -628,100 +613,95 @@ client.on('messageCreate', async (message) => {
                 saveDB();
                 
                 const diceBuffer = createDiceImage(dice1, dice2, dice3);
-                
-                const resultEmbed = new EmbedBuilder()
-                    .setTitle(`🎲 KẾT QUẢ TÀI XỈU #${bettingSession.phienNumber}`)
-                    .setColor(isJackpot ? '#FFD700' : (result.tai ? '#3498db' : '#e74c3c'))
-                    .setDescription(`
+
+const resultEmbed = new EmbedBuilder()
+    .setTitle(`🎲 KẾT QUẢ TÀI XỈU #${bettingSession.phienNumber}`)
+    .setColor(isJackpot ? '#FFD700' : (result.tai ? '#3498db' : '#e74c3c'));
+
+// Mảng chứa files
+let files = [];
+let embedDescription = '';
+
+if (diceBuffer && Buffer.isBuffer(diceBuffer) && diceBuffer.length > 0) {
+    console.log(`✅ Valid buffer: ${diceBuffer.length} bytes`);
+    
+    embedDescription = `
 **⇒ Kết quả: ${dice1} + ${dice2} + ${dice3} = ${total}**
 **Chung cược: ${result.tai ? '🔵 TÀI' : '🔴 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
 ${isJackpot ? '\n🎰 **NỔ HŨ!!! 3 XÚC XẮC TRÙNG NHAU!!!** 🎰' : ''}
 ${isJackpot && jackpotWinners.length === 0 ? '\n⚠️ **Không có người thắng - Hũ tiếp tục tăng!**' : ''}
-                    `);
-                
-                if (diceBuffer) {
-                    const attachment = new AttachmentBuilder(diceBuffer, { name: 'dice.png' });
-                    resultEmbed.setImage('attachment://dice.png');
-                    
-                    if (isJackpot && jackpotWinners.length > 0) {
-                        resultEmbed.addFields({
-                            name: '🎰 JACKPOT - CHỈ NGƯỜI THẮNG NHẬN!!!',
-                            value: jackpotWinners.join('\n'),
-                            inline: false
-                        });
-                    }
-                    
-                    resultEmbed.addFields(
-                        { 
-                            name: '✅ THẮNG', 
-                            value: winners.length > 0 ? winners.join('\n') : 'Không có',
-                            inline: false
-                        },
-                        { 
-                            name: '❌ THUA', 
-                            value: losers.length > 0 ? losers.join('\n') : 'Không có',
-                            inline: false
-                        },
-                        {
-                            name: '🎰 Hũ hiện tại',
-                            value: `${(database.jackpot || 0).toLocaleString('en-US')} Mcoin`,
-                            inline: false
-                        }
-                    );
-                    
-                    resultEmbed.setTimestamp();
-                    
-                    await sentMessage.edit({ 
-                        content: '**🎊 PHIÊN ĐÃ KẾT THÚC**', 
-                        embeds: [resultEmbed],
-                        files: [attachment],
-                        components: []
-                    });
-                } else {
-                    console.log('⚠️ Canvas failed, sending without image');
-                    
-                    resultEmbed.setDescription(`
+    `;
+    
+    resultEmbed.setDescription(embedDescription);
+    resultEmbed.setImage('attachment://dice.png');
+    
+    const attachment = new AttachmentBuilder(diceBuffer, { name: 'dice.png' });
+    files.push(attachment);
+    
+} else {
+    console.log('⚠️ Canvas failed, sending without image');
+    
+    embedDescription = `
 🎲 **${dice1} - ${dice2} - ${dice3}**
 
 **⇒ Kết quả: ${dice1} + ${dice2} + ${dice3} = ${total}**
-**Chung cước: ${result.tai ? '🔵 TÀI' : '🔴 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
+**Chung cược: ${result.tai ? '🔵 TÀI' : '🔴 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
 ${isJackpot ? '\n🎰 **NỔ HŨ!!! 3 XÚC XẮC TRÙNG NHAU!!!** 🎰' : ''}
-                    `);
-                    
-                    if (isJackpot && jackpotWinners.length > 0) {
-                        resultEmbed.addFields({
-                            name: '🎰 JACKPOT - CHỈ NGƯỜI THẮNG NHẬN!!!',
-                            value: jackpotWinners.join('\n'),
-                            inline: false
-                        });
-                    }
-                    
-                    resultEmbed.addFields(
-                        { 
-                            name: '✅ THẮNG', 
-                            value: winners.length > 0 ? winners.join('\n') : 'Không có',
-                            inline: false
-                        },
-                        { 
-                            name: '❌ THUA', 
-                            value: losers.length > 0 ? losers.join('\n') : 'Không có',
-                            inline: false
-                        },
-                        {
-                            name: '🎰 Hũ hiện tại',
-                            value: `${(database.jackpot || 0).toLocaleString('en-US')} Mcoin`,
-                            inline: false
-                        }
-                    );
-                    
-                    resultEmbed.setTimestamp();
-                    
-                    await sentMessage.edit({ 
-                        content: '**🎊 PHIÊN ĐÃ KẾT THÚC**', 
-                        embeds: [resultEmbed],
-                        components: []
-                    });
-                }
+${isJackpot && jackpotWinners.length === 0 ? '\n⚠️ **Không có người thắng - Hũ tiếp tục tăng!**' : ''}
+    `;
+    
+    resultEmbed.setDescription(embedDescription);
+}
+
+if (isJackpot && jackpotWinners.length > 0) {
+    resultEmbed.addFields({
+        name: '🎰 JACKPOT - CHỈ NGƯỜI THẮNG NHẬN!!!',
+        value: jackpotWinners.join('\n'),
+        inline: false
+    });
+}
+
+resultEmbed.addFields(
+    { 
+        name: '✅ THẮNG', 
+        value: winners.length > 0 ? winners.join('\n') : 'Không có',
+        inline: false
+    },
+    { 
+        name: '❌ THUA', 
+        value: losers.length > 0 ? losers.join('\n') : 'Không có',
+        inline: false
+    },
+    {
+        name: '🎰 Hũ hiện tại',
+        value: `${(database.jackpot || 0).toLocaleString('en-US')} Mcoin`,
+        inline: false
+    }
+);
+
+resultEmbed.setTimestamp();
+
+// Gửi message
+try {
+    const messageData = { 
+        content: '**🎊 PHIÊN ĐÃ KẾT THÚC**', 
+        embeds: [resultEmbed],
+        components: []
+    };
+    
+    if (files.length > 0) {
+        messageData.files = files;
+        console.log('📤 Sending message WITH image...');
+    } else {
+        console.log('📤 Sending message WITHOUT image...');
+    }
+    
+    await sentMessage.edit(messageData);
+    console.log('✅ Message sent successfully!');
+    
+} catch (editError) {
+    console.error('❌ Error editing message:', editError.message);
+}
                 
                 bettingSession = null;
                 database.activeBettingSession = null;
@@ -1323,4 +1303,5 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
+
 
