@@ -116,7 +116,7 @@ function checkAllQuestsCompleted(userId) {
 let bettingSession = null;
 
 // ===== KHÔI PHỤC PHIÊN CƯỢC SAU KHI RESTART =====
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     console.log(`✅ Bot ${client.user.tag} đã online!`);
     client.user.setActivity('.tx để chơi | .daily nhiệm vụ', { type: 'PLAYING' });
     
@@ -688,6 +688,101 @@ ${multiplier === 2 ? '\n✨ **X2 nhờ chuỗi 3+ ngày làm nhiệm vụ!**' : 
         await message.reply({ embeds: [embed] });
     }
     
+    // Command: .dbinfo - Xem thông tin database (Admin only)
+    if (command === '.dbinfo') {
+        // Thay YOUR_DISCORD_ID bằng ID Discord của bạn
+        const ADMIN_ID = 'YOUR_DISCORD_ID'; // Lấy ID: click chuột phải vào tên → Copy ID
+        
+        if (message.author.id !== ADMIN_ID) {
+            return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+        }
+        
+        const totalUsers = Object.keys(database.users).length;
+        const totalBalance = Object.values(database.users).reduce((sum, u) => sum + u.balance, 0);
+        const totalHistory = database.history.length;
+        const dbExists = fs.existsSync(DB_PATH);
+        
+        let dbSize = 0;
+        if (dbExists) {
+            const stats = fs.statSync(DB_PATH);
+            dbSize = (stats.size / 1024).toFixed(2); // KB
+        }
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🗄️ THÔNG TIN DATABASE')
+            .setColor('#3498db')
+            .setDescription(`
+**File:** ${dbExists ? '✅ Tồn tại' : '❌ Không tồn tại'}
+**Đường dẫn:** \`${DB_PATH}\`
+**Kích thước:** ${dbSize} KB
+            `)
+            .addFields(
+                { name: '👥 Tổng người chơi', value: `${totalUsers}`, inline: true },
+                { name: '💰 Tổng tiền hệ thống', value: `${totalBalance.toLocaleString('en-US')}`, inline: true },
+                { name: '📊 Lịch sử phiên', value: `${totalHistory}`, inline: true },
+                { name: '🎰 Hũ hiện tại', value: `${database.jackpot.toLocaleString('en-US')}`, inline: true },
+                { name: '⏳ Phiên đang chạy', value: database.activeBettingSession ? '✅ Có' : '❌ Không', inline: true },
+                { name: '⏰ Uptime', value: `${Math.floor(process.uptime() / 60)} phút`, inline: true }
+            )
+            .setFooter({ text: `Bot: ${client.user.tag}` })
+            .setTimestamp();
+        
+        await message.reply({ embeds: [embed] });
+    }
+    
+    // Command: .backup - Backup database (Admin only)
+    if (command === '.backup') {
+        const ADMIN_ID = 'YOUR_DISCORD_ID'; // Thay bằng ID của bạn
+        
+        if (message.author.id !== ADMIN_ID) {
+            return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+        }
+        
+        const backup = JSON.stringify(database, null, 2);
+        const attachment = new AttachmentBuilder(Buffer.from(backup), { 
+            name: `backup_${new Date().toISOString().split('T')[0]}.json` 
+        });
+        
+        const embed = new EmbedBuilder()
+            .setTitle('📦 DATABASE BACKUP')
+            .setColor('#2ecc71')
+            .setDescription(`
+Backup được tạo lúc: ${new Date().toLocaleString('vi-VN')}
+
+**Thống kê:**
+- Người chơi: ${Object.keys(database.users).length}
+- Lịch sử: ${database.history.length} phiên
+- Hũ: ${database.jackpot.toLocaleString('en-US')} Mcoin
+
+**Lưu ý:** Tải file này về và giữ an toàn!
+            `)
+            .setTimestamp();
+        
+        await message.reply({ 
+            embeds: [embed],
+            files: [attachment] 
+        });
+    }
+    
+    // Command: .restore - Restore database từ backup (Admin only)
+    if (command === '.restore') {
+        const ADMIN_ID = '1100660298073002004';
+        
+        if (message.author.id !== ADMIN_ID) {
+            return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+        }
+        
+        return message.reply(`
+📥 **HƯỚNG DẪN RESTORE DATABASE:**
+
+1️⃣ Gửi file backup \`.json\` vào channel này
+2️⃣ Kèm theo comment: \`restore confirm\`
+3️⃣ Bot sẽ tự động restore
+
+⚠️ **Cảnh bánh:** Restore sẽ GHI ĐÈ toàn bộ data hiện tại!
+        `);
+    }
+    
     // Command: .tang
     if (command === '.tang' || command === '.give') {
         const targetUser = message.mentions.users.first();
@@ -734,11 +829,11 @@ ${multiplier === 2 ? '\n✨ **X2 nhờ chuỗi 3+ ngày làm nhiệm vụ!**' : 
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton()) {
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
-            return interaction.reply({ content: '❌ Không có phiên cược nào đang diễn ra!', ephemeral: true });
+            return interaction.reply({ content: '❌ Không có phiên cược nào đang diễn ra!', flags: 64 });
         }
         
         if (bettingSession.bets[interaction.user.id]) {
-            return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', ephemeral: true });
+            return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', flags: 64 });
         }
         
         const betTypes = {
@@ -786,11 +881,11 @@ client.on('interactionCreate', async (interaction) => {
         };
         
         if (!amount || isNaN(amount)) {
-            return interaction.reply({ content: '❌ Số tiền không hợp lệ!', ephemeral: true });
+            return interaction.reply({ content: '❌ Số tiền không hợp lệ!', flags: 64 });
         }
         
         if (amount < 15000) {
-            return interaction.reply({ content: '❌ Cược tối thiểu 15,000 Mcoin!', ephemeral: true });
+            return interaction.reply({ content: '❌ Cược tối thiểu 15,000 Mcoin!', flags: 64 });
         }
         
         const user = getUser(interaction.user.id);
@@ -798,16 +893,16 @@ client.on('interactionCreate', async (interaction) => {
         if (user.balance < amount) {
             return interaction.reply({ 
                 content: `❌ Số dư không đủ! Bạn có: **${user.balance.toLocaleString('en-US')} Mcoin**`, 
-                ephemeral: true 
+                flags: 64
             });
         }
         
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
-            return interaction.reply({ content: '❌ Phiên cược đã kết thúc!', ephemeral: true });
+            return interaction.reply({ content: '❌ Phiên cược đã kết thúc!', flags: 64 });
         }
         
         if (bettingSession.bets[interaction.user.id]) {
-            return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', ephemeral: true });
+            return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', flags: 64 });
         }
         
         user.balance -= amount;
@@ -827,7 +922,7 @@ client.on('interactionCreate', async (interaction) => {
         
         await interaction.reply({ 
             content: `✅ Đã đặt **${amount.toLocaleString('en-US')} Mcoin** vào ${betNames[betType]}!`, 
-            ephemeral: true 
+            flags: 64
         });
         
         try {
@@ -856,4 +951,3 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
   console.log("🌐 Server is running to keep Render alive.");
 });
-
