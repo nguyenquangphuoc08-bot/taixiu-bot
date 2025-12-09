@@ -1499,6 +1499,8 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
+});
+
 // ===== LOGIN & KEEP ALIVE =====
 client.login(process.env.TOKEN);
 
@@ -1510,5 +1512,6 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
+
 
 
