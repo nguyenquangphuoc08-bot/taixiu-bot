@@ -1,4 +1,6 @@
+// Force rebuild - v1.0.1
 require('dotenv').config();
+...
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder } = require('discord.js');
 const { createCanvas } = require('canvas');
 const fs = require('fs');
@@ -1509,3 +1511,4 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
+
