@@ -240,12 +240,12 @@ function createDiceImage(dice1, dice2, dice3) {
         }
         
         console.log(`✅ [createDiceImage] SUCCESS! Buffer: ${buffer.length} bytes`);
-        console.log(`   Buffer is Buffer: ${Buffer.isBuffer(buffer)}`);
         return buffer;
         
     } catch (error) {
-        console.error('❌ [createDiceImage] Error:', error.message);
-        return null;
+        console.error('❌ [createDiceImage] CRITICAL Error:', error.message);
+        console.error('Stack:', error.stack);  // ← Log chi tiết hơn
+        return null;  // ← Trả về null thay vì crash
     }
 }
 
@@ -1356,138 +1356,146 @@ ${result.usesLeft > 0 ? `⏳ Code còn **${result.usesLeft} lượt**` : '🔒 C
 
 // ===== BUTTON & MODAL HANDLERS =====
 client.on('interactionCreate', async (interaction) => {
-    if (interaction.isButton()) {
-        if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
-            return interaction.reply({ content: '❌ Không có phiên cược nào đang diễn ra!', flags: 64 });
+    try {
+        // ===== XỬ LÝ BUTTON =====
+        if (interaction.isButton()) {
+            if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
+                return interaction.reply({ content: '❌ Không có phiên cược nào đang diễn ra!', flags: 64 });
+            }
+            
+            if (bettingSession.bets[interaction.user.id]) {
+                return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', flags: 64 });
+            }
+            
+            const betTypes = {
+                'bet_tai': { type: 'tai', name: 'TÀI', emoji: '🔵' },
+                'bet_xiu': { type: 'xiu', name: 'XỈU', emoji: '🔴' },
+                'bet_chan': { type: 'chan', name: 'CHẴN', emoji: '🟣' },
+                'bet_le': { type: 'le', name: 'LẺ', emoji: '🟡' }
+            };
+            
+            const betInfo = betTypes[interaction.customId];
+            if (!betInfo) return;
+            
+            const modal = new ModalBuilder()
+                .setCustomId(`bet_modal_${betInfo.type}`)
+                .setTitle(`${betInfo.emoji} NHẬP SỐ TIỀN CƯỢC (${betInfo.name})`);
+            
+            const user = getUser(interaction.user.id);
+            
+            const amountInput = new TextInputBuilder()
+                .setCustomId('bet_amount')
+                .setLabel(`Mcoin của bạn: ${user.balance.toLocaleString('en-US')}`)
+                .setPlaceholder('Nhập số tiền bạn muốn cược ở đây!')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+                .setMinLength(4)
+                .setMaxLength(10);
+            
+            const row = new ActionRowBuilder().addComponents(amountInput);
+            modal.addComponents(row);
+            
+            await interaction.showModal(modal);
         }
         
-        if (bettingSession.bets[interaction.user.id]) {
-            return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', flags: 64 });
-        }
-        
-        const betTypes = {
-            'bet_tai': { type: 'tai', name: 'TÀI', emoji: '🔵' },
-            'bet_xiu': { type: 'xiu', name: 'XỈU', emoji: '🔴' },
-            'bet_chan': { type: 'chan', name: 'CHẴN', emoji: '🟣' },
-            'bet_le': { type: 'le', name: 'LẺ', emoji: '🟡' }
-        };
-        
-        const betInfo = betTypes[interaction.customId];
-        if (!betInfo) return;
-        
-        const modal = new ModalBuilder()
-            .setCustomId(`bet_modal_${betInfo.type}`)
-            .setTitle(`${betInfo.emoji} NHẬP SỐ TIỀN CƯỢC (${betInfo.name})`);
-        
-        const user = getUser(interaction.user.id);
-        
-        const amountInput = new TextInputBuilder()
-            .setCustomId('bet_amount')
-            .setLabel(`Mcoin của bạn: ${user.balance.toLocaleString('en-US')}`)
-            .setPlaceholder('Nhập số tiền bạn muốn cược ở đây!')
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-            .setMinLength(4)
-            .setMaxLength(10);
-        
-        const row = new ActionRowBuilder().addComponents(amountInput);
-        modal.addComponents(row);
-        
-        await interaction.showModal(modal);
-    }
-    
-    if (interaction.isModalSubmit()) {
-        if (!interaction.customId.startsWith('bet_modal_')) return;
-        
-        const betType = interaction.customId.replace('bet_modal_', '');
-        const amount = parseInt(interaction.fields.getTextInputValue('bet_amount').replace(/[^0-9]/g, ''));
-        
-        const betNames = {
-            'tai': '🔵 Tài',
-            'xiu': '🔴 Xỉu',
-            'chan': '🟣 Chẵn',
-            'le': '🟡 Lẻ'
-        };
-        
-        if (!amount || isNaN(amount)) {
-            return interaction.reply({ content: '❌ Số tiền không hợp lệ!', flags: 64 });
-        }
-        
-        if (amount < 15000) {
-            return interaction.reply({ content: '❌ Cược tối thiểu 15,000 Mcoin!', flags: 64 });
-        }
-        
-        const user = getUser(interaction.user.id);
-        
-        if (user.balance < amount) {
-            return interaction.reply({ 
-                content: `❌ Số dư không đủ! Bạn có: **${user.balance.toLocaleString('en-US')} Mcoin**`, 
+        // ===== XỬ LÝ MODAL =====
+        if (interaction.isModalSubmit()) {
+            if (!interaction.customId.startsWith('bet_modal_')) return;
+            
+            const betType = interaction.customId.replace('bet_modal_', '');
+            const amount = parseInt(interaction.fields.getTextInputValue('bet_amount').replace(/[^0-9]/g, ''));
+            
+            const betNames = {
+                'tai': '🔵 Tài',
+                'xiu': '🔴 Xỉu',
+                'chan': '🟣 Chẵn',
+                'le': '🟡 Lẻ'
+            };
+            
+            if (!amount || isNaN(amount)) {
+                return interaction.reply({ content: '❌ Số tiền không hợp lệ!', flags: 64 });
+            }
+            
+            if (amount < 15000) {
+                return interaction.reply({ content: '❌ Cược tối thiểu 15,000 Mcoin!', flags: 64 });
+            }
+            
+            const user = getUser(interaction.user.id);
+            
+            if (user.balance < amount) {
+                return interaction.reply({ 
+                    content: `❌ Số dư không đủ! Bạn có: **${user.balance.toLocaleString('en-US')} Mcoin**`, 
+                    flags: 64
+                });
+            }
+            
+            if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
+                return interaction.reply({ content: '❌ Phiên cược đã kết thúc!', flags: 64 });
+            }
+            
+            if (bettingSession.bets[interaction.user.id]) {
+                return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', flags: 64 });
+            }
+            
+            // Trừ tiền và lưu cược
+            user.balance -= amount;
+            saveDB();
+            
+            bettingSession.bets[interaction.user.id] = {
+                type: betType,
+                amount: amount
+            };
+            
+            database.activeBettingSession.bets[interaction.user.id] = {
+                type: betType,
+                amount: amount
+            };
+            saveDB();
+            
+            await interaction.reply({ 
+                content: `✅ Đã đặt **${amount.toLocaleString('en-US')} Mcoin** vào ${betNames[betType]}!`, 
                 flags: 64
             });
+            
+            // Cập nhật số người chơi (không crash nếu lỗi)
+            try {
+                const channel = await client.channels.fetch(bettingSession.channelId).catch(() => null);
+                if (!channel) return;
+
+                const msg = await channel.messages.fetch(bettingSession.messageId).catch(() => null);
+                if (!msg || !msg.embeds || !msg.embeds[0]) return;
+
+                const embed = msg.embeds[0];
+                const newEmbed = EmbedBuilder.from(embed);
+
+                newEmbed.spliceFields(1, 1, {
+                    name: "👥 Người chơi",
+                    value: Object.keys(bettingSession?.bets || {}).length.toString(),
+                    inline: true
+                });
+
+                await msg.edit({ embeds: [newEmbed] });
+
+            } catch (updateError) {
+                console.log("⚠️ Không thể cập nhật embed (không ảnh hưởng):", updateError.message);
+            }
         }
         
-        if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
-            return interaction.reply({ content: '❌ Phiên cược đã kết thúc!', flags: 64 });
-        }
-        
-        if (bettingSession.bets[interaction.user.id]) {
-            return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', flags: 64 });
-        }
-        
-        user.balance -= amount;
-        saveDB();
-        
-        bettingSession.bets[interaction.user.id] = {
-            type: betType,
-            amount: amount
-        };
-        
-        database.activeBettingSession.bets[interaction.user.id] = {
-            type: betType,
-            amount: amount
-        };
-        saveDB();
-        
-        await interaction.reply({ 
-            content: `✅ Đã đặt **${amount.toLocaleString('en-US')} Mcoin** vào ${betNames[betType]}!`, 
-            flags: 64
-        });
+    } catch (error) {
+        console.error('❌ LỖI NGHIÊM TRỌNG trong interactionCreate:', error);
+        console.error('Stack trace:', error.stack);
         
         try {
-    const channel = await client.channels.fetch(bettingSession.channelId).catch(() => null);
-    if (!channel) {
-        console.log("⚠ Không tìm thấy kênh.");
-        return;
-    }
-
-    const msg = await channel.messages.fetch(bettingSession.messageId).catch(() => null);
-    if (!msg) {
-        console.log("⚠ Không tìm thấy tin nhắn để cập nhật.");
-        return;
-    }
-
-    if (!msg.embeds || !msg.embeds[0]) {
-    console.log("⚠ Tin nhắn không có embed.");
-    return;
-}
-
-const embed = msg.embeds[0];
-const newEmbed = EmbedBuilder.from(embed);
-
-newEmbed.spliceFields(1, 1, {
-    name: "👥 Người chơi",
-    value: Object.keys(bettingSession?.bets || {}).length.toString(),
-    inline: true
-});
-
-await msg.edit({ embeds: [newEmbed] });
-
-} catch (e) {
-            console.log("❌ Lỗi khi update embed:", e);
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({ 
+                    content: '❌ Có lỗi xảy ra! Bot đang xử lý...', 
+                    flags: 64 
+                }).catch(() => {});
+            }
+        } catch (replyError) {
+            console.error('Không thể gửi error message:', replyError);
         }
     }
-});
-
 });
 
 // ===== LOGIN & KEEP ALIVE =====
