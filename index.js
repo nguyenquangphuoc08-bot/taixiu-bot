@@ -1,4 +1,3 @@
-// Force rebuild - v1.0.1
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder } = require('discord.js');
 const { createCanvas } = require('canvas');
@@ -7,7 +6,7 @@ const https = require('https');
 const http = require('http');
 const giftcode = require('./giftcode');
 
-// TEST CANVAS NGAY KHI LOAD
+// TEST CANVAS
 console.log('🧪 Testing Canvas module...');
 console.log('   createCanvas type:', typeof createCanvas);
 try {
@@ -17,6 +16,7 @@ try {
     console.error('   ❌ Canvas test FAILED:', e.message);
 }
 console.log('');
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -25,9 +25,9 @@ const client = new Client({
     ]
 });
 
-// ===== CẤU HÌNH - THAY ĐỔI Ở ĐÂY =====
-const ADMIN_ID = '1100660298073002004'; // Thay bằng Discord ID của bạn
-const BACKUP_CHANNEL_ID = '1447477880329338962'; // Thay bằng ID channel backup
+// ===== CẤU HÌNH =====
+const ADMIN_ID = '1100660298073002004';
+const BACKUP_CHANNEL_ID = '1447477880329338962';
 
 // ===== DATABASE =====
 const DB_PATH = './database/database.json';
@@ -149,15 +149,14 @@ function checkJackpot(dice1, dice2, dice3) {
     return dice1 === dice2 && dice2 === dice3;
 }
 
-function drawDice(number) {
+// ===== FIX CANVAS - KHÔNG BAO GIỜ CRASH BOT =====
+function drawDiceSafe(number) {
     try {
-        console.log(`🎲 Drawing dice: ${number}`);
-        
-        // Kiểm tra module canvas
         if (typeof createCanvas !== 'function') {
-            console.error('❌ createCanvas is not a function! Canvas module not loaded properly.');
+            console.error('❌ createCanvas not available');
             return null;
         }
+        
         const canvas = createCanvas(100, 100);
         const ctx = canvas.getContext('2d');
         
@@ -170,7 +169,7 @@ function drawDice(number) {
         ctx.lineWidth = 3;
         ctx.strokeRect(5, 5, 90, 90);
         
-        // Vẽ chấm đen
+        // Vẽ chấm
         ctx.fillStyle = '#000000';
         const dotSize = 13;
         
@@ -183,12 +182,7 @@ function drawDice(number) {
             6: [[30, 25], [70, 25], [30, 50], [70, 50], [30, 75], [70, 75]]
         };
         
-        if (!positions[number]) {
-            console.error(`Invalid dice number: ${number}`);
-            return null;
-        }
-        
-        positions[number].forEach(([x, y]) => {
+        (positions[number] || []).forEach(([x, y]) => {
             ctx.beginPath();
             ctx.arc(x, y, dotSize, 0, Math.PI * 2);
             ctx.fill();
@@ -196,36 +190,26 @@ function drawDice(number) {
         
         return canvas;
     } catch (error) {
-        console.error('❌ Error drawing dice:', error.message);
+        console.error('❌ drawDiceSafe error:', error.message);
         return null;
     }
 }
 
-function createDiceImage(dice1, dice2, dice3) {
+function createDiceImageSafe(dice1, dice2, dice3) {
     try {
-        console.log(`🎲 [createDiceImage] Starting: ${dice1}-${dice2}-${dice3}`);
-        
-        if (typeof createCanvas !== 'function') {
-            console.error('❌ createCanvas is not a function!');
-            return null;
-        }
+        console.log(`🎲 Creating dice: ${dice1}-${dice2}-${dice3}`);
         
         const canvas = createCanvas(340, 130);
         const ctx = canvas.getContext('2d');
         
-        if (!ctx) {
-            console.error('❌ Cannot get canvas context!');
-            return null;
-        }
-        
         ctx.clearRect(0, 0, 340, 130);
         
-        const d1 = drawDice(dice1);
-        const d2 = drawDice(dice2);
-        const d3 = drawDice(dice3);
+        const d1 = drawDiceSafe(dice1);
+        const d2 = drawDiceSafe(dice2);
+        const d3 = drawDiceSafe(dice3);
         
         if (!d1 || !d2 || !d3) {
-            console.error('❌ Failed to create dice canvases');
+            console.log('⚠️ Cannot create dice, using text fallback');
             return null;
         }
         
@@ -234,76 +218,74 @@ function createDiceImage(dice1, dice2, dice3) {
         ctx.drawImage(d3, 230, 15, 100, 100);
         
         const buffer = canvas.toBuffer('image/png');
-        
-        if (!buffer || buffer.length === 0) {
-            console.error('❌ Buffer is empty');
-            return null;
-        }
-        
-        console.log(`✅ [createDiceImage] SUCCESS! Buffer: ${buffer.length} bytes`);
+        console.log(`✅ Dice image created: ${buffer.length} bytes`);
         return buffer;
         
     } catch (error) {
-        console.error('❌ [createDiceImage] CRITICAL Error:', error.message);
-        console.error('Stack:', error.stack);  // ← Log chi tiết hơn
-        return null;  // ← Trả về null thay vì crash
+        console.error('❌ createDiceImageSafe error:', error.message);
+        return null;
     }
 }
 
 function createHistoryChart() {
-    const last20 = database.history.slice(-20);
-    const canvas = createCanvas(800, 300);
-    const ctx = canvas.getContext('2d');
-    
-    ctx.fillStyle = '#2C2F33';
-    ctx.fillRect(0, 0, 800, 300);
-    
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 20px Arial';
-    ctx.fillText('LỊCH SỬ 20 PHIÊN GẦN NHẤT', 250, 30);
-    
-    if (last20.length === 0) {
-        ctx.fillStyle = '#99AAB5';
-        ctx.font = '16px Arial';
-        ctx.fillText('Chưa có dữ liệu', 350, 150);
-        return canvas.toBuffer();
-    }
-    
-    const barWidth = 35;
-    const spacing = 5;
-    const maxHeight = 200;
-    
-    last20.forEach((h, i) => {
-        const x = 20 + i * (barWidth + spacing);
-        const barHeight = (h.total / 18) * maxHeight;
-        const y = 270 - barHeight;
+    try {
+        const last20 = database.history.slice(-20);
+        const canvas = createCanvas(800, 300);
+        const ctx = canvas.getContext('2d');
         
-        ctx.fillStyle = h.tai ? '#3498db' : '#e74c3c';
-        ctx.fillRect(x, y, barWidth, barHeight);
-        
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, barWidth, barHeight);
+        ctx.fillStyle = '#2C2F33';
+        ctx.fillRect(0, 0, 800, 300);
         
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(h.total, x + barWidth / 2, y - 5);
-    });
-    
-    ctx.fillStyle = '#3498db';
-    ctx.fillRect(20, 280, 20, 15);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '12px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText('Tài', 45, 292);
-    
-    ctx.fillStyle = '#e74c3c';
-    ctx.fillRect(100, 280, 20, 15);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText('Xỉu', 125, 292);
-    
-    return canvas.toBuffer();
+        ctx.font = 'bold 20px Arial';
+        ctx.fillText('LỊCH SỬ 20 PHIÊN GẦN NHẤT', 250, 30);
+        
+        if (last20.length === 0) {
+            ctx.fillStyle = '#99AAB5';
+            ctx.font = '16px Arial';
+            ctx.fillText('Chưa có dữ liệu', 350, 150);
+            return canvas.toBuffer();
+        }
+        
+        const barWidth = 35;
+        const spacing = 5;
+        const maxHeight = 200;
+        
+        last20.forEach((h, i) => {
+            const x = 20 + i * (barWidth + spacing);
+            const barHeight = (h.total / 18) * maxHeight;
+            const y = 270 - barHeight;
+            
+            ctx.fillStyle = h.tai ? '#3498db' : '#e74c3c';
+            ctx.fillRect(x, y, barWidth, barHeight);
+            
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, barWidth, barHeight);
+            
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(h.total, x + barWidth / 2, y - 5);
+        });
+        
+        ctx.fillStyle = '#3498db';
+        ctx.fillRect(20, 280, 20, 15);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText('Tài', 45, 292);
+        
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(100, 280, 20, 15);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText('Xỉu', 125, 292);
+        
+        return canvas.toBuffer();
+    } catch (error) {
+        console.error('❌ createHistoryChart error:', error.message);
+        return null;
+    }
 }
 
 // ===== BOT READY =====
@@ -532,19 +514,19 @@ client.on('messageCreate', async (message) => {
             
             if (timeLeft > 0) {
                 embed.spliceFields(0, 1, { name: '⏰ Thời gian còn lại', value: `${timeLeft} giây`, inline: true });
-                await sentMessage.edit({ embeds: [embed], components: [row] });
+                await sentMessage.edit({ embeds: [embed], components: [row] }).catch(() => {});
             } else {
                 clearInterval(countdown);
                 
                 row.components.forEach(btn => btn.setDisabled(true));
-                await sentMessage.edit({ components: [row] });
+                await sentMessage.edit({ components: [row] }).catch(() => {});
                 
                 if (Object.keys(bettingSession.bets).length === 0) {
                     await sentMessage.edit({ 
                         content: '❌ Không có ai đặt cược. Phiên bị hủy!',
                         embeds: [],
                         components: []
-                    });
+                    }).catch(() => {});
                     bettingSession = null;
                     database.activeBettingSession = null;
                     saveDB();
@@ -614,96 +596,98 @@ client.on('messageCreate', async (message) => {
                 
                 saveDB();
                 
-                const diceBuffer = createDiceImage(dice1, dice2, dice3);
-
-const resultEmbed = new EmbedBuilder()
-    .setTitle(`🎲 KẾT QUẢ TÀI XỈU #${bettingSession.phienNumber}`)
-    .setColor(isJackpot ? '#FFD700' : (result.tai ? '#3498db' : '#e74c3c'));
-
-// Mảng chứa files
-let files = [];
-let embedDescription = '';
-
-if (diceBuffer && Buffer.isBuffer(diceBuffer) && diceBuffer.length > 0) {
-    console.log(`✅ Valid buffer: ${diceBuffer.length} bytes`);
-    
-    embedDescription = `
+                // ===== TẠO ẢNH XÚC XẮC (KHÔNG CRASH) =====
+                const diceBuffer = createDiceImageSafe(dice1, dice2, dice3);
+                
+                const resultEmbed = new EmbedBuilder()
+                    .setTitle(`🎲 KẾT QUẢ TÀI XỈU #${bettingSession.phienNumber}`)
+                    .setColor(isJackpot ? '#FFD700' : (result.tai ? '#3498db' : '#e74c3c'));
+                
+                let files = [];
+                let embedDescription = '';
+                
+                // Nếu có ảnh → dùng ảnh, không có → dùng text
+                if (diceBuffer && Buffer.isBuffer(diceBuffer) && diceBuffer.length > 0) {
+                    console.log(`✅ Dice image: ${diceBuffer.length} bytes`);
+                    
+                    embedDescription = `
 **⇒ Kết quả: ${dice1} + ${dice2} + ${dice3} = ${total}**
-**Chung cược: ${result.tai ? '🔵 TÀI' : '🔴 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
+**${result.tai ? '🔵 TÀI' : '🔴 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
 ${isJackpot ? '\n🎰 **NỔ HŨ!!! 3 XÚC XẮC TRÙNG NHAU!!!** 🎰' : ''}
 ${isJackpot && jackpotWinners.length === 0 ? '\n⚠️ **Không có người thắng - Hũ tiếp tục tăng!**' : ''}
-    `;
-    
-    resultEmbed.setDescription(embedDescription);
-    resultEmbed.setImage('attachment://dice.png');
-    
-    const attachment = new AttachmentBuilder(diceBuffer, { name: 'dice.png' });
-    files.push(attachment);
-    
-} else {
-    console.log('⚠️ Canvas failed, sending without image');
-    
-    embedDescription = `
-🎲 **${dice1} - ${dice2} - ${dice3}**
+                    `;
+                    
+                    resultEmbed.setDescription(embedDescription);
+                    resultEmbed.setImage('attachment://dice.png');
+                    files.push(new AttachmentBuilder(diceBuffer, { name: 'dice.png' }));
+                    
+                } else {
+                    console.log('⚠️ Canvas not available, using text display');
+                    
+                    embedDescription = `
+🎲 **${dice1}  ${dice2}  ${dice3}**
 
-**⇒ Kết quả: ${dice1} + ${dice2} + ${dice3} = ${total}**
-**Chung cược: ${result.tai ? '🔵 TÀI' : '🔴 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
+**⇒ Tổng: ${total} điểm**
+**${result.tai ? '🔵 TÀI' : '🔴 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
 ${isJackpot ? '\n🎰 **NỔ HŨ!!! 3 XÚC XẮC TRÙNG NHAU!!!** 🎰' : ''}
 ${isJackpot && jackpotWinners.length === 0 ? '\n⚠️ **Không có người thắng - Hũ tiếp tục tăng!**' : ''}
-    `;
-    
-    resultEmbed.setDescription(embedDescription);
-}
-
-if (isJackpot && jackpotWinners.length > 0) {
-    resultEmbed.addFields({
-        name: '🎰 JACKPOT - CHỈ NGƯỜI THẮNG NHẬN!!!',
-        value: jackpotWinners.join('\n'),
-        inline: false
-    });
-}
-
-resultEmbed.addFields(
-    { 
-        name: '✅ THẮNG', 
-        value: winners.length > 0 ? winners.join('\n') : 'Không có',
-        inline: false
-    },
-    { 
-        name: '❌ THUA', 
-        value: losers.length > 0 ? losers.join('\n') : 'Không có',
-        inline: false
-    },
-    {
-        name: '🎰 Hũ hiện tại',
-        value: `${(database.jackpot || 0).toLocaleString('en-US')} Mcoin`,
-        inline: false
-    }
-);
-
-resultEmbed.setTimestamp();
-
-// Gửi message
-try {
-    const messageData = { 
-        content: '**🎊 PHIÊN ĐÃ KẾT THÚC**', 
-        embeds: [resultEmbed],
-        components: []
-    };
-    
-    if (files.length > 0) {
-        messageData.files = files;
-        console.log('📤 Sending message WITH image...');
-    } else {
-        console.log('📤 Sending message WITHOUT image...');
-    }
-    
-    await sentMessage.edit(messageData);
-    console.log('✅ Message sent successfully!');
-    
-} catch (editError) {
-    console.error('❌ Error editing message:', editError.message);
-}
+                    `;
+                    
+                    resultEmbed.setDescription(embedDescription);
+                }
+                
+                // Thêm fields
+                if (isJackpot && jackpotWinners.length > 0) {
+                    resultEmbed.addFields({
+                        name: '🎰 JACKPOT - CHỈ NGƯỜI THẮNG NHẬN!!!',
+                        value: jackpotWinners.join('\n'),
+                        inline: false
+                    });
+                }
+                
+                resultEmbed.addFields(
+                    { 
+                        name: '✅ THẮNG', 
+                        value: winners.length > 0 ? winners.join('\n') : 'Không có',
+                        inline: false
+                    },
+                    { 
+                        name: '❌ THUA', 
+                        value: losers.length > 0 ? losers.join('\n') : 'Không có',
+                        inline: false
+                    },
+                    {
+                        name: '🎰 Hũ hiện tại',
+                        value: `${(database.jackpot || 0).toLocaleString('en-US')} Mcoin`,
+                        inline: false
+                    }
+                );
+                
+                resultEmbed.setTimestamp();
+                
+                // GỬI MESSAGE (TUYỆT ĐỐI KHÔNG CRASH)
+                try {
+                    await sentMessage.edit({ 
+                        content: '**🎊 PHIÊN ĐÃ KẾT THÚC**', 
+                        embeds: [resultEmbed],
+                        files: files,
+                        components: []
+                    });
+                    console.log('✅ Result sent successfully!');
+                    
+                } catch (editError) {
+                    console.error('❌ Cannot edit message:', editError.message);
+                    // Thử gửi message mới nếu edit failed
+                    try {
+                        await sentMessage.channel.send({
+                            content: '**🎊 PHIÊN ĐÃ KẾT THÚC**',
+                            embeds: [resultEmbed],
+                            files: files
+                        });
+                    } catch (sendError) {
+                        console.error('❌ Cannot send new message:', sendError.message);
+                    }
+                }
                 
                 bettingSession = null;
                 database.activeBettingSession = null;
@@ -829,6 +813,11 @@ ${user.dailyQuests.streak >= 3 ? '🎊 Bạn được nhận **X2 điểm danh**
     // Command: .lichsu
     if (command === '.lichsu' || command === '.ls') {
         const chartBuffer = createHistoryChart();
+        
+        if (!chartBuffer) {
+            return message.reply('❌ Không thể tạo biểu đồ lịch sử (Canvas lỗi)');
+        }
+        
         const attachment = new AttachmentBuilder(chartBuffer, { name: 'history.png' });
         
         const embed = new EmbedBuilder()
@@ -1141,15 +1130,12 @@ Database đã được khôi phục từ backup!
             });
         }
     }
-    // Command: .giftcode (Admin tạo code với tùy chỉnh)
+    
+    // Command: .giftcode (Admin tạo code)
     if (command === '.giftcode' || command === '.gc') {
         if (message.author.id !== ADMIN_ID) {
             return message.reply('❌ Chỉ admin mới tạo được giftcode!');
         }
-        
-        // Cú pháp: .giftcode [số tiền] [số giờ]
-        // Ví dụ: .giftcode 50000000 5  → 50M Mcoin, hết hạn sau 5 giờ
-        // Hoặc: .giftcode              → Random 5M-1000M, hết hạn sau 2 giờ
         
         let customReward = null;
         let customHours = 2;
@@ -1203,7 +1189,6 @@ Họ dùng lệnh: \`.code ${newCode.code}\`
             return message.reply(result.message);
         }
         
-        // Cộng tiền cho user
         const user = getUser(message.author.id);
         user.balance += result.reward;
         saveDB();
@@ -1308,6 +1293,7 @@ ${result.usesLeft > 0 ? `⏳ Code còn **${result.usesLeft} lượt**` : '🔒 C
         
         await message.reply(`✅ Đã xóa **${result.count} code** thành công!`);
     }
+    
     // Command: .help
     if (command === '.help' || command === '.h') {
         const embed = new EmbedBuilder()
@@ -1354,6 +1340,7 @@ ${result.usesLeft > 0 ? `⏳ Code còn **${result.usesLeft} lượt**` : '🔒 C
         
         await message.reply({ embeds: [embed] });
     }
+});
 
 // ===== BUTTON & MODAL HANDLERS =====
 client.on('interactionCreate', async (interaction) => {
@@ -1458,7 +1445,7 @@ client.on('interactionCreate', async (interaction) => {
                 flags: 64
             });
             
-            // Cập nhật số người chơi (không crash nếu lỗi)
+            // Cập nhật số người chơi
             try {
                 const channel = await client.channels.fetch(bettingSession.channelId).catch(() => null);
                 if (!channel) return;
@@ -1478,18 +1465,17 @@ client.on('interactionCreate', async (interaction) => {
                 await msg.edit({ embeds: [newEmbed] });
 
             } catch (updateError) {
-                console.log("⚠️ Không thể cập nhật embed (không ảnh hưởng):", updateError.message);
+                console.log("⚠️ Không thể cập nhật embed:", updateError.message);
             }
         }
         
     } catch (error) {
-        console.error('❌ LỖI NGHIÊM TRỌNG trong interactionCreate:', error);
-        console.error('Stack trace:', error.stack);
+        console.error('❌ LỖI trong interactionCreate:', error);
         
         try {
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({ 
-                    content: '❌ Có lỗi xảy ra! Bot đang xử lý...', 
+                    content: '❌ Có lỗi xảy ra! Vui lòng thử lại.', 
                     flags: 64 
                 }).catch(() => {});
             }
@@ -1497,8 +1483,6 @@ client.on('interactionCreate', async (interaction) => {
             console.error('Không thể gửi error message:', replyError);
         }
     }
-});
-
 });
 
 // ===== LOGIN & KEEP ALIVE =====
@@ -1512,6 +1496,3 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
-
-
-
