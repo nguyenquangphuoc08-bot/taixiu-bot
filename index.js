@@ -32,9 +32,7 @@ const {
 const { backupOnStartup, autoBackup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
 // ===== CẤU HÌNH =====
-const ADMIN_ID = '1100660298073002004';
-const BACKUP_CHANNEL_ID = '1447477880329338962';
-const GIFTCODE_CHANNEL_ID = '1378404733072703610'; // Channel phát code tự động (thay ID này)
+const { ADMIN_ID, BACKUP_CHANNEL_ID, GIFTCODE_CHANNEL_ID } = require('./config');
 
 // ===== KHỞI TẠO CLIENT =====
 const client = new Client({
@@ -288,3 +286,4 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
+
