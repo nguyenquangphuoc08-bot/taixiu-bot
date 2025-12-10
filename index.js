@@ -47,7 +47,7 @@ const client = new Client({
 loadDB();
 
 // ===== BOT READY =====
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     console.log(`✅ Bot ${client.user.tag} đã online!`);
     client.user.setActivity('.tx để chơi | .daily nhiệm vụ', { type: 'PLAYING' });
     
@@ -124,75 +124,92 @@ client.on('messageCreate', async (message) => {
     // ===== GAME COMMANDS =====
     if (command === '.tx') {
         await handleTaiXiu(message, client);
+        return; // THÊM RETURN
     }
     
     if (command === '.lichsu' || command === '.ls') {
         await handleLichSu(message);
+        return; // THÊM RETURN
     }
     
     // ===== USER COMMANDS =====
     if (command === '.mcoin') {
         await handleMcoin(message);
+        return; // THÊM RETURN
     }
     
     if (command === '.tang' || command === '.give') {
         await handleTang(message, args);
+        return; // THÊM RETURN
     }
     
     if (command === '.diemdanh' || command === '.dd') {
         await handleDiemDanh(message);
+        return; // THÊM RETURN
     }
     
     // ===== QUEST COMMANDS =====
     if (command === '.daily') {
         await handleDaily(message);
+        return; // THÊM RETURN
     }
     
     if (command === '.claimall') {
         await handleClaimAll(message);
+        return; // THÊM RETURN
     }
     
     // ===== GIFTCODE COMMANDS =====
     if (command === '.giftcode' || command === '.gc') {
         await handleCreateGiftcode(message, args);
+        return; // THÊM RETURN
     }
     
     if (command === '.code') {
         await handleCode(message, args);
+        return; // THÊM RETURN
     }
     
     if (command === '.delcode' || command === '.xoacode') {
         await handleDeleteCode(message, args);
+        return; // THÊM RETURN
     }
     
     if (command === '.delallcode' || command === '.xoatatca') {
         await handleDeleteAllCodes(message);
+        return; // THÊM RETURN
     }
     
     // ===== ADMIN COMMANDS =====
     if (command === '.dbinfo') {
         await handleDbInfo(message);
+        return; // THÊM RETURN
     }
     
     if (command === '.backup') {
         await handleBackup(message);
+        return; // THÊM RETURN
     }
     
     if (command === '.backupnow') {
         await handleBackupNow(message);
+        return; // THÊM RETURN
     }
     
     if (command === '.restore') {
         await handleRestore(message);
+        return; // THÊM RETURN
     }
     
     if (command === '.sendcode') {
         await handleSendCode(message, GIFTCODE_CHANNEL_ID);
+        return; // THÊM RETURN
     }
     
     // Xử lý restore file
     if (message.content.toLowerCase().includes('restore confirm') && message.attachments.size > 0) {
         await handleRestoreFile(message);
+        return; // THÊM RETURN
     }
     
     // ===== HELP COMMAND =====
@@ -243,6 +260,7 @@ client.on('messageCreate', async (message) => {
         }
         
         await message.reply({ embeds: [embed] });
+        return; // THÊM RETURN
     }
 });
 
@@ -286,4 +304,3 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
-
