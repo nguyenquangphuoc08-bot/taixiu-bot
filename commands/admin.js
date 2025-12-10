@@ -5,6 +5,54 @@ const https = require('https');
 
 const ADMIN_ID = '1100660298073002004';
 
+// Lệnh: .sendcode (Admin phát code ngay lập tức)
+async function handleSendCode(message, channelId) {
+    if (message.author.id !== ADMIN_ID) {
+        return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+    }
+    
+    try {
+        const giftcodeModule = require('../giftcode');
+        
+        // Random số tiền từ 1M đến 100M
+        const reward = Math.floor(Math.random() * (100000000 - 1000000 + 1)) + 1000000;
+        
+        // Tạo code mới (2 giờ)
+        const newCode = giftcodeModule.createGiftcode(message.author.id, reward, 2);
+        
+        const targetChannel = await message.client.channels.fetch(channelId);
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🎁 GIFTCODE TỰ ĐỘNG!')
+            .setColor('#f39c12')
+            .setDescription(`
+Bot vừa phát hành code mới!
+
+**🎟️ Code:** \`${newCode.code}\`
+**💰 Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin
+**👥 Số lượt:** ${newCode.maxUses} người
+**⏰ Hết hạn:** <t:${Math.floor(newCode.expiresAt / 1000)}:R>
+
+📢 **Nhanh tay nhập code ngay!**
+Gõ: \`.code ${newCode.code}\`
+            `)
+            .setFooter({ text: 'Code phát bởi admin' })
+            .setTimestamp();
+        
+        await targetChannel.send({ 
+            content: '@everyone 🎉 **CODE MỚI ĐÃ XUẤT HIỆN!**',
+            embeds: [embed] 
+        });
+        
+        await message.reply(`✅ Đã phát code **${newCode.code}** (${reward.toLocaleString('en-US')} Mcoin) tại <#${channelId}>!`);
+        
+    } catch (e) {
+        return message.reply(`❌ Lỗi phát code: \`${e.message}\``);
+    }
+}
+
+const ADMIN_ID = '1100660298073002004';
+
 // Lệnh: .dbinfo
 async function handleDbInfo(message) {
     if (message.author.id !== ADMIN_ID) {
