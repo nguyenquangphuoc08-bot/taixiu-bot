@@ -47,7 +47,7 @@ const client = new Client({
 loadDB();
 
 // ===== BOT READY =====
-client.once('clientReady', async () => {
+client.once('ready', async () => {
     console.log(`✅ Bot ${client.user.tag} đã online!`);
     client.user.setActivity('.tx để chơi | .daily nhiệm vụ', { type: 'PLAYING' });
     
@@ -304,3 +304,4 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
+
