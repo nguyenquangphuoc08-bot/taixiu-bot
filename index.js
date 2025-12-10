@@ -15,8 +15,7 @@ const { handleMcoin, handleTang, handleDiemDanh } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { 
     handleCreateGiftcode, 
-    handleRedeemCode, 
-    handleCodeList, 
+    handleCode, 
     handleDeleteCode, 
     handleDeleteAllCodes 
 } = require('./commands/giftcode');
@@ -25,7 +24,8 @@ const {
     handleBackup, 
     handleBackupNow, 
     handleRestore, 
-    handleRestoreFile 
+    handleRestoreFile,
+    handleSendCode
 } = require('./commands/admin');
 
 // Import services
@@ -34,6 +34,7 @@ const { backupOnStartup, autoBackup, backupOnShutdown, restoreInterruptedSession
 // ===== CẤU HÌNH =====
 const ADMIN_ID = '1100660298073002004';
 const BACKUP_CHANNEL_ID = '1447477880329338962';
+const GIFTCODE_CHANNEL_ID = '1378404733072703610'; // Channel phát code tự động (thay ID này)
 
 // ===== KHỞI TẠO CLIENT =====
 const client = new Client({
@@ -57,10 +58,56 @@ client.once('ready', async () => {
     
     // Backup khi khởi động
     await backupOnStartup(client, BACKUP_CHANNEL_ID);
+    
+    // Phát code ngay khi bot khởi động (optional)
+    console.log('🎁 Auto giftcode sẽ phát code đầu tiên sau 2 giờ');
 });
 
 // ===== AUTO BACKUP MỖI 6 GIỜ =====
 setInterval(() => autoBackup(client, BACKUP_CHANNEL_ID), 6 * 60 * 60 * 1000);
+
+// ===== AUTO GIFTCODE MỖI 2 GIỜ =====
+setInterval(async () => {
+    try {
+        const giftcode = require('./giftcode');
+        const { EmbedBuilder } = require('discord.js');
+        
+        // Random số tiền từ 1M đến 100M
+        const reward = Math.floor(Math.random() * (100000000 - 1000000 + 1)) + 1000000;
+        
+        // Tạo code mới (2 giờ = thời hạn code)
+        const newCode = giftcode.createGiftcode('AUTO_SYSTEM', reward, 2);
+        
+        const channel = await client.channels.fetch(GIFTCODE_CHANNEL_ID);
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🎁 GIFTCODE TỰ ĐỘNG!')
+            .setColor('#f39c12')
+            .setDescription(`
+Bot vừa phát hành code mới!
+
+**🎟️ Code:** \`${newCode.code}\`
+**💰 Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin
+**👥 Số lượt:** ${newCode.maxUses} người
+**⏰ Hết hạn:** <t:${Math.floor(newCode.expiresAt / 1000)}:R>
+
+📢 **Nhanh tay nhập code ngay!**
+Gõ: \`.code ${newCode.code}\`
+            `)
+            .setFooter({ text: 'Code tự động phát mỗi 2 giờ' })
+            .setTimestamp();
+        
+        await channel.send({ 
+            content: '@everyone 🎉 **CODE MỚI ĐÃ XUẤT HIỆN!**',
+            embeds: [embed] 
+        });
+        
+        console.log(`✅ [${new Date().toLocaleString('vi-VN')}] Auto giftcode: ${newCode.code} - ${reward.toLocaleString('en-US')} Mcoin`);
+        
+    } catch (e) {
+        console.error('❌ Lỗi auto giftcode:', e.message);
+    }
+}, 2 * 60 * 60 * 1000); // 2 giờ
 
 // ===== BACKUP KHI BOT TẮT =====
 process.on('SIGTERM', async () => {
@@ -113,11 +160,7 @@ client.on('messageCreate', async (message) => {
     }
     
     if (command === '.code') {
-        await handleRedeemCode(message, args);
-    }
-    
-    if (command === '.codelist' || command === '.gclist') {
-        await handleCodeList(message);
+        await handleCode(message, args);
     }
     
     if (command === '.delcode' || command === '.xoacode') {
@@ -143,6 +186,10 @@ client.on('messageCreate', async (message) => {
     
     if (command === '.restore') {
         await handleRestore(message);
+    }
+    
+    if (command === '.sendcode') {
+        await handleSendCode(message, GIFTCODE_CHANNEL_ID);
     }
     
     // Xử lý restore file
@@ -175,7 +222,7 @@ client.on('messageCreate', async (message) => {
                 },
                 { 
                     name: '🎁 Giftcode', 
-                    value: '`.code <code>` - Nhập giftcode nhận thưởng', 
+                    value: '`.code` - Xem danh sách code đang hoạt động\n`.code <MÃ CODE>` - Nhập code để nhận thưởng', 
                     inline: false 
                 }
             )
@@ -186,12 +233,12 @@ client.on('messageCreate', async (message) => {
             embed.addFields(
                 {
                     name: '🔧 Lệnh Admin',
-                    value: '`.dbinfo` - Thông tin database\n`.backup` - Tạo backup\n`.backupnow` - Backup thủ công\n`.restore` - Khôi phục database',
+                    value: '`.dbinfo` - Thông tin database\n`.backup` - Tạo backup\n`.backupnow` - Backup thủ công\n`.restore` - Khôi phục database\n`.sendcode` - Phát code ngay lập tức',
                     inline: false
                 },
                 {
                     name: '🎁 Quản lý Giftcode (Admin)',
-                    value: '`.giftcode [tiền] [giờ]` - Tạo code\n`.codelist` - Xem danh sách code\n`.delcode <code>` - Xóa 1 code\n`.delallcode` - Xóa tất cả code',
+                    value: '`.giftcode [tiền] [giờ]` - Tạo code\n`.delcode <code>` - Xóa 1 code\n`.delallcode` - Xóa tất cả code',
                     inline: false
                 }
             );
