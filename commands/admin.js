@@ -3,31 +3,31 @@ const { database, saveDB, DB_PATH } = require('../utils/database');
 const fs = require('fs');
 const https = require('https');
 
-// THÊM DÒNG NÀY:
 const { ADMIN_ID } = require('../config');
 
 // Lệnh: .sendcode (Admin phát code ngay lập tức)
-async function handleSendCode(message, channelId) {
+async function handleSendCode(message, GIFTCODE_CHANNEL_ID) {
     if (message.author.id !== ADMIN_ID) {
-        return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+        return message.reply('❌ Chỉ admin mới phát code được!');
     }
     
     try {
-        const giftcodeModule = require('../giftcode');
+        const giftcode = require('../giftcode');
+        const { EmbedBuilder } = require('discord.js');
         
         // Random số tiền từ 1M đến 100M
         const reward = Math.floor(Math.random() * (100000000 - 1000000 + 1)) + 1000000;
         
-        // Tạo code mới (2 giờ)
-        const newCode = giftcodeModule.createGiftcode(message.author.id, reward, 2);
+        // Tạo code mới (2 giờ = thời hạn code)
+        const newCode = giftcode.createGiftcode(message.author.id, reward, 2);
         
-        const targetChannel = await message.client.channels.fetch(channelId);
+        const channel = await message.client.channels.fetch(GIFTCODE_CHANNEL_ID);
         
         const embed = new EmbedBuilder()
-            .setTitle('🎁 GIFTCODE TỰ ĐỘNG!')
+            .setTitle('🎁 GIFTCODE MỚI!')
             .setColor('#f39c12')
             .setDescription(`
-Bot vừa phát hành code mới!
+Admin vừa phát hành code mới!
 
 **🎟️ Code:** \`${newCode.code}\`
 **💰 Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin
@@ -37,18 +37,21 @@ Bot vừa phát hành code mới!
 📢 **Nhanh tay nhập code ngay!**
 Gõ: \`.code ${newCode.code}\`
             `)
-            .setFooter({ text: 'Code phát bởi admin' })
+            .setFooter({ text: `Phát bởi ${message.author.tag}` })
             .setTimestamp();
         
-        await targetChannel.send({ 
+        await channel.send({ 
             content: '@everyone 🎉 **CODE MỚI ĐÃ XUẤT HIỆN!**',
             embeds: [embed] 
         });
         
-        await message.reply(`✅ Đã phát code **${newCode.code}** (${reward.toLocaleString('en-US')} Mcoin) tại <#${channelId}>!`);
+        await message.reply(`✅ Đã phát code **${newCode.code}** (${newCode.reward.toLocaleString('en-US')} Mcoin) vào <#${GIFTCODE_CHANNEL_ID}>!`);
+        
+        console.log(`✅ Admin ${message.author.tag} phát code: ${newCode.code}`);
         
     } catch (e) {
-        return message.reply(`❌ Lỗi phát code: \`${e.message}\``);
+        console.error('❌ Lỗi sendcode:', e);
+        return message.reply(`❌ Lỗi khi phát code: \`${e.message}\``);
     }
 }
 
@@ -277,4 +280,5 @@ module.exports = {
     handleRestore,
     handleRestoreFile
 };
+
 
