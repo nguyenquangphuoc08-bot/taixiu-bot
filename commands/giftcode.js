@@ -2,7 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const giftcode = require('../giftcode');
 const { getUser, saveDB } = require('../utils/database');
 
-const ADMIN_ID = '1100660298073002004';
+const { ADMIN_ID } = require('../config');
 
 // Lệnh: .giftcode (Admin tạo code)
 async function handleCreateGiftcode(message, args) {
@@ -174,3 +174,4 @@ module.exports = {
     handleDeleteCode,
     handleDeleteAllCodes
 };
+
