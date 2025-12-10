@@ -3,7 +3,8 @@ const { database, saveDB, DB_PATH } = require('../utils/database');
 const fs = require('fs');
 const https = require('https');
 
-const ADMIN_ID = '1100660298073002004';
+// THÊM DÒNG NÀY:
+const { ADMIN_ID } = require('../config');
 
 // Lệnh: .sendcode (Admin phát code ngay lập tức)
 async function handleSendCode(message, channelId) {
@@ -50,8 +51,6 @@ Gõ: \`.code ${newCode.code}\`
         return message.reply(`❌ Lỗi phát code: \`${e.message}\``);
     }
 }
-
-const ADMIN_ID = '1100660298073002004';
 
 // Lệnh: .dbinfo
 async function handleDbInfo(message) {
@@ -278,3 +277,4 @@ module.exports = {
     handleRestore,
     handleRestoreFile
 };
+
