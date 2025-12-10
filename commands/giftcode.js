@@ -48,14 +48,56 @@ Họ dùng lệnh: \`.code ${newCode.code}\`
     await message.reply({ embeds: [embed] });
 }
 
-// Lệnh: .code (Người chơi nhập code)
-async function handleRedeemCode(message, args) {
+// Lệnh: .code (Xem danh sách code HOẶC nhập code)
+async function handleCode(message, args) {
     const code = args[1]?.toUpperCase();
     
+    // Nếu KHÔNG có mã code → Hiện danh sách code đang hoạt động
     if (!code) {
-        return message.reply('❌ Sử dụng: `.code <CODE>`\n\n**Ví dụ:** `.code ABC12345`');
+        const activeCodes = giftcode.listActiveCodes();
+        
+        if (activeCodes.length === 0) {
+            return message.reply('📭 Hiện không có giftcode nào đang hoạt động!\n\n💡 **Cách dùng:** `.code <MÃ CODE>` để nhập code');
+        }
+        
+        let codeList = '';
+        activeCodes.forEach((gc, index) => {
+            const usesLeft = gc.maxUses - gc.usedBy.length;
+            const expiresIn = Math.floor((gc.expiresAt - Date.now()) / (60 * 1000));
+            const hours = Math.floor(expiresIn / 60);
+            const minutes = expiresIn % 60;
+            
+            codeList += `**${index + 1}. \`${gc.code}\`**\n`;
+            codeList += `   💰 Thưởng: **${gc.reward.toLocaleString('en-US')} Mcoin**\n`;
+            codeList += `   📊 Còn: **${usesLeft}/${gc.maxUses}** lượt\n`;
+            codeList += `   ⏰ Hết hạn sau: **${hours}h ${minutes}m**\n\n`;
+        });
+        
+        const stats = giftcode.getStats();
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🎁 DANH SÁCH GIFTCODE ĐANG HOẠT ĐỘNG')
+            .setColor('#9b59b6')
+            .setDescription(codeList)
+            .addFields(
+                { 
+                    name: '💡 Cách nhập code', 
+                    value: '`.code <MÃ CODE>`\n**Ví dụ:** `.code ABC12345`', 
+                    inline: false 
+                },
+                { 
+                    name: '📊 Thống kê', 
+                    value: `Code hoạt động: **${stats.activeCodes}**\nĐã nhập: **${stats.totalRedeemed}** lần\nTổng thưởng: **${stats.totalRewards.toLocaleString('en-US')}** Mcoin`, 
+                    inline: false 
+                }
+            )
+            .setFooter({ text: `Tổng ${activeCodes.length} code đang hoạt động` })
+            .setTimestamp();
+        
+        return message.reply({ embeds: [embed] });
     }
     
+    // Nếu CÓ mã code → Nhập code
     const result = giftcode.redeemGiftcode(code, message.author.id);
     
     if (!result.success) {
@@ -75,47 +117,6 @@ Bạn đã nhận được **${result.reward.toLocaleString('en-US')} Mcoin**!
 💰 **Số dư mới:** ${user.balance.toLocaleString('en-US')} Mcoin
 ${result.usesLeft > 0 ? `⏳ Code còn **${result.usesLeft} lượt**` : '🔒 Code đã hết lượt và bị xóa!'}
         `)
-        .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-}
-
-// Lệnh: .codelist (Admin xem danh sách code)
-async function handleCodeList(message) {
-    if (message.author.id !== ADMIN_ID) {
-        return message.reply('❌ Chỉ admin mới xem được danh sách code!');
-    }
-    
-    const activeCodes = giftcode.listActiveCodes();
-    
-    if (activeCodes.length === 0) {
-        return message.reply('📭 Hiện không có giftcode nào đang hoạt động!');
-    }
-    
-    let codeList = '';
-    activeCodes.forEach((gc, index) => {
-        const usesLeft = gc.maxUses - gc.usedBy.length;
-        const expiresIn = Math.floor((gc.expiresAt - Date.now()) / (60 * 1000));
-        const hours = Math.floor(expiresIn / 60);
-        const minutes = expiresIn % 60;
-        
-        codeList += `**${index + 1}. \`${gc.code}\`**\n`;
-        codeList += `   💰 Thưởng: ${gc.reward.toLocaleString('en-US')} Mcoin\n`;
-        codeList += `   📊 Còn: ${usesLeft}/${gc.maxUses} lượt\n`;
-        codeList += `   ⏰ Hết hạn sau: ${hours}h ${minutes}m\n`;
-        codeList += `   📅 Thời hạn: ${gc.duration} giờ\n\n`;
-    });
-    
-    const stats = giftcode.getStats();
-    
-    const embed = new EmbedBuilder()
-        .setTitle('📋 DANH SÁCH GIFTCODE')
-        .setColor('#9b59b6')
-        .setDescription(codeList)
-        .addFields(
-            { name: '📊 Thống kê', value: `Code hoạt động: **${stats.activeCodes}**\nĐã nhập: **${stats.totalRedeemed}** lần\nTổng thưởng: **${stats.totalRewards.toLocaleString('en-US')}** Mcoin`, inline: false }
-        )
-        .setFooter({ text: `Tổng ${activeCodes.length} code đang hoạt động` })
         .setTimestamp();
     
     await message.reply({ embeds: [embed] });
@@ -169,8 +170,7 @@ async function handleDeleteAllCodes(message) {
 
 module.exports = {
     handleCreateGiftcode,
-    handleRedeemCode,
-    handleCodeList,
+    handleCode,
     handleDeleteCode,
     handleDeleteAllCodes
 };
