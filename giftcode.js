@@ -1,176 +1,198 @@
-const { EmbedBuilder } = require('discord.js');
-const giftcode = require('../giftcode');
-const { getUser, saveDB } = require('../utils/database');
+// giftcode.js - Quản lý giftcode
+const fs = require('fs');
+const path = require('path');
 
-const ADMIN_ID = '1100660298073002004';
+const GIFTCODE_FILE = path.join(__dirname, 'database', 'giftcodes.json');
 
-// Lệnh: .giftcode (Admin tạo code)
-async function handleCreateGiftcode(message, args) {
-    if (message.author.id !== ADMIN_ID) {
-        return message.reply('❌ Chỉ admin mới tạo được giftcode!');
-    }
-    
-    let customReward = null;
-    let customHours = 2;
-    
-    if (args[1]) {
-        customReward = parseInt(args[1]);
-        if (isNaN(customReward) || customReward < 1000000) {
-            return message.reply('❌ Số tiền phải >= 1,000,000 Mcoin!\n\n**Cách dùng:**\n`.giftcode [số tiền] [số giờ]`\n\n**Ví dụ:**\n`.giftcode 50000000 5` → 50M Mcoin, 5 giờ\n`.giftcode` → Random 5M-1000M, 2 giờ');
+// Load giftcodes từ file
+function loadGiftcodes() {
+    try {
+        if (fs.existsSync(GIFTCODE_FILE)) {
+            const data = fs.readFileSync(GIFTCODE_FILE, 'utf8');
+            return JSON.parse(data);
         }
+    } catch (error) {
+        console.error('Lỗi load giftcodes:', error);
     }
-    
-    if (args[2]) {
-        customHours = parseInt(args[2]);
-        if (isNaN(customHours) || customHours < 1 || customHours > 720) {
-            return message.reply('❌ Số giờ phải từ 1 đến 720 (30 ngày)!');
-        }
-    }
-    
-    const newCode = giftcode.createGiftcode(message.author.id, customReward, customHours);
-    
-    const embed = new EmbedBuilder()
-        .setTitle('🎁 GIFTCODE MỚI ĐÃ TẠO!')
-        .setColor('#f39c12')
-        .setDescription(`
-**Code:** \`${newCode.code}\`
-**Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin
-**Số lượt:** ${newCode.maxUses} lượt
-**Thời hạn:** ${newCode.duration} giờ
-**Hết hạn:** <t:${Math.floor(newCode.expiresAt / 1000)}:R>
-
-📢 **Share code này cho người chơi!**
-Họ dùng lệnh: \`.code ${newCode.code}\`
-        `)
-        .setFooter({ text: `Code tự động xóa sau ${newCode.duration} giờ hoặc hết 10 lượt` })
-        .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
+    return [];
 }
 
-// Lệnh: .code (Xem danh sách code HOẶC nhập code)
-async function handleCode(message, args) {
-    const code = args[1]?.toUpperCase();
-    
-    // Nếu KHÔNG có mã code → Hiện danh sách code đang hoạt động
-    if (!code) {
-        const activeCodes = giftcode.listActiveCodes();
-        
-        if (activeCodes.length === 0) {
-            return message.reply('📭 Hiện không có giftcode nào đang hoạt động!\n\n💡 **Cách dùng:** `.code <MÃ CODE>` để nhập code');
-        }
-        
-        let codeList = '';
-        activeCodes.forEach((gc, index) => {
-            const usesLeft = gc.maxUses - gc.usedBy.length;
-            const expiresIn = Math.floor((gc.expiresAt - Date.now()) / (60 * 1000));
-            const hours = Math.floor(expiresIn / 60);
-            const minutes = expiresIn % 60;
-            
-            codeList += `**${index + 1}. \`${gc.code}\`**\n`;
-            codeList += `   💰 Thưởng: **${gc.reward.toLocaleString('en-US')} Mcoin**\n`;
-            codeList += `   📊 Còn: **${usesLeft}/${gc.maxUses}** lượt\n`;
-            codeList += `   ⏰ Hết hạn sau: **${hours}h ${minutes}m**\n\n`;
-        });
-        
-        const stats = giftcode.getStats();
-        
-        const embed = new EmbedBuilder()
-            .setTitle('🎁 DANH SÁCH GIFTCODE ĐANG HOẠT ĐỘNG')
-            .setColor('#9b59b6')
-            .setDescription(codeList)
-            .addFields(
-                { 
-                    name: '💡 Cách nhập code', 
-                    value: '`.code <MÃ CODE>`\n**Ví dụ:** `.code ABC12345`', 
-                    inline: false 
-                },
-                { 
-                    name: '📊 Thống kê', 
-                    value: `Code hoạt động: **${stats.activeCodes}**\nĐã nhập: **${stats.totalRedeemed}** lần\nTổng thưởng: **${stats.totalRewards.toLocaleString('en-US')}** Mcoin`, 
-                    inline: false 
-                }
-            )
-            .setFooter({ text: `Tổng ${activeCodes.length} code đang hoạt động` })
-            .setTimestamp();
-        
-        return message.reply({ embeds: [embed] });
+// Save giftcodes vào file
+function saveGiftcodes(giftcodes) {
+    try {
+        fs.writeFileSync(GIFTCODE_FILE, JSON.stringify(giftcodes, null, 2));
+    } catch (error) {
+        console.error('Lỗi save giftcodes:', error);
     }
-    
-    // Nếu CÓ mã code → Nhập code
-    const result = giftcode.redeemGiftcode(code, message.author.id);
-    
-    if (!result.success) {
-        return message.reply(result.message);
-    }
-    
-    const user = getUser(message.author.id);
-    user.balance += result.reward;
-    saveDB();
-    
-    const embed = new EmbedBuilder()
-        .setTitle('🎉 NHẬP CODE THÀNH CÔNG!')
-        .setColor('#2ecc71')
-        .setDescription(`
-Bạn đã nhận được **${result.reward.toLocaleString('en-US')} Mcoin**!
-
-💰 **Số dư mới:** ${user.balance.toLocaleString('en-US')} Mcoin
-${result.usesLeft > 0 ? `⏳ Code còn **${result.usesLeft} lượt**` : '🔒 Code đã hết lượt và bị xóa!'}
-        `)
-        .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
 }
 
-// Lệnh: .delcode (Admin xóa code)
-async function handleDeleteCode(message, args) {
-    if (message.author.id !== ADMIN_ID) {
-        return message.reply('❌ Chỉ admin mới xóa được code!');
+// Tạo mã code ngẫu nhiên
+function generateCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    
-    const code = args[1]?.toUpperCase();
-    
-    if (!code) {
-        return message.reply('❌ Sử dụng: `.delcode <CODE>`\n\n**Ví dụ:** `.delcode ABC12345`');
-    }
-    
-    const result = giftcode.deleteGiftcode(code);
-    
-    if (!result.success) {
-        return message.reply(`❌ ${result.message}`);
-    }
-    
-    const embed = new EmbedBuilder()
-        .setTitle('🗑️ ĐÃ XÓA CODE')
-        .setColor('#e74c3c')
-        .setDescription(`
-**Code đã xóa:** \`${result.code.code}\`
-**Phần thưởng:** ${result.code.reward.toLocaleString('en-US')} Mcoin
-**Đã dùng:** ${result.code.usedBy.length}/${result.code.maxUses} lượt
-        `)
-        .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
+    return code;
 }
 
-// Lệnh: .delallcode (Admin xóa tất cả code)
-async function handleDeleteAllCodes(message) {
-    if (message.author.id !== ADMIN_ID) {
-        return message.reply('❌ Chỉ admin mới xóa được tất cả code!');
-    }
+// Tạo giftcode mới
+function createGiftcode(creatorId, customReward = null, customHours = 2) {
+    const giftcodes = loadGiftcodes();
     
-    const result = giftcode.deleteAllCodes();
+    const code = generateCode();
+    const reward = customReward || Math.floor(Math.random() * (1000000000 - 5000000 + 1)) + 5000000;
+    const duration = customHours;
+    const expiresAt = Date.now() + (duration * 60 * 60 * 1000);
     
-    if (result.count === 0) {
-        return message.reply('📭 Không có code nào để xóa!');
-    }
+    const newCode = {
+        code: code,
+        reward: reward,
+        creatorId: creatorId,
+        createdAt: Date.now(),
+        expiresAt: expiresAt,
+        duration: duration,
+        maxUses: 10,
+        usedBy: []
+    };
     
-    await message.reply(`✅ Đã xóa **${result.count} code** thành công!`);
+    giftcodes.push(newCode);
+    saveGiftcodes(giftcodes);
+    
+    return newCode;
 }
+
+// Nhập giftcode
+function redeemGiftcode(code, userId) {
+    let giftcodes = loadGiftcodes();
+    
+    const codeIndex = giftcodes.findIndex(gc => gc.code === code);
+    
+    if (codeIndex === -1) {
+        return { success: false, message: '❌ Code không tồn tại!' };
+    }
+    
+    const giftcode = giftcodes[codeIndex];
+    
+    // Kiểm tra hết hạn
+    if (Date.now() > giftcode.expiresAt) {
+        giftcodes.splice(codeIndex, 1);
+        saveGiftcodes(giftcodes);
+        return { success: false, message: '⏰ Code đã hết hạn!' };
+    }
+    
+    // Kiểm tra đã dùng chưa
+    if (giftcode.usedBy.includes(userId)) {
+        return { success: false, message: '❌ Bạn đã dùng code này rồi!' };
+    }
+    
+    // Kiểm tra hết lượt
+    if (giftcode.usedBy.length >= giftcode.maxUses) {
+        giftcodes.splice(codeIndex, 1);
+        saveGiftcodes(giftcodes);
+        return { success: false, message: '🔒 Code đã hết lượt!' };
+    }
+    
+    // Thêm user vào danh sách đã dùng
+    giftcode.usedBy.push(userId);
+    
+    // Nếu đã hết lượt, xóa code
+    if (giftcode.usedBy.length >= giftcode.maxUses) {
+        giftcodes.splice(codeIndex, 1);
+    } else {
+        giftcodes[codeIndex] = giftcode;
+    }
+    
+    saveGiftcodes(giftcodes);
+    
+    return {
+        success: true,
+        reward: giftcode.reward,
+        usesLeft: giftcode.maxUses - giftcode.usedBy.length
+    };
+}
+
+// Lấy danh sách code đang hoạt động
+function listActiveCodes() {
+    let giftcodes = loadGiftcodes();
+    const now = Date.now();
+    
+    // Lọc code còn hạn
+    giftcodes = giftcodes.filter(gc => gc.expiresAt > now);
+    saveGiftcodes(giftcodes);
+    
+    return giftcodes;
+}
+
+// Xóa code hết hạn tự động
+function cleanExpiredCodes() {
+    let giftcodes = loadGiftcodes();
+    const now = Date.now();
+    
+    const before = giftcodes.length;
+    giftcodes = giftcodes.filter(gc => gc.expiresAt > now);
+    const after = giftcodes.length;
+    
+    if (before !== after) {
+        saveGiftcodes(giftcodes);
+        console.log(`🗑️ Đã xóa ${before - after} code hết hạn`);
+    }
+}
+
+// Xóa 1 code
+function deleteGiftcode(code) {
+    let giftcodes = loadGiftcodes();
+    const codeIndex = giftcodes.findIndex(gc => gc.code === code);
+    
+    if (codeIndex === -1) {
+        return { success: false, message: 'Code không tồn tại!' };
+    }
+    
+    const deletedCode = giftcodes[codeIndex];
+    giftcodes.splice(codeIndex, 1);
+    saveGiftcodes(giftcodes);
+    
+    return { success: true, code: deletedCode };
+}
+
+// Xóa tất cả code
+function deleteAllCodes() {
+    const giftcodes = loadGiftcodes();
+    const count = giftcodes.length;
+    
+    saveGiftcodes([]);
+    
+    return { count };
+}
+
+// Thống kê
+function getStats() {
+    const giftcodes = loadGiftcodes();
+    
+    let totalRedeemed = 0;
+    let totalRewards = 0;
+    
+    giftcodes.forEach(gc => {
+        totalRedeemed += gc.usedBy.length;
+        totalRewards += gc.reward * gc.usedBy.length;
+    });
+    
+    return {
+        activeCodes: giftcodes.length,
+        totalRedeemed,
+        totalRewards
+    };
+}
+
+// Auto cleanup mỗi 1 giờ
+setInterval(cleanExpiredCodes, 60 * 60 * 1000);
 
 module.exports = {
-    handleCreateGiftcode,
-    handleCode,
-    handleDeleteCode,
-    handleDeleteAllCodes
+    createGiftcode,
+    redeemGiftcode,
+    listActiveCodes,
+    deleteGiftcode,
+    deleteAllCodes,
+    getStats,
+    cleanExpiredCodes
 };
