@@ -278,7 +278,8 @@ module.exports = {
     handleBackup,
     handleBackupNow,
     handleRestore,
-    handleRestoreFile
+    handleRestoreFile,
+    handleSendCode  
 };
 
 
