@@ -266,10 +266,58 @@ function createHistoryChart(historyArray) {
     }
 }
 
+// Vẽ đè xúc xắc mới lên GIF frame cuối
+async function overlayDiceOnGif(gifFramePath, dice1, dice2, dice3) {
+    try {
+        const baseImage = await loadImage(gifFramePath);
+        
+        const canvas = createCanvas(baseImage.width, baseImage.height);
+        const ctx = canvas.getContext('2d');
+        
+        // Vẽ ảnh GIF làm nền
+        ctx.drawImage(baseImage, 0, 0);
+        
+        // === CHE VÙNG XÚC XẮC CŨ ===
+        const centerX = baseImage.width / 2;
+        const centerY = baseImage.height / 2;
+        
+        // Vẽ hình ellipse trắng che đĩa (đè lên xúc xắc cũ)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY + 10, 180, 90, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Viền đĩa
+        ctx.strokeStyle = '#E0E0E0';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        // === VẼ 3 XÚC XẮC MỚI (tam giác) ===
+        const diceSize = 70;
+        
+        const positions = [
+            { x: centerX, y: centerY - 35 },      // Trên
+            { x: centerX - 70, y: centerY + 30 }, // Dưới trái
+            { x: centerX + 70, y: centerY + 30 }  // Dưới phải
+        ];
+        
+        [dice1, dice2, dice3].forEach((num, i) => {
+            drawRealisticDice(ctx, num, positions[i].x, positions[i].y, diceSize);
+        });
+        
+        return canvas.toBuffer('image/png');
+        
+    } catch (error) {
+        console.error('❌ overlayDiceOnGif error:', error.message);
+        return null;
+    }
+}
+
 module.exports = {
     createBowlCover,
     createRevealDice,
     drawDiceSafe,
     createDiceImageSafe,
-    createHistoryChart
+    createHistoryChart,
+    overlayDiceOnGif  // ← Thêm export
 };
