@@ -1,21 +1,6 @@
-// Tạo GIF lắc xúc xắc
-function createShakingDiceGIF() {
-    try {
-        const canvas = createCanvas(400, 400);
-        const ctx = canvas.getContext('2d');
-        const encoder = new GIFEncoder(400, 400);
-        
-        const stream = encoder.createReadStream();
-        const chunks = [];
-        
-        stream.on('data', chunk => chunks.push(chunk));
-        
-        encoder.start();
-        encoder.setRepeat(0);   // 0 = loop vô hạn
-        encoder.setDelay(100);  // 100ms mỗi frame
-        encoder.setQuality(10);
-        
-        // 10 frames animation lắcconst { createCanvas } = require('canvas');
+// utils/canvas.js - Vẽ ảnh cho Tài Xỉu
+
+const { createCanvas } = require('canvas');
 
 // Vẽ tô úp màu nâu (giống ảnh)
 function createBowlCover(state = 'shaking') {
@@ -174,11 +159,6 @@ function createRevealDice(dice) {
 // Vẽ 1 viên xúc xắc (an toàn, không crash)
 function drawDiceSafe(number) {
     try {
-        if (typeof createCanvas !== 'function') {
-            console.error('❌ createCanvas not available');
-            return null;
-        }
-        
         const canvas = createCanvas(100, 100);
         const ctx = canvas.getContext('2d');
         
@@ -268,7 +248,7 @@ function createHistoryChart(historyArray) {
             ctx.fillStyle = '#99AAB5';
             ctx.font = '16px Arial';
             ctx.fillText('Chưa có dữ liệu', 350, 150);
-            return canvas.toBuffer();
+            return canvas.toBuffer('image/png');
         }
         
         const barWidth = 35;
@@ -277,7 +257,8 @@ function createHistoryChart(historyArray) {
         
         last20.forEach((h, i) => {
             const x = 20 + i * (barWidth + spacing);
-            const barHeight = (h.total / 18) * maxHeight;
+            const total = h.total || 0;
+            const barHeight = (total / 18) * maxHeight;
             const y = 270 - barHeight;
             
             ctx.fillStyle = h.tai ? '#3498db' : '#e74c3c';
@@ -290,7 +271,7 @@ function createHistoryChart(historyArray) {
             ctx.fillStyle = '#FFFFFF';
             ctx.font = 'bold 14px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(h.total, x + barWidth / 2, y - 5);
+            ctx.fillText(total.toString(), x + barWidth / 2, y - 5);
         });
         
         ctx.fillStyle = '#3498db';
@@ -305,7 +286,7 @@ function createHistoryChart(historyArray) {
         ctx.fillStyle = '#FFFFFF';
         ctx.fillText('Xỉu', 125, 292);
         
-        return canvas.toBuffer();
+        return canvas.toBuffer('image/png');
     } catch (error) {
         console.error('❌ createHistoryChart error:', error.message);
         return null;
