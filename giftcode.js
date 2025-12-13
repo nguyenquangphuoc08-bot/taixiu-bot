@@ -1,31 +1,32 @@
+// giftcode.js - Quản lý giftcode
 const fs = require('fs');
+const path = require('path');
 
-const GIFTCODE_PATH = './database/giftcodes.json';
+const GIFTCODE_FILE = path.join(__dirname, 'database', 'giftcodes.json');
 
-// Khởi tạo database giftcode
-let giftcodeDB = {
-    codes: {},
-    history: []
-};
-
-if (fs.existsSync(GIFTCODE_PATH)) {
+// Load giftcodes từ file
+function loadGiftcodes() {
     try {
-        giftcodeDB = JSON.parse(fs.readFileSync(GIFTCODE_PATH, 'utf8'));
-        console.log('✅ Đã load giftcode database!');
-    } catch (e) {
-        console.error('❌ Lỗi đọc giftcode database:', e);
+        if (fs.existsSync(GIFTCODE_FILE)) {
+            const data = fs.readFileSync(GIFTCODE_FILE, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (error) {
+        console.error('Lỗi load giftcodes:', error);
+    }
+    return [];
+}
+
+// Save giftcodes vào file
+function saveGiftcodes(giftcodes) {
+    try {
+        fs.writeFileSync(GIFTCODE_FILE, JSON.stringify(giftcodes, null, 2));
+    } catch (error) {
+        console.error('Lỗi save giftcodes:', error);
     }
 }
 
-function saveGiftcodeDB() {
-    try {
-        fs.writeFileSync(GIFTCODE_PATH, JSON.stringify(giftcodeDB, null, 2));
-    } catch (e) {
-        console.error('❌ Lỗi lưu giftcode database:', e);
-    }
-}
-
-// Tạo code random
+// Tạo mã code ngẫu nhiên
 function generateCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
@@ -35,60 +36,49 @@ function generateCode() {
     return code;
 }
 
-// Tạo giftcode mới (admin tùy chỉnh)
+// Tạo giftcode mới
 function createGiftcode(creatorId, customReward = null, customHours = 2) {
-    const code = generateCode();
-    const reward = customReward || (Math.floor(Math.random() * (1000000000 - 5000000 + 1)) + 5000000);
-    const expiresAt = Date.now() + (customHours * 60 * 60 * 1000);
+    const giftcodes = loadGiftcodes();
     
-    giftcodeDB.codes[code] = {
+    const code = generateCode();
+    const reward = customReward || Math.floor(Math.random() * (1000000000 - 5000000 + 1)) + 5000000;
+    const duration = customHours;
+    const expiresAt = Date.now() + (duration * 60 * 60 * 1000);
+    
+    const newCode = {
         code: code,
         reward: reward,
-        maxUses: 10,
-        usedBy: [],
-        createdBy: creatorId,
+        creatorId: creatorId,
         createdAt: Date.now(),
         expiresAt: expiresAt,
-        duration: customHours
+        duration: duration,
+        maxUses: 10,
+        usedBy: []
     };
     
-    saveGiftcodeDB();
-    return giftcodeDB.codes[code];
-}
-
-// Xóa giftcode
-function deleteGiftcode(code) {
-    if (!giftcodeDB.codes[code]) {
-        return { success: false, message: 'Code không tồn tại!' };
-    }
+    giftcodes.push(newCode);
+    saveGiftcodes(giftcodes);
     
-    const deletedCode = giftcodeDB.codes[code];
-    delete giftcodeDB.codes[code];
-    saveGiftcodeDB();
-    return { success: true, message: 'Đã xóa code thành công!', code: deletedCode };
-}
-
-// Xóa TẤT CẢ code
-function deleteAllCodes() {
-    const count = Object.keys(giftcodeDB.codes).length;
-    giftcodeDB.codes = {};
-    saveGiftcodeDB();
-    return { success: true, count: count };
+    return newCode;
 }
 
 // Nhập giftcode
 function redeemGiftcode(code, userId) {
-    const giftcode = giftcodeDB.codes[code];
+    let giftcodes = loadGiftcodes();
     
-    if (!giftcode) {
+    const codeIndex = giftcodes.findIndex(gc => gc.code === code);
+    
+    if (codeIndex === -1) {
         return { success: false, message: '❌ Code không tồn tại!' };
     }
     
+    const giftcode = giftcodes[codeIndex];
+    
     // Kiểm tra hết hạn
     if (Date.now() > giftcode.expiresAt) {
-        delete giftcodeDB.codes[code];
-        saveGiftcodeDB();
-        return { success: false, message: '❌ Code đã hết hạn!' };
+        giftcodes.splice(codeIndex, 1);
+        saveGiftcodes(giftcodes);
+        return { success: false, message: '⏰ Code đã hết hạn!' };
     }
     
     // Kiểm tra đã dùng chưa
@@ -98,90 +88,111 @@ function redeemGiftcode(code, userId) {
     
     // Kiểm tra hết lượt
     if (giftcode.usedBy.length >= giftcode.maxUses) {
-        delete giftcodeDB.codes[code];
-        saveGiftcodeDB();
-        return { success: false, message: '❌ Code đã hết lượt sử dụng!' };
+        giftcodes.splice(codeIndex, 1);
+        saveGiftcodes(giftcodes);
+        return { success: false, message: '🔒 Code đã hết lượt!' };
     }
     
-    // Nhập code thành công
+    // Thêm user vào danh sách đã dùng
     giftcode.usedBy.push(userId);
     
-    // Lưu lịch sử
-    giftcodeDB.history.push({
-        code: code,
-        userId: userId,
-        reward: giftcode.reward,
-        timestamp: Date.now()
-    });
-    
-    // Xóa code nếu đã đủ 10 lượt
+    // Nếu đã hết lượt, xóa code
     if (giftcode.usedBy.length >= giftcode.maxUses) {
-        delete giftcodeDB.codes[code];
+        giftcodes.splice(codeIndex, 1);
+    } else {
+        giftcodes[codeIndex] = giftcode;
     }
     
-    saveGiftcodeDB();
+    saveGiftcodes(giftcodes);
     
-    return { 
-        success: true, 
+    return {
+        success: true,
         reward: giftcode.reward,
         usesLeft: giftcode.maxUses - giftcode.usedBy.length
     };
 }
 
-// Lấy danh sách code hiện tại
+// Lấy danh sách code đang hoạt động
 function listActiveCodes() {
-    const codes = Object.values(giftcodeDB.codes);
-    
-    // Xóa code hết hạn
+    let giftcodes = loadGiftcodes();
     const now = Date.now();
-    let removed = 0;
     
-    codes.forEach(code => {
-        if (now > code.expiresAt) {
-            delete giftcodeDB.codes[code.code];
-            removed++;
-        }
-    });
+    // Lọc code còn hạn
+    giftcodes = giftcodes.filter(gc => gc.expiresAt > now);
+    saveGiftcodes(giftcodes);
     
-    if (removed > 0) {
-        saveGiftcodeDB();
-    }
-    
-    return Object.values(giftcodeDB.codes);
+    return giftcodes;
 }
 
-// Lấy thống kê
+// Xóa code hết hạn tự động
+function cleanExpiredCodes() {
+    let giftcodes = loadGiftcodes();
+    const now = Date.now();
+    
+    const before = giftcodes.length;
+    giftcodes = giftcodes.filter(gc => gc.expiresAt > now);
+    const after = giftcodes.length;
+    
+    if (before !== after) {
+        saveGiftcodes(giftcodes);
+        console.log(`🗑️ Đã xóa ${before - after} code hết hạn`);
+    }
+}
+
+// Xóa 1 code
+function deleteGiftcode(code) {
+    let giftcodes = loadGiftcodes();
+    const codeIndex = giftcodes.findIndex(gc => gc.code === code);
+    
+    if (codeIndex === -1) {
+        return { success: false, message: 'Code không tồn tại!' };
+    }
+    
+    const deletedCode = giftcodes[codeIndex];
+    giftcodes.splice(codeIndex, 1);
+    saveGiftcodes(giftcodes);
+    
+    return { success: true, code: deletedCode };
+}
+
+// Xóa tất cả code
+function deleteAllCodes() {
+    const giftcodes = loadGiftcodes();
+    const count = giftcodes.length;
+    
+    saveGiftcodes([]);
+    
+    return { count };
+}
+
+// Thống kê
 function getStats() {
+    const giftcodes = loadGiftcodes();
+    
+    let totalRedeemed = 0;
+    let totalRewards = 0;
+    
+    giftcodes.forEach(gc => {
+        totalRedeemed += gc.usedBy.length;
+        totalRewards += gc.reward * gc.usedBy.length;
+    });
+    
     return {
-        activeCodes: Object.keys(giftcodeDB.codes).length,
-        totalRedeemed: giftcodeDB.history.length,
-        totalRewards: giftcodeDB.history.reduce((sum, h) => sum + h.reward, 0)
+        activeCodes: giftcodes.length,
+        totalRedeemed,
+        totalRewards
     };
 }
 
-// Tự động xóa code hết hạn mỗi 5 phút
-setInterval(() => {
-    const now = Date.now();
-    let removed = 0;
-    
-    Object.keys(giftcodeDB.codes).forEach(code => {
-        if (now > giftcodeDB.codes[code].expiresAt) {
-            delete giftcodeDB.codes[code];
-            removed++;
-        }
-    });
-    
-    if (removed > 0) {
-        console.log(`🗑️ Đã xóa ${removed} giftcode hết hạn`);
-        saveGiftcodeDB();
-    }
-}, 5 * 60 * 1000);
+// Auto cleanup mỗi 1 giờ
+setInterval(cleanExpiredCodes, 60 * 60 * 1000);
 
 module.exports = {
     createGiftcode,
-    deleteGiftcode,
-    deleteAllCodes,
     redeemGiftcode,
     listActiveCodes,
-    getStats
+    deleteGiftcode,
+    deleteAllCodes,
+    getStats,
+    cleanExpiredCodes
 };

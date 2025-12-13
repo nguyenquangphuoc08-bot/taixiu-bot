@@ -1,44 +1,28 @@
-buildCommand: bash render-build.sh
-```
-
----
-
-## 🧪 SAU KHI SỬA - KIỂM TRA:
-
-### 1. Push lên GitHub
-- File đã commit xong
-
-### 2. Đợi Render deploy
-- Vào Render Dashboard
-- Xem **Logs** tab
-- Tìm dòng:
-```
-📦 Installing system dependencies for canvas...
-✅ Build complete!
-🧪 Testing Canvas module...
-   ✅ Canvas test: OK
-```
-
-### 3. Test trên Discord
-```
-.tx
-# Đặt cược
-# Đợi 30 giây
-# Phải thấy ảnh 3 xúc xắc!
-```
-
----
-
-## 🔍 DEBUG NẾU VẪN LỖI:
-
-### Check Render Logs cho các dòng:
-```
-❌ Canvas test FAILED: ...           ← Canvas không load được
-✅ Canvas test: OK                   ← Canvas OK
-⚠️ Canvas failed, sending without image  ← Vẽ xúc xắc thất bại
-```
-
-### Nếu thấy lỗi Canvas:
-```
-Error: Canvas module not found
-Error: libcairo.so.2: cannot open shared object file
+services:
+  - type: web
+    name: taixiu-bot
+    env: node
+    plan: free
+    buildCommand: |
+      echo "📦 Installing system dependencies for canvas..."
+      apt-get update
+      apt-get install -y \
+        build-essential \
+        libcairo2-dev \
+        libpango1.0-dev \
+        libjpeg-dev \
+        libgif-dev \
+        librsvg2-dev \
+        libpixman-1-dev \
+        fonts-dejavu-core
+      echo "📦 Installing Node.js dependencies..."
+      npm install
+      echo "✅ Build complete!"
+      echo "🧪 Testing Canvas module..."
+      node -e "try { require('canvas'); console.log('   ✅ Canvas test: OK'); } catch(e) { console.error('   ❌ Canvas test FAILED:', e.message); }"
+    startCommand: node index.js
+    envVars:
+      - key: TOKEN
+        sync: false
+      - key: NODE_ENV
+        value: production
