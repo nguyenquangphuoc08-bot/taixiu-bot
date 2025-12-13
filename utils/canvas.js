@@ -1,56 +1,57 @@
-// utils/canvas.js - Animation TÔ MỞ DẦN (BỎ LƯỚI)
+// utils/canvas.js - Xúc xắc giống ảnh mẫu
 
-const { createCanvas } = require('canvas');
+const { createCanvas, loadImage } = require('canvas');
 
-// Vẽ tô với độ mở khác nhau (0-100%)
-function createBowlCover(openPercent = 0) {
+// Vẽ tô trên đĩa trắng
+function createBowlCover(openPercent = 0, shakeOffset = 0) {
     try {
-        const canvas = createCanvas(400, 300);
+        const canvas = createCanvas(600, 400);
         const ctx = canvas.getContext('2d');
         
-        // NỀN XANH LÁ MƯỢT - KHÔNG CÓ LƯỚI
-        const gradient = ctx.createRadialGradient(200, 150, 0, 200, 150, 250);
-        gradient.addColorStop(0, '#1ea952');
-        gradient.addColorStop(1, '#137a38');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 400, 300);
+        // NỀN XANH LÁ
+        ctx.fillStyle = '#2d8a4f';
+        ctx.fillRect(0, 0, 600, 400);
         
-        const centerX = 200;
-        const centerY = 150;
-        const liftAmount = openPercent * 1.2; // Tô nâng lên mượt hơn
-        const tiltAngle = (openPercent / 100) * 0.5; // Tô nghiêng khi lật
+        const centerX = 300;
+        const centerY = 200;
         
-        ctx.save();
-        ctx.translate(centerX, centerY - liftAmount);
-        ctx.rotate(tiltAngle);
-        
-        // BÓNG TÔ
-        ctx.fillStyle = `rgba(0, 0, 0, ${0.4 * (1 - openPercent / 100)})`;
+        // VẼ ĐĨA TRẮNG
+        ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
-        ctx.ellipse(5, 10, 125, 75, 0, 0, Math.PI * 2);
+        ctx.ellipse(centerX, centerY + 20, 200, 100, 0, 0, Math.PI * 2);
         ctx.fill();
         
-        // TÔ MÀU NÂU TRẦM
-        const bowlGradient = ctx.createRadialGradient(-20, -20, 0, 0, 0, 120);
-        bowlGradient.addColorStop(0, '#A0522D');
-        bowlGradient.addColorStop(1, '#6B3410');
-        ctx.fillStyle = bowlGradient;
+        ctx.strokeStyle = '#E0E0E0';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        // Tính vị trí tô
+        const liftAmount = openPercent * 1.5;
+        const bowlX = centerX + shakeOffset;
+        const bowlY = centerY - liftAmount;
+        
+        // Bóng tô
+        if (openPercent < 100) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.beginPath();
+            ctx.ellipse(bowlX + 3, bowlY + 8, 130, 75, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // VẼ TÔ
+        ctx.fillStyle = '#8B5A3C';
         ctx.beginPath();
-        ctx.ellipse(0, 0, 120, 70, 0, 0, Math.PI * 2);
+        ctx.ellipse(bowlX, bowlY, 130, 75, 0, 0, Math.PI * 2);
         ctx.fill();
         
-        // VIỀN SÁNG
-        ctx.strokeStyle = '#D2691E';
+        ctx.strokeStyle = '#A0694F';
         ctx.lineWidth = 6;
         ctx.stroke();
         
-        // HIGHLIGHT
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
         ctx.beginPath();
-        ctx.ellipse(-30, -20, 40, 20, 0, 0, Math.PI * 2);
+        ctx.ellipse(bowlX - 35, bowlY - 20, 45, 20, 0, 0, Math.PI * 2);
         ctx.fill();
-        
-        ctx.restore();
         
         return canvas.toBuffer('image/png');
         
@@ -60,60 +61,45 @@ function createBowlCover(openPercent = 0) {
     }
 }
 
-// Vẽ xúc xắc từ từ lật ra (0 = chưa lật)
+// Vẽ 3 xúc xắc xếp tam giác GIỐNG ẢNH MẪU
 function createRevealDice(dice) {
     try {
-        const canvas = createCanvas(400, 300);
+        const canvas = createCanvas(600, 400);
         const ctx = canvas.getContext('2d');
         
-        // NỀN XANH LÁ MƯỢT - KHÔNG CÓ LƯỚI
-        const gradient = ctx.createRadialGradient(200, 150, 0, 200, 150, 250);
-        gradient.addColorStop(0, '#1ea952');
-        gradient.addColorStop(1, '#137a38');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 400, 300);
+        // NỀN XANH
+        ctx.fillStyle = '#2d8a4f';
+        ctx.fillRect(0, 0, 600, 400);
         
-        // Vẽ 3 xúc xắc
+        // ĐĨA TRẮNG
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.ellipse(300, 220, 200, 100, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.strokeStyle = '#E0E0E0';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        // VỊ TRÍ TAM GIÁC
         const positions = [
-            { x: 80, y: 150 },
-            { x: 200, y: 150 },
-            { x: 320, y: 150 }
+            { x: 300, y: 170 },  // Trên
+            { x: 240, y: 240 },  // Dưới trái
+            { x: 360, y: 240 }   // Dưới phải
         ];
         
         dice.forEach((num, index) => {
             const pos = positions[index];
             
             if (num === 0) {
-                // Chưa lật - vẽ dấu ?
-                ctx.fillStyle = '#555';
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-                ctx.shadowBlur = 10;
-                ctx.shadowOffsetX = 3;
-                ctx.shadowOffsetY = 3;
-                ctx.fillRect(pos.x - 40, pos.y - 40, 80, 80);
-                
-                ctx.shadowBlur = 0;
-                ctx.strokeStyle = '#333';
-                ctx.lineWidth = 3;
-                ctx.strokeRect(pos.x - 40, pos.y - 40, 80, 80);
-                
-                ctx.fillStyle = '#FFF';
-                ctx.font = 'bold 50px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('?', pos.x, pos.y);
-                
+                // Chưa hé - che bởi tô
+                ctx.fillStyle = 'rgba(139, 90, 60, 0.7)';
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 35, 0, Math.PI * 2);
+                ctx.fill();
             } else {
-                // Đã lật - vẽ xúc xắc
-                const d = drawDiceSafe(num);
-                if (d) {
-                    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-                    ctx.shadowBlur = 10;
-                    ctx.shadowOffsetX = 3;
-                    ctx.shadowOffsetY = 3;
-                    ctx.drawImage(d, pos.x - 40, pos.y - 40, 80, 80);
-                    ctx.shadowBlur = 0;
-                }
+                // Đã hé - vẽ xúc xắc GIỐNG ẢNH
+                drawRealisticDice(ctx, num, pos.x, pos.y, 70);
             }
         });
         
@@ -125,43 +111,60 @@ function createRevealDice(dice) {
     }
 }
 
-// Vẽ 1 viên xúc xắc
+// Vẽ xúc xắc GIỐNG HÌNH BẠN GỬI
+function drawRealisticDice(ctx, number, x, y, size = 70) {
+    const half = size / 2;
+    const radius = size * 0.12; // Bo góc
+    
+    // Vẽ hình vuông bo góc
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.moveTo(x - half + radius, y - half);
+    ctx.lineTo(x + half - radius, y - half);
+    ctx.quadraticCurveTo(x + half, y - half, x + half, y - half + radius);
+    ctx.lineTo(x + half, y + half - radius);
+    ctx.quadraticCurveTo(x + half, y + half, x + half - radius, y + half);
+    ctx.lineTo(x - half + radius, y + half);
+    ctx.quadraticCurveTo(x - half, y + half, x - half, y + half - radius);
+    ctx.lineTo(x - half, y - half + radius);
+    ctx.quadraticCurveTo(x - half, y - half, x - half + radius, y - half);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Viền đen mỏng
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    
+    // Vẽ chấm đen TRÒN
+    ctx.fillStyle = '#000000';
+    const dotSize = size * 0.16; // Chấm to hơn
+    const offset = size * 0.28;
+    
+    const dots = {
+        1: [[0, 0]],
+        2: [[-offset, -offset], [offset, offset]],
+        3: [[-offset, -offset], [0, 0], [offset, offset]],
+        4: [[-offset, -offset], [offset, -offset], [-offset, offset], [offset, offset]],
+        5: [[-offset, -offset], [offset, -offset], [0, 0], [-offset, offset], [offset, offset]],
+        6: [[-offset, -offset * 1.1], [offset, -offset * 1.1], [-offset, 0], [offset, 0], [-offset, offset * 1.1], [offset, offset * 1.1]]
+    };
+    
+    (dots[number] || []).forEach(([dx, dy]) => {
+        ctx.beginPath();
+        ctx.arc(x + dx, y + dy, dotSize, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
+// Vẽ 1 viên xúc xắc đơn (dùng cho fallback)
 function drawDiceSafe(number) {
     try {
         const canvas = createCanvas(100, 100);
         const ctx = canvas.getContext('2d');
         
-        // Nền trắng với gradient
-        const gradient = ctx.createLinearGradient(0, 0, 100, 100);
-        gradient.addColorStop(0, '#FFFFFF');
-        gradient.addColorStop(1, '#F5F5F5');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 100, 100);
-        
-        // Bo tròn góc
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 4;
-        ctx.lineJoin = 'round';
-        ctx.strokeRect(5, 5, 90, 90);
-        
-        // Vẽ chấm
-        ctx.fillStyle = '#000000';
-        const dotSize = 13;
-        
-        const positions = {
-            1: [[50, 50]],
-            2: [[30, 30], [70, 70]],
-            3: [[30, 30], [50, 50], [70, 70]],
-            4: [[30, 30], [70, 30], [30, 70], [70, 70]],
-            5: [[30, 30], [70, 30], [50, 50], [30, 70], [70, 70]],
-            6: [[30, 25], [70, 25], [30, 50], [70, 50], [30, 75], [70, 75]]
-        };
-        
-        (positions[number] || []).forEach(([x, y]) => {
-            ctx.beginPath();
-            ctx.arc(x, y, dotSize, 0, Math.PI * 2);
-            ctx.fill();
-        });
+        ctx.clearRect(0, 0, 100, 100);
+        drawRealisticDice(ctx, number, 50, 50, 90);
         
         return canvas;
     } catch (error) {
@@ -170,37 +173,77 @@ function drawDiceSafe(number) {
     }
 }
 
-// Tạo ảnh 3 xúc xắc - NỀN TRONG SUỐT
+// Tạo ảnh 3 xúc xắc nằm ngang cho kết quả cuối
 function createDiceImageSafe(dice1, dice2, dice3) {
     try {
-        const canvas = createCanvas(340, 130);
+        const canvas = createCanvas(360, 130);
         const ctx = canvas.getContext('2d');
         
-        // NỀN TRONG SUỐT
-        ctx.clearRect(0, 0, 340, 130);
+        ctx.clearRect(0, 0, 360, 130);
         
-        const d1 = drawDiceSafe(dice1);
-        const d2 = drawDiceSafe(dice2);
-        const d3 = drawDiceSafe(dice3);
-        
-        if (!d1 || !d2 || !d3) {
-            return null;
-        }
-        
-        // Vẽ bóng cho xúc xắc
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-        ctx.shadowBlur = 15;
-        ctx.shadowOffsetX = 5;
-        ctx.shadowOffsetY = 5;
-        
-        ctx.drawImage(d1, 10, 15, 100, 100);
-        ctx.drawImage(d2, 120, 15, 100, 100);
-        ctx.drawImage(d3, 230, 15, 100, 100);
+        // Vẽ 3 viên ngang với bóng
+        [dice1, dice2, dice3].forEach((num, i) => {
+            const x = 60 + i * 120;
+            
+            // Bóng
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(x - 47, y - 47, 104, 104);
+            
+            drawRealisticDice(ctx, num, x, 65, 100);
+        });
         
         return canvas.toBuffer('image/png');
         
     } catch (error) {
         console.error('❌ createDiceImageSafe error:', error.message);
+        return null;
+    }
+}
+
+// Vẽ đè xúc xắc lên GIF frame cuối
+async function overlayDiceOnGif(gifFramePath, dice1, dice2, dice3) {
+    try {
+        const baseImage = await loadImage(gifFramePath);
+        
+        const canvas = createCanvas(baseImage.width, baseImage.height);
+        const ctx = canvas.getContext('2d');
+        
+        // Vẽ ảnh GIF làm nền
+        ctx.drawImage(baseImage, 0, 0);
+        
+        // === CHE VÙNG XÚC XẮC CŨ ===
+        // Tính tọa độ từ ảnh: GIF khoảng 950x430
+        const centerX = baseImage.width / 2;  // ~475
+        const centerY = baseImage.height / 2; // ~215
+        
+        // Vẽ hình ellipse trắng che đĩa
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, 220, 110, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Viền đĩa
+        ctx.strokeStyle = '#E0E0E0';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // === VẼ 3 XÚC XẮC MỚI (tam giác) ===
+        const diceSize = 85; // To hơn vì GIF lớn
+        
+        const positions = [
+            { x: centerX, y: centerY - 50 },      // Trên
+            { x: centerX - 80, y: centerY + 40 }, // Dưới trái
+            { x: centerX + 80, y: centerY + 40 }  // Dưới phải
+        ];
+        
+        [dice1, dice2, dice3].forEach((num, i) => {
+            drawRealisticDice(ctx, num, positions[i].x, positions[i].y, diceSize);
+        });
+        
+        return canvas.toBuffer('image/png');
+        
+    } catch (error) {
+        console.error('❌ overlayDiceOnGif error:', error.message);
         return null;
     }
 }
@@ -212,11 +255,7 @@ function createHistoryChart(historyArray) {
         const canvas = createCanvas(800, 300);
         const ctx = canvas.getContext('2d');
         
-        // Nền tối gradient
-        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-        gradient.addColorStop(0, '#23272A');
-        gradient.addColorStop(1, '#2C2F33');
-        ctx.fillStyle = gradient;
+        ctx.fillStyle = '#23272A';
         ctx.fillRect(0, 0, 800, 300);
         
         ctx.fillStyle = '#FFFFFF';
@@ -240,17 +279,7 @@ function createHistoryChart(historyArray) {
             const barHeight = (total / 18) * maxHeight;
             const y = 270 - barHeight;
             
-            // Gradient cho cột
-            const barGradient = ctx.createLinearGradient(x, y, x, y + barHeight);
-            if (h.tai) {
-                barGradient.addColorStop(0, '#5DADE2');
-                barGradient.addColorStop(1, '#2874A6');
-            } else {
-                barGradient.addColorStop(0, '#EC7063');
-                barGradient.addColorStop(1, '#C0392B');
-            }
-            
-            ctx.fillStyle = barGradient;
+            ctx.fillStyle = h.tai ? '#3498db' : '#e74c3c';
             ctx.fillRect(x, y, barWidth, barHeight);
             
             ctx.strokeStyle = '#FFFFFF';
@@ -263,15 +292,14 @@ function createHistoryChart(historyArray) {
             ctx.fillText(total.toString(), x + barWidth / 2, y - 5);
         });
         
-        // Legend
-        ctx.fillStyle = '#5DADE2';
+        ctx.fillStyle = '#3498db';
         ctx.fillRect(20, 280, 20, 15);
         ctx.fillStyle = '#FFFFFF';
         ctx.font = '12px Arial';
         ctx.textAlign = 'left';
         ctx.fillText('Tài', 45, 292);
         
-        ctx.fillStyle = '#EC7063';
+        ctx.fillStyle = '#e74c3c';
         ctx.fillRect(100, 280, 20, 15);
         ctx.fillStyle = '#FFFFFF';
         ctx.fillText('Xỉu', 125, 292);
@@ -288,5 +316,6 @@ module.exports = {
     createRevealDice,
     drawDiceSafe,
     createDiceImageSafe,
+    overlayDiceOnGif,
     createHistoryChart
 };
