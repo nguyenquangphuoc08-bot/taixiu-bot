@@ -80,11 +80,14 @@ async function handleTaiXiu(message, client) {
     
     let timeLeft = 30;
     const countdown = setInterval(async () => {
-        timeLeft -= 1;  // ← SỬA: Giảm 1 giây thay vì 5
+        timeLeft -= 5;
         
         if (timeLeft > 0) {
-            embed.spliceFields(0, 1, { name: '⏰ Thời gian còn lại', value: `${timeLeft} giây`, inline: true });
-            await sentMessage.edit({ embeds: [embed], components: [row] }).catch(() => {});
+            // ✅ CHỈ update embed - KHÔNG update components để button không bị reset
+            const newEmbed = EmbedBuilder.from(embed);
+            newEmbed.spliceFields(0, 1, { name: '⏰ Thời gian còn lại', value: `${timeLeft} giây`, inline: true });
+            
+            await sentMessage.edit({ embeds: [newEmbed] }).catch(() => {});
         } else {
             clearInterval(countdown);
             
@@ -105,7 +108,7 @@ async function handleTaiXiu(message, client) {
             
             await animateResult(sentMessage, client);
         }
-    }, 1000); // ← SỬA: Chạy mỗi 1 giây thay vì 5 giây
+    }, 5000); // ✅ Chạy mỗi 5 giây (30→25→20→15→10→5→0)
 }
 
 // ANIMATION với GIF - KHÔNG CÓ TEXT
