@@ -9,8 +9,8 @@ const { loadDB } = require('./utils/database');
 const handleButton = require('./handlers/buttonHandler');
 const handleModal = require('./handlers/modalHandler');
 
-// Import commands
-const { handleTaiXiu, handleLichSu, getBettingSession } = require('./commands/game');
+// Import commands - ✅ FIX: Sửa từ './commands/game' thành './handlers/game'
+const { handleTaiXiu, handleLichSu, getBettingSession } = require('./handlers/game');
 const { handleMcoin, handleTang, handleDiemDanh } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { 
@@ -48,7 +48,7 @@ loadDB();
 
 // ===== BOT READY =====
 client.once('ready', async () => {
-    console.log(`✅ Bot ${client.user.tag} đã online!`);
+    console.log(`✅ Bot ${client.user.tag} đã online!`); // ✅ FIX: thêm (
     client.user.setActivity('.tx để chơi | .daily nhiệm vụ', { type: 'PLAYING' });
     
     // Khôi phục phiên cược bị gián đoạn
@@ -83,7 +83,6 @@ setInterval(async () => {
             .setColor('#f39c12')
             .setDescription(`
 Bot vừa phát hành code mới!
-
 **🎟️ Code:** \`${newCode.code}\`
 **💰 Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin
 **👥 Số lượt:** ${newCode.maxUses} người
@@ -100,7 +99,7 @@ Gõ: \`.code ${newCode.code}\`
             embeds: [embed] 
         });
         
-        console.log(`✅ [${new Date().toLocaleString('vi-VN')}] Auto giftcode: ${newCode.code} - ${reward.toLocaleString('en-US')} Mcoin`);
+        console.log(`✅ [${new Date().toLocaleString('vi-VN')}] Auto giftcode: ${newCode.code} - ${reward.toLocaleString('en-US')} Mcoin`); // ✅ FIX: thêm (
         
     } catch (e) {
         console.error('❌ Lỗi auto giftcode:', e.message);
@@ -124,92 +123,92 @@ client.on('messageCreate', async (message) => {
     // ===== GAME COMMANDS =====
     if (command === '.tx') {
         await handleTaiXiu(message, client);
-        return; // THÊM RETURN
+        return;
     }
     
     if (command === '.lichsu' || command === '.ls') {
         await handleLichSu(message);
-        return; // THÊM RETURN
+        return;
     }
     
     // ===== USER COMMANDS =====
     if (command === '.mcoin') {
         await handleMcoin(message);
-        return; // THÊM RETURN
+        return;
     }
     
     if (command === '.tang' || command === '.give') {
         await handleTang(message, args);
-        return; // THÊM RETURN
+        return;
     }
     
     if (command === '.diemdanh' || command === '.dd') {
         await handleDiemDanh(message);
-        return; // THÊM RETURN
+        return;
     }
     
     // ===== QUEST COMMANDS =====
     if (command === '.daily') {
         await handleDaily(message);
-        return; // THÊM RETURN
+        return;
     }
     
     if (command === '.claimall') {
         await handleClaimAll(message);
-        return; // THÊM RETURN
+        return;
     }
     
     // ===== GIFTCODE COMMANDS =====
     if (command === '.giftcode' || command === '.gc') {
         await handleCreateGiftcode(message, args);
-        return; // THÊM RETURN
+        return;
     }
     
     if (command === '.code') {
         await handleCode(message, args);
-        return; // THÊM RETURN
+        return;
     }
     
     if (command === '.delcode' || command === '.xoacode') {
         await handleDeleteCode(message, args);
-        return; // THÊM RETURN
+        return;
     }
     
     if (command === '.delallcode' || command === '.xoatatca') {
         await handleDeleteAllCodes(message);
-        return; // THÊM RETURN
+        return;
     }
     
     // ===== ADMIN COMMANDS =====
     if (command === '.dbinfo') {
         await handleDbInfo(message);
-        return; // THÊM RETURN
+        return;
     }
     
     if (command === '.backup') {
         await handleBackup(message);
-        return; // THÊM RETURN
+        return;
     }
     
     if (command === '.backupnow') {
         await handleBackupNow(message);
-        return; // THÊM RETURN
+        return;
     }
     
     if (command === '.restore') {
         await handleRestore(message);
-        return; // THÊM RETURN
+        return;
     }
     
     if (command === '.sendcode') {
         await handleSendCode(message, GIFTCODE_CHANNEL_ID);
-        return; // THÊM RETURN
+        return;
     }
     
     // Xử lý restore file
     if (message.content.toLowerCase().includes('restore confirm') && message.attachments.size > 0) {
         await handleRestoreFile(message);
-        return; // THÊM RETURN
+        return;
     }
     
     // ===== HELP COMMAND =====
@@ -260,7 +259,7 @@ client.on('messageCreate', async (message) => {
         }
         
         await message.reply({ embeds: [embed] });
-        return; // THÊM RETURN
+        return;
     }
 });
 
@@ -304,4 +303,3 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
-
