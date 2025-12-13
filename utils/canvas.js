@@ -1,99 +1,55 @@
-// Tạo GIF lắc xúc xắc
-function createShakingDiceGIF() {
-    try {
-        const canvas = createCanvas(400, 400);
-        const ctx = canvas.getContext('2d');
-        const encoder = new GIFEncoder(400, 400);
-        
-        const stream = encoder.createReadStream();
-        const chunks = [];
-        
-        stream.on('data', chunk => chunks.push(chunk));
-        
-        encoder.start();
-        encoder.setRepeat(0);   // 0 = loop vô hạn
-        encoder.setDelay(100);  // 100ms mỗi frame
-        encoder.setQuality(10);
-        
-        // 10 frames animation lắcconst { createCanvas } = require('canvas');
+const { createCanvas, loadImage } = require('canvas');
 
-// Vẽ tô úp màu nâu (giống ảnh)
-function createBowlCover(state = 'shaking') {
+// Vẽ tô trên đĩa trắng
+function createBowlCover(openPercent = 0, shakeOffset = 0) {
     try {
-        const canvas = createCanvas(400, 300);
+        const canvas = createCanvas(600, 400);
         const ctx = canvas.getContext('2d');
         
-        // Nền xanh lá như bàn cờ bạc
-        ctx.fillStyle = '#1a7a3e';
-        ctx.fillRect(0, 0, 400, 300);
+        // NỀN XANH LÁ
+        ctx.fillStyle = '#2d8a4f';
+        ctx.fillRect(0, 0, 600, 400);
         
-        // Vẽ pattern lưới
-        ctx.strokeStyle = '#145c2e';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 400; i += 20) {
+        const centerX = 300;
+        const centerY = 200;
+        
+        // VẼ ĐĨA TRẮNG
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY + 20, 200, 100, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.strokeStyle = '#E0E0E0';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        // Tính vị trí tô
+        const liftAmount = openPercent * 1.5;
+        const bowlX = centerX + shakeOffset;
+        const bowlY = centerY - liftAmount;
+        
+        // Bóng tô
+        if (openPercent < 100) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
             ctx.beginPath();
-            ctx.moveTo(i, 0);
-            ctx.lineTo(i, 300);
-            ctx.stroke();
-        }
-        for (let j = 0; j < 300; j += 20) {
-            ctx.beginPath();
-            ctx.moveTo(0, j);
-            ctx.lineTo(400, j);
-            ctx.stroke();
+            ctx.ellipse(bowlX + 3, bowlY + 8, 130, 75, 0, 0, Math.PI * 2);
+            ctx.fill();
         }
         
-        // Vẽ tô màu nâu
-        const centerX = 200;
-        const centerY = 150;
+        // VẼ TÔ
+        ctx.fillStyle = '#8B5A3C';
+        ctx.beginPath();
+        ctx.ellipse(bowlX, bowlY, 130, 75, 0, 0, Math.PI * 2);
+        ctx.fill();
         
-        if (state === 'shaking') {
-            // Tô úp - hình elip nâu
-            ctx.fillStyle = '#8B4513';
-            ctx.beginPath();
-            ctx.ellipse(centerX, centerY, 120, 70, 0, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Viền sáng
-            ctx.strokeStyle = '#A0522D';
-            ctx.lineWidth = 8;
-            ctx.stroke();
-            
-            // Bóng
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            ctx.beginPath();
-            ctx.ellipse(centerX + 5, centerY + 5, 120, 70, 0, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Text
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 24px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('🔊 Sột soạt...', centerX, centerY + 120);
-            
-        } else if (state === 'lifting') {
-            // Tô đang hé lên
-            ctx.fillStyle = '#8B4513';
-            ctx.beginPath();
-            ctx.ellipse(centerX, centerY - 30, 120, 70, 0, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Viền
-            ctx.strokeStyle = '#A0522D';
-            ctx.lineWidth = 8;
-            ctx.stroke();
-            
-            // Mũi tên chỉ lên
-            ctx.fillStyle = '#FFD700';
-            ctx.font = 'bold 40px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('↗️', centerX + 80, centerY - 20);
-            
-            // Text
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 20px Arial';
-            ctx.fillText('Đang mở...', centerX, centerY + 100);
-        }
+        ctx.strokeStyle = '#A0694F';
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.beginPath();
+        ctx.ellipse(bowlX - 35, bowlY - 20, 45, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
         
         return canvas.toBuffer('image/png');
         
@@ -103,63 +59,45 @@ function createBowlCover(state = 'shaking') {
     }
 }
 
-// Vẽ xúc xắc từ từ lật ra (0 = chưa lật)
+// Vẽ 3 xúc xắc xếp tam giác GIỐNG ẢNH MẪU
 function createRevealDice(dice) {
     try {
-        const canvas = createCanvas(400, 300);
+        const canvas = createCanvas(600, 400);
         const ctx = canvas.getContext('2d');
         
-        // Nền xanh lá
-        ctx.fillStyle = '#1a7a3e';
-        ctx.fillRect(0, 0, 400, 300);
+        // NỀN XANH
+        ctx.fillStyle = '#2d8a4f';
+        ctx.fillRect(0, 0, 600, 400);
         
-        // Vẽ pattern lưới
-        ctx.strokeStyle = '#145c2e';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 400; i += 20) {
-            ctx.beginPath();
-            ctx.moveTo(i, 0);
-            ctx.lineTo(i, 300);
-            ctx.stroke();
-        }
-        for (let j = 0; j < 300; j += 20) {
-            ctx.beginPath();
-            ctx.moveTo(0, j);
-            ctx.lineTo(400, j);
-            ctx.stroke();
-        }
+        // ĐĨA TRẮNG
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.ellipse(300, 220, 200, 100, 0, 0, Math.PI * 2);
+        ctx.fill();
         
-        // Vẽ 3 xúc xắc
+        ctx.strokeStyle = '#E0E0E0';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        // VỊ TRÍ TAM GIÁC
         const positions = [
-            { x: 80, y: 150 },
-            { x: 200, y: 150 },
-            { x: 320, y: 150 }
+            { x: 300, y: 170 },  // Trên
+            { x: 240, y: 240 },  // Dưới trái
+            { x: 360, y: 240 }   // Dưới phải
         ];
         
         dice.forEach((num, index) => {
             const pos = positions[index];
             
             if (num === 0) {
-                // Chưa lật - vẽ dấu ?
-                ctx.fillStyle = '#666';
-                ctx.fillRect(pos.x - 40, pos.y - 40, 80, 80);
-                
-                ctx.strokeStyle = '#333';
-                ctx.lineWidth = 3;
-                ctx.strokeRect(pos.x - 40, pos.y - 40, 80, 80);
-                
-                ctx.fillStyle = '#FFF';
-                ctx.font = 'bold 50px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('?', pos.x, pos.y);
-                
+                // Chưa hé - che bởi tô
+                ctx.fillStyle = 'rgba(139, 90, 60, 0.7)';
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 35, 0, Math.PI * 2);
+                ctx.fill();
             } else {
-                // Đã lật - vẽ xúc xắc
-                const d = drawDiceSafe(num);
-                if (d) {
-                    ctx.drawImage(d, pos.x - 40, pos.y - 40, 80, 80);
-                }
+                // Đã hé - vẽ xúc xắc GIỐNG ẢNH
+                drawRealisticDice(ctx, num, pos.x, pos.y, 70);
             }
         });
         
@@ -171,44 +109,60 @@ function createRevealDice(dice) {
     }
 }
 
-// Vẽ 1 viên xúc xắc (an toàn, không crash)
+// Vẽ xúc xắc GIỐNG HÌNH BẠN GỬI
+function drawRealisticDice(ctx, number, x, y, size = 70) {
+    const half = size / 2;
+    const radius = size * 0.12; // Bo góc
+    
+    // Vẽ hình vuông bo góc
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.moveTo(x - half + radius, y - half);
+    ctx.lineTo(x + half - radius, y - half);
+    ctx.quadraticCurveTo(x + half, y - half, x + half, y - half + radius);
+    ctx.lineTo(x + half, y + half - radius);
+    ctx.quadraticCurveTo(x + half, y + half, x + half - radius, y + half);
+    ctx.lineTo(x - half + radius, y + half);
+    ctx.quadraticCurveTo(x - half, y + half, x - half, y + half - radius);
+    ctx.lineTo(x - half, y - half + radius);
+    ctx.quadraticCurveTo(x - half, y - half, x - half + radius, y - half);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Viền đen mỏng
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    
+    // Vẽ chấm đen TRÒN
+    ctx.fillStyle = '#000000';
+    const dotSize = size * 0.16; // Chấm to hơn
+    const offset = size * 0.28;
+    
+    const dots = {
+        1: [[0, 0]],
+        2: [[-offset, -offset], [offset, offset]],
+        3: [[-offset, -offset], [0, 0], [offset, offset]],
+        4: [[-offset, -offset], [offset, -offset], [-offset, offset], [offset, offset]],
+        5: [[-offset, -offset], [offset, -offset], [0, 0], [-offset, offset], [offset, offset]],
+        6: [[-offset, -offset * 1.1], [offset, -offset * 1.1], [-offset, 0], [offset, 0], [-offset, offset * 1.1], [offset, offset * 1.1]]
+    };
+    
+    (dots[number] || []).forEach(([dx, dy]) => {
+        ctx.beginPath();
+        ctx.arc(x + dx, y + dy, dotSize, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
+// Vẽ 1 viên xúc xắc đơn (dùng cho fallback)
 function drawDiceSafe(number) {
     try {
-        if (typeof createCanvas !== 'function') {
-            console.error('❌ createCanvas not available');
-            return null;
-        }
-        
         const canvas = createCanvas(100, 100);
         const ctx = canvas.getContext('2d');
         
-        // Nền trắng
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, 100, 100);
-        
-        // Viền đen
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(5, 5, 90, 90);
-        
-        // Vẽ chấm
-        ctx.fillStyle = '#000000';
-        const dotSize = 13;
-        
-        const positions = {
-            1: [[50, 50]],
-            2: [[30, 30], [70, 70]],
-            3: [[30, 30], [50, 50], [70, 70]],
-            4: [[30, 30], [70, 30], [30, 70], [70, 70]],
-            5: [[30, 30], [70, 30], [50, 50], [30, 70], [70, 70]],
-            6: [[30, 25], [70, 25], [30, 50], [70, 50], [30, 75], [70, 75]]
-        };
-        
-        (positions[number] || []).forEach(([x, y]) => {
-            ctx.beginPath();
-            ctx.arc(x, y, dotSize, 0, Math.PI * 2);
-            ctx.fill();
-        });
+        ctx.clearRect(0, 0, 100, 100);
+        drawRealisticDice(ctx, number, 50, 50, 90);
         
         return canvas;
     } catch (error) {
@@ -217,32 +171,31 @@ function drawDiceSafe(number) {
     }
 }
 
-// Tạo ảnh 3 xúc xắc (an toàn, không crash)
+// ✅ SỬA LỖI: Tạo ảnh 3 xúc xắc nằm ngang
 function createDiceImageSafe(dice1, dice2, dice3) {
     try {
-        console.log(`🎲 Creating dice: ${dice1}-${dice2}-${dice3}`);
-        
-        const canvas = createCanvas(340, 130);
+        const canvas = createCanvas(360, 130);
         const ctx = canvas.getContext('2d');
         
-        ctx.clearRect(0, 0, 340, 130);
+        ctx.clearRect(0, 0, 360, 130);
         
-        const d1 = drawDiceSafe(dice1);
-        const d2 = drawDiceSafe(dice2);
-        const d3 = drawDiceSafe(dice3);
+        const y = 65; // ✅ ĐỊNH NGHĨA y Ở ĐÂY
         
-        if (!d1 || !d2 || !d3) {
-            console.log('⚠️ Cannot create dice, using text fallback');
-            return null;
-        }
+        // Vẽ 3 viên ngang
+        [dice1, dice2, dice3].forEach((num, i) => {
+            const x = 60 + i * 120;
+            
+            // Bóng
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            ctx.beginPath();
+            ctx.ellipse(x + 2, y + 52, 48, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Vẽ xúc xắc
+            drawRealisticDice(ctx, num, x, y, 100);
+        });
         
-        ctx.drawImage(d1, 10, 15, 100, 100);
-        ctx.drawImage(d2, 120, 15, 100, 100);
-        ctx.drawImage(d3, 230, 15, 100, 100);
-        
-        const buffer = canvas.toBuffer('image/png');
-        console.log(`✅ Dice image created: ${buffer.length} bytes`);
-        return buffer;
+        return canvas.toBuffer('image/png');
         
     } catch (error) {
         console.error('❌ createDiceImageSafe error:', error.message);
@@ -257,7 +210,7 @@ function createHistoryChart(historyArray) {
         const canvas = createCanvas(800, 300);
         const ctx = canvas.getContext('2d');
         
-        ctx.fillStyle = '#2C2F33';
+        ctx.fillStyle = '#23272A';
         ctx.fillRect(0, 0, 800, 300);
         
         ctx.fillStyle = '#FFFFFF';
@@ -268,7 +221,7 @@ function createHistoryChart(historyArray) {
             ctx.fillStyle = '#99AAB5';
             ctx.font = '16px Arial';
             ctx.fillText('Chưa có dữ liệu', 350, 150);
-            return canvas.toBuffer();
+            return canvas.toBuffer('image/png');
         }
         
         const barWidth = 35;
@@ -277,7 +230,8 @@ function createHistoryChart(historyArray) {
         
         last20.forEach((h, i) => {
             const x = 20 + i * (barWidth + spacing);
-            const barHeight = (h.total / 18) * maxHeight;
+            const total = h.total || 0;
+            const barHeight = (total / 18) * maxHeight;
             const y = 270 - barHeight;
             
             ctx.fillStyle = h.tai ? '#3498db' : '#e74c3c';
@@ -290,7 +244,7 @@ function createHistoryChart(historyArray) {
             ctx.fillStyle = '#FFFFFF';
             ctx.font = 'bold 14px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(h.total, x + barWidth / 2, y - 5);
+            ctx.fillText(total.toString(), x + barWidth / 2, y - 5);
         });
         
         ctx.fillStyle = '#3498db';
@@ -305,7 +259,7 @@ function createHistoryChart(historyArray) {
         ctx.fillStyle = '#FFFFFF';
         ctx.fillText('Xỉu', 125, 292);
         
-        return canvas.toBuffer();
+        return canvas.toBuffer('image/png');
     } catch (error) {
         console.error('❌ createHistoryChart error:', error.message);
         return null;
