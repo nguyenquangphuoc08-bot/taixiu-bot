@@ -1,14 +1,15 @@
+// handlers/game.js - ANIMATION MƯỢT VỚI CANVAS (FIXED)
+
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
 const { rollDice, checkResult, checkJackpot } = require('../utils/game');
-const { createDiceImageSafe, createHistoryChart, overlayDiceOnGif } = require('../utils/canvas'); // ✅ THÊM overlayDiceOnGif
+const { createDiceImageSafe, createHistoryChart, createBowlCover, createRevealDice } = require('../utils/canvas');
 const { updateQuest } = require('../services/quest');
 const fs = require('fs');
-const path = require('path');
 
 let bettingSession = null;
 
-// ===== LỆNH: .tx =====
+// Lệnh: .tx
 async function handleTaiXiu(message, client) {
     if (bettingSession) {
         return message.reply('⏳ Đang có phiên cược, vui lòng đợi!');
@@ -80,14 +81,29 @@ async function handleTaiXiu(message, client) {
     
     let timeLeft = 30;
     const countdown = setInterval(async () => {
-        timeLeft -= 5;
+        timeLeft -= 1;
         
         if (timeLeft > 0) {
-            const newEmbed = EmbedBuilder.from(embed);
-            newEmbed.spliceFields(0, 1, { name: '⏰ Thời gian còn lại', value: `${timeLeft} giây`, inline: true });
+            // Emoji thay đổi theo thời gian
+            let emoji = '⏰';
+            if (timeLeft <= 5) {
+                emoji = '🔥';
+            } else if (timeLeft <= 10) {
+                emoji = '⚡';
+            } else if (timeLeft <= 15) {
+                emoji = '⏳';
+            }
             
-            await sentMessage.edit({ embeds: [newEmbed] }).catch(() => {});
+            embed.spliceFields(0, 1, { 
+                name: `${emoji} Thời gian còn lại`, 
+                value: `**${timeLeft}** giây`, 
+                inline: true 
+            });
+            
+            await sentMessage.edit({ embeds: [embed], components: [row] }).catch(() => {});
+            
         } else {
+            // ĐẾM ĐẾN 0 - DỪNG VÀ BẮT ĐẦU ANIMATION
             clearInterval(countdown);
             
             row.components.forEach(btn => btn.setDisabled(true));
@@ -105,84 +121,200 @@ async function handleTaiXiu(message, client) {
                 return;
             }
             
+            // BẮT ĐẦU ANIMATION
+            console.log('✅ Bắt đầu animation...');
             await animateResult(sentMessage, client);
         }
-    }, 5000);
+    }, 1000);
 }
 
-// ===== ANIMATION KẾT QUẢ =====
+// ===== ANIMATION MƯỢT VỚI CANVAS =====
 async function animateResult(sentMessage, client) {
     try {
         const { dice1, dice2, dice3, total } = rollDice();
         const result = checkResult(total);
         const isJackpot = checkJackpot(dice1, dice2, dice3);
         
-        console.log('🎲 BƯỚC 0: Bắt đầu animation');
-        console.log(`🎲 Result: ${dice1}-${dice2}-${dice3} = ${total}`);
+        console.log(`🎲 Animation: ${dice1}-${dice2}-${dice3} = ${total}`);
         
-        // ===== BƯỚC 1: PHÁT GIF (KHÔNG CÓ XÚC XẮC) =====
-        const gifFullPath = './assets/taixiu_spin.gif';
-        const gifFramePath = './assets/taixiu_lastframe.png';
+        // ===== ANIMATION: XÚC XẮC CÓ SẴN - TÔ BIẾN DẦN =====
+        const fs = require('fs');
+        const gifPath = './assets/taixiu_spin.gif';
+        const { createBowlReveal } = require('../utils/canvas');
         
-        if (fs.existsSync(gifFullPath)) {
-            console.log('✅ BƯỚC 1: Phát GIF...');
+        if (fs.existsSync(gifPath)) {
+            // PHÁT GIF LẮC TÔ (4 giây)
+            const gifAttachment = new AttachmentBuilder(gifPath, { name: 'animation.gif' });
             
-            const gifAttachment = new AttachmentBuilder(gifFullPath, { name: 'shake.gif' });
-            
-            const embedGif = new EmbedBuilder()
+            const embed1 = new EmbedBuilder()
                 .setTitle('🎲 ĐANG LẮC XÚC XẮC...')
                 .setColor('#e67e22')
-                .setImage('attachment://shake.gif')
+                .setDescription('⏳ **Đang lắc... Hồi hộp chưa?** 😱')
+                .setImage('attachment://animation.gif')
                 .setTimestamp();
             
             await sentMessage.edit({ 
-                embeds: [embedGif], 
+                embeds: [embed1], 
                 files: [gifAttachment],
                 components: [] 
-            });
+            }).catch(() => {});
             
-            console.log('✅ GIF đã gửi, đợi 3.5 giây...');
-            await sleep(3500);
-            console.log('✅ Hết thời gian đợi GIF');
-        }
-        
-        // ===== BƯỚC 2: VẼ ĐÈ XÚC XẮC LÊN FRAME CUỐI =====
-        console.log('🎨 BƯỚC 2: Vẽ xúc xắc lên frame cuối...');
-        
-        let diceBuffer = null;
-        
-        if (fs.existsSync(gifFramePath)) {
-            diceBuffer = await overlayDiceOnGif(gifFramePath, dice1, dice2, dice3);
-            console.log('✅ Đã vẽ xúc xắc lên GIF frame');
+            await sleep(4000);
+            
         } else {
-            // Fallback: dùng canvas thông thường
-            diceBuffer = createDiceImageSafe(dice1, dice2, dice3);
-            console.log('⚠️ Không tìm thấy frame, dùng canvas thường');
+            console.log('⚠️ Không tìm thấy GIF, dùng Canvas animation');
         }
         
-        // ===== BƯỚC 3: HIỆN XÚC XẮC =====
-        console.log('📤 BƯỚC 3: Hiện xúc xắc...');
-        
-        if (diceBuffer) {
-            const embedReveal = new EmbedBuilder()
-                .setTitle(isJackpot ? '🎰💥 NỔ HŨ!!! 💥🎰' : '🎲 KẾT QUẢ!')
-                .setColor(isJackpot ? '#FFD700' : '#3498db')
-                .setDescription(`🎯 **${dice1} - ${dice2} - ${dice3} = ${total}**`)
-                .setImage('attachment://result.png')
+        // === TÔ BIẾN DẦN - LỘ XÚC XẮC ===
+        // Frame 1: Tô che 100%
+        const frame1 = createBowlReveal(dice1, dice2, dice3, 0);
+        if (frame1) {
+            const embed2 = new EmbedBuilder()
+                .setTitle('🎲 TÔ ĐANG MỞ...')
+                .setColor('#f39c12')
+                .setDescription('👀 **Chuẩn bị xem kết quả!**')
+                .setImage('attachment://reveal.png')
                 .setTimestamp();
             
             await sentMessage.edit({ 
-                embeds: [embedReveal], 
-                files: [new AttachmentBuilder(diceBuffer, { name: 'result.png' })]
-            });
+                embeds: [embed2], 
+                files: [new AttachmentBuilder(frame1, { name: 'reveal.png' })]
+            }).catch(() => {});
+        }
+        await sleep(500);
+        
+        // Frame 2: Tô mở 30%
+        const frame2 = createBowlReveal(dice1, dice2, dice3, 30);
+        if (frame2) {
+            await sentMessage.edit({ 
+                files: [new AttachmentBuilder(frame2, { name: 'reveal.png' })]
+            }).catch(() => {});
+        }
+        await sleep(400);
+        
+        // Frame 3: Tô mở 60%
+        const frame3 = createBowlReveal(dice1, dice2, dice3, 60);
+        if (frame3) {
+            await sentMessage.edit({ 
+                files: [new AttachmentBuilder(frame3, { name: 'reveal.png' })]
+            }).catch(() => {});
+        }
+        await sleep(400);
+        
+        // Frame 4: Tô biến mất 100% - LỘ XÚC XẮC
+        const frame4 = createBowlReveal(dice1, dice2, dice3, 100);
+        if (frame4) {
+            const embed3 = new EmbedBuilder()
+                .setTitle(isJackpot ? '🎰💥 NỔ HŨ!!! 💥🎰' : '🎲 XÚC XẮC ĐÃ LỘ!')
+                .setColor(isJackpot ? '#FFD700' : '#3498db')
+                .setDescription(`
+🎯 **${dice1} - ${dice2} - ${dice3} = ${total}**
+**${result.tai ? '🔴 TÀI' : '🔵 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
+
+${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
+                `)
+                .setImage('attachment://reveal.png')
+                .setTimestamp();
             
-            console.log('✅ Đã hiện xúc xắc, đợi 2 giây...');
-            await sleep(2000);
+            await sentMessage.edit({ 
+                embeds: [embed3], 
+                files: [new AttachmentBuilder(frame4, { name: 'reveal.png' })]
+            }).catch(() => {});
+        }
+        await sleep(1200);
+            // Fallback: Dùng Canvas animation
+            const shakePattern = [0, 10, -10, 8, -8, 6, -6, 0];
+            
+            for (let i = 0; i < shakePattern.length; i++) {
+                const bowlShake = createBowlCover(0, shakePattern[i]);
+                
+                if (bowlShake) {
+                    const embed1 = new EmbedBuilder()
+                        .setTitle('🎲 ĐANG LẮC XÚC XẮC...')
+                        .setColor('#e67e22')
+                        .setDescription('⏳ **Đang lắc... Hồi hộp chưa?** 😱')
+                        .setImage('attachment://bowl.png')
+                        .setTimestamp();
+                    
+                    await sentMessage.edit({ 
+                        embeds: [embed1], 
+                        files: [new AttachmentBuilder(bowlShake, { name: 'bowl.png' })],
+                        components: [] 
+                    }).catch(() => {});
+                }
+                
+                await sleep(250);
+            }
         }
         
-        // ===== BƯỚC 4: TÍNH TOÁN =====
-        console.log('💰 BƯỚC 4: Tính kết quả...');
+        // ===== HÉ TÔ - HIỆN TỪNG XÚC XẮC MỘT =====
+        // Xúc xắc 1
+        const reveal1 = createRevealDice([dice1, 0, 0]);
+        if (reveal1) {
+            const embed2 = new EmbedBuilder()
+                .setTitle('🎲 HÉ XÚC XẮC THỨ NHẤT!')
+                .setColor('#3498db')
+                .setDescription(`🎯 **Con đầu tiên:** ${dice1} điểm\n❓ Còn 2 viên nữa...`)
+                .setImage('attachment://dice.png')
+                .setTimestamp();
+            
+            await sentMessage.edit({ 
+                embeds: [embed2], 
+                files: [new AttachmentBuilder(reveal1, { name: 'dice.png' })]
+            }).catch(() => {});
+        }
+        await sleep(800);
         
+        // Xúc xắc 2
+        const reveal2 = createRevealDice([dice1, dice2, 0]);
+        if (reveal2) {
+            const embed3 = new EmbedBuilder()
+                .setTitle('🎲 HÉ XÚC XẮC THỨ HAI!')
+                .setColor('#3498db')
+                .setDescription(`
+🎯 **Con thứ 1:** ${dice1} điểm
+🎯 **Con thứ 2:** ${dice2} điểm
+❓ **Con thứ 3:** ???
+
+📊 **Tạm tính:** ${dice1 + dice2} điểm
+                `)
+                .setImage('attachment://dice.png')
+                .setTimestamp();
+            
+            await sentMessage.edit({ 
+                embeds: [embed3], 
+                files: [new AttachmentBuilder(reveal2, { name: 'dice.png' })]
+            }).catch(() => {});
+        }
+        await sleep(800);
+        
+        // Xúc xắc 3 - KẾT QUẢ
+        const reveal3 = createRevealDice([dice1, dice2, dice3]);
+        if (reveal3) {
+            const embed4 = new EmbedBuilder()
+                .setTitle(isJackpot ? '🎰💥 NỔ HŨ!!! 💥🎰' : '🎲 HÉ XÚC XẮC THỨ BA!')
+                .setColor(isJackpot ? '#FFD700' : '#3498db')
+                .setDescription(`
+🎯 **Con thứ 1:** ${dice1} điểm
+🎯 **Con thứ 2:** ${dice2} điểm  
+🎯 **Con thứ 3:** ${dice3} điểm
+
+📊 **TỔNG:** ${total} điểm
+**🎯 ${result.tai ? '🔴 TÀI' : '🔵 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
+
+${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
+                `)
+                .setImage('attachment://dice.png')
+                .setTimestamp();
+            
+            await sentMessage.edit({ 
+                embeds: [embed4], 
+                files: [new AttachmentBuilder(reveal3, { name: 'dice.png' })]
+            }).catch(() => {});
+        }
+        await sleep(1200);
+        
+        // ===== TÍNH TOÁN KẾT QUẢ =====
         database.history.push({ total, tai: result.tai, timestamp: Date.now() });
         if (database.history.length > 50) database.history.shift();
         
@@ -219,10 +351,12 @@ async function animateResult(sentMessage, client) {
             if (win) {
                 const winAmount = Math.floor(bet.amount * 1.9);
                 user.balance += winAmount;
+                
                 updateQuest(userId, 2);
                 
                 if (isJackpot) {
-                    const jackpotAmount = database.jackpot * 20;
+                    const currentJackpot = database.jackpot || 0;
+                    const jackpotAmount = currentJackpot * 20;
                     user.balance += jackpotAmount;
                     user.jackpotWins++;
                     jackpotWinners.push(`<@${userId}>: +${jackpotAmount.toLocaleString('en-US')} 🎰💎`);
@@ -240,59 +374,105 @@ async function animateResult(sentMessage, client) {
         
         saveDB();
         
-        console.log(`✅ Tính xong: ${winners.length} thắng, ${losers.length} thua`);
-        
-        // ===== BƯỚC 5: EMBED CUỐI =====
-        console.log('📊 BƯỚC 5: Gửi kết quả cuối...');
+        // ===== FRAME CUỐI: KẾT QUẢ (DÙNG CANVAS ĐẸP) =====
+        const diceBuffer = createDiceImageSafe(dice1, dice2, dice3);
         
         const resultEmbed = new EmbedBuilder()
-            .setTitle(isJackpot ? '🎰💥 NỔ HŨ!!! 💥🎰' : `🎲 KẾT QUẢ #${bettingSession.phienNumber}`)
-            .setColor(isJackpot ? '#FFD700' : (result.tai ? '#3498db' : '#e74c3c'))
-            .setDescription(`
-**⇒ ${dice1} + ${dice2} + ${dice3} = ${total}**
-**${result.tai ? '🔵 TÀI' : '🔴 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
-${isJackpot ? '\n🎰 **3 CON TRÙNG NHAU - NỔ HŨ!!!** 🎰' : ''}
-            `);
+            .setTitle(isJackpot ? '🎰💥💥 NỔ HŨ!!! 💥💥🎰' : `🎊 KẾT QUẢ TÀI XỈU #${bettingSession.phienNumber}`)
+            .setColor(isJackpot ? '#FFD700' : (result.tai ? '#e74c3c' : '#3498db'));
         
-        if (diceBuffer) {
+        let files = [];
+        let embedDescription = '';
+        
+        if (diceBuffer && Buffer.isBuffer(diceBuffer) && diceBuffer.length > 0) {
+            embedDescription = `
+**⇒ Kết quả: ${dice1} + ${dice2} + ${dice3} = ${total}**
+
+**🎯 Chung cuộc: ${result.tai ? '🔴 TÀI' : '🔵 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
+
+${isJackpot ? '\n🎰🎰🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰🎰🎰\n' : ''}
+${isJackpot && jackpotWinners.length === 0 ? '⚠️ **Không có người thắng - Hũ tiếp tục tăng!**\n' : ''}
+            `;
+            
+            resultEmbed.setDescription(embedDescription);
             resultEmbed.setImage('attachment://dice.png');
+            files.push(new AttachmentBuilder(diceBuffer, { name: 'dice.png' }));
+            
+        } else {
+            embedDescription = `
+🎲 **${dice1}  ${dice2}  ${dice3}**
+
+**⇒ Tổng: ${total} điểm**
+**🎯 ${result.tai ? '🔴 TÀI' : '🔵 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
+
+${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
+            `;
+            
+            resultEmbed.setDescription(embedDescription);
         }
         
         if (isJackpot && jackpotWinners.length > 0) {
             resultEmbed.addFields({
-                name: '🎰 JACKPOT',
+                name: '🎰💎 JACKPOT - CHỈ NGƯỜI THẮNG NHẬN! 💎🎰',
                 value: jackpotWinners.join('\n'),
                 inline: false
             });
         }
         
         resultEmbed.addFields(
-            { name: '✅ THẮNG', value: winners.length > 0 ? winners.join('\n') : '_Không có_', inline: false },
-            { name: '❌ THUA', value: losers.length > 0 ? losers.join('\n') : '_Không có_', inline: false },
-            { name: '💎 Hũ', value: `${database.jackpot.toLocaleString('en-US')} Mcoin`, inline: true },
-            { name: '👥 Người chơi', value: `${Object.keys(bettingSession.bets).length}`, inline: true }
+            { 
+                name: '✅ NGƯỜI THẮNG', 
+                value: winners.length > 0 ? winners.join('\n') : '_Không có ai thắng_',
+                inline: false
+            },
+            { 
+                name: '❌ NGƯỜI THUA', 
+                value: losers.length > 0 ? losers.join('\n') : '_Không có ai thua_',
+                inline: false
+            },
+            {
+                name: '💎 Hũ hiện tại',
+                value: `**${(database.jackpot || 0).toLocaleString('en-US')}** Mcoin`,
+                inline: true
+            },
+            {
+                name: '👥 Tổng người chơi',
+                value: `**${Object.keys(bettingSession.bets).length}** người`,
+                inline: true
+            }
         );
         
+        resultEmbed.setFooter({ text: isJackpot ? 'Chúc mừng người trúng Jackpot! 🎰' : 'Chúc may mắn lần sau!' });
         resultEmbed.setTimestamp();
         
-        await sentMessage.edit({ 
-            content: isJackpot ? '**🎰 TRÚNG ĐẠI!!!**' : '**🎊 KẾT QUẢ**', 
-            embeds: [resultEmbed],
-            files: diceBuffer ? [new AttachmentBuilder(diceBuffer, { name: 'dice.png' })] : [],
-            components: []
-        }).catch(async (err) => {
-            console.error('❌ Lỗi edit final:', err);
-            await sentMessage.channel.send({ embeds: [resultEmbed] }).catch(() => {});
-        });
-        
-        console.log('✅ HOÀN TẤT!');
+        try {
+            await sentMessage.edit({ 
+                content: isJackpot ? '**🎰💥 TRÚNG ĐẠI JACKPOT!!! 💥🎰**' : '**🎊 PHIÊN ĐÃ KẾT THÚC**', 
+                embeds: [resultEmbed],
+                files: files,
+                components: []
+            });
+            console.log('✅ Animation hoàn tất!');
+            
+        } catch (editError) {
+            console.error('❌ Edit error:', editError.message);
+            try {
+                await sentMessage.channel.send({
+                    content: '**🎊 PHIÊN ĐÃ KẾT THÚC**',
+                    embeds: [resultEmbed],
+                    files: files
+                });
+            } catch (sendError) {
+                console.error('❌ Send error:', sendError.message);
+            }
+        }
         
         bettingSession = null;
         database.activeBettingSession = null;
         saveDB();
         
     } catch (error) {
-        console.error('❌❌❌ LỖI:', error.stack);
+        console.error('❌ Lỗi animation:', error);
         bettingSession = null;
         database.activeBettingSession = null;
         saveDB();
@@ -303,25 +483,24 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// ===== LỆNH: .lichsu =====
+// Lệnh: .lichsu
 async function handleLichSu(message) {
     const chartBuffer = createHistoryChart(database.history);
     
     if (!chartBuffer) {
-        return message.reply('❌ Không thể tạo biểu đồ lịch sử');
+        return message.reply('❌ Không thể tạo biểu đồ lịch sử (Canvas lỗi)');
     }
     
+    const attachment = new AttachmentBuilder(chartBuffer, { name: 'history.png' });
+    
     const embed = new EmbedBuilder()
-        .setTitle('📊 LỊCH SỬ 20 PHIÊN')
+        .setTitle('📊 BIỂU ĐỒ LỊCH SỬ')
         .setColor('#9b59b6')
         .setImage('attachment://history.png')
         .setFooter({ text: 'Xanh = Tài | Đỏ = Xỉu' })
         .setTimestamp();
     
-    await message.reply({ 
-        embeds: [embed], 
-        files: [new AttachmentBuilder(chartBuffer, { name: 'history.png' })] 
-    });
+    await message.reply({ embeds: [embed], files: [attachment] });
 }
 
 function getBettingSession() {
@@ -338,5 +517,3 @@ module.exports = {
     getBettingSession,
     setBettingSession
 };
-
-
