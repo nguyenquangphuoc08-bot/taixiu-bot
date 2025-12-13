@@ -1,4 +1,4 @@
-// handlers/game.js - ANIMATION MƯỢT VỚI CANVAS
+// handlers/game.js - ANIMATION MƯỢT VỚI CANVAS (FIXED)
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
@@ -79,47 +79,52 @@ async function handleTaiXiu(message, client) {
     bettingSession.messageId = sentMessage.id;
     
     let timeLeft = 30;
-const countdown = setInterval(async () => {
-    timeLeft -= 1;
-    
-    if (timeLeft > 0) {
-        // Emoji thay đổi theo thời gian
-        let emoji = '⏰';
-        if (timeLeft <= 5) {
-            emoji = '🔥';  // 5 giây cuối - cháy
-        } else if (timeLeft <= 10) {
-            emoji = '⚡';  // 10 giây - sét
-        } else if (timeLeft <= 15) {
-            emoji = '⏳';  // 15 giây - đồng hồ cát
+    const countdown = setInterval(async () => {
+        timeLeft -= 1;
+        
+        if (timeLeft > 0) {
+            // Emoji thay đổi theo thời gian
+            let emoji = '⏰';
+            if (timeLeft <= 5) {
+                emoji = '🔥';
+            } else if (timeLeft <= 10) {
+                emoji = '⚡';
+            } else if (timeLeft <= 15) {
+                emoji = '⏳';
+            }
+            
+            embed.spliceFields(0, 1, { 
+                name: `${emoji} Thời gian còn lại`, 
+                value: `**${timeLeft}** giây`, 
+                inline: true 
+            });
+            
+            await sentMessage.edit({ embeds: [embed], components: [row] }).catch(() => {});
+            
+        } else {
+            // ĐẾM ĐẾN 0 - DỪNG VÀ BẮT ĐẦU ANIMATION
+            clearInterval(countdown);
+            
+            row.components.forEach(btn => btn.setDisabled(true));
+            await sentMessage.edit({ components: [row] }).catch(() => {});
+            
+            if (Object.keys(bettingSession.bets).length === 0) {
+                await sentMessage.edit({ 
+                    content: '❌ Không có ai đặt cược. Phiên bị hủy!',
+                    embeds: [],
+                    components: []
+                }).catch(() => {});
+                bettingSession = null;
+                database.activeBettingSession = null;
+                saveDB();
+                return;
+            }
+            
+            // BẮT ĐẦU ANIMATION
+            console.log('✅ Bắt đầu animation...');
+            await animateResult(sentMessage, client);
         }
-        
-        embed.spliceFields(0, 1, { 
-            name: `${emoji} Thời gian còn lại`, 
-            value: `**${timeLeft}** giây`, 
-            inline: true 
-        });
-        
-        await sentMessage.edit({ embeds: [embed], components: [row] }).catch(() => {});
-    } else {
-        clearInterval(countdown);
-        
-        row.components.forEach(btn => btn.setDisabled(true));
-        await sentMessage.edit({ components: [row] }).catch(() => {});
-        
-        if (Object.keys(bettingSession.bets).length === 0) {
-            await sentMessage.edit({ 
-                content: '❌ Không có ai đặt cược. Phiên bị hủy!',
-                embeds: [],
-                components: []
-            }).catch(() => {});
-            bettingSession = null;
-            return;
-        }
-        
-        // Tiếp tục code animation...
-        await endBettingSession(client);
-    }
-}, 1000);
+    }, 1000);
 }
 
 // ===== ANIMATION MƯỢT VỚI CANVAS =====
@@ -131,31 +136,15 @@ async function animateResult(sentMessage, client) {
         
         console.log(`🎲 Animation: ${dice1}-${dice2}-${dice3} = ${total}`);
         
-        // ===== FRAME 1: TÔ ÚP ĐANG LẮC (2.5 giây) =====
+        // ===== FRAME 1: TÔ ÚP ĐANG LẮC (2 giây) =====
         const bowlShaking = createBowlCover(0);
         
         if (bowlShaking) {
             const embed1 = new EmbedBuilder()
                 .setTitle('🎲 ĐANG LẮC XÚC XẮC...')
                 .setColor('#e67e22')
-                .setDescription(`
-\`\`\`
-╔═══════════════════════╗
-║  🎰  CASINO  🎰      ║
-║                       ║
-║   🎲 🎲 🎲           ║
-║  ═══════════════      ║
-║                       ║
-║    ĐÃ GHI CƯỢC!      ║
-║    ĐANG LẮC...       ║
-║                       ║
-╚═══════════════════════╝
-\`\`\`
-
-⏳ **Đang lắc xúc xắc... Chờ xíu nhé!**
-                `)
+                .setDescription('⏳ **Đang lắc xúc xắc... Hồi hộp chưa?** 😱')
                 .setImage('attachment://bowl.png')
-                .setFooter({ text: 'Hồi hộp chưa? 😱' })
                 .setTimestamp();
             
             await sentMessage.edit({ 
@@ -165,29 +154,16 @@ async function animateResult(sentMessage, client) {
             }).catch(() => {});
         }
         
-        await sleep(2500);
+        await sleep(2000);
         
-        // ===== FRAME 2: BẮT ĐẦU HÉ TÔ (1.5 giây) =====
-        const bowlLifting = createBowlCover(50);
+        // ===== FRAME 2: TÔ BẮT ĐẦU NÂNG LÊN (1 giây) =====
+        const bowlLifting = createBowlCover(30);
         
         if (bowlLifting) {
             const embed2 = new EmbedBuilder()
-                .setTitle('🎲 HÉ RA RỒI NÈ... 👀')
+                .setTitle('🎲 TÔ ĐANG NÂNG LÊN... 👀')
                 .setColor('#f39c12')
-                .setDescription(`
-\`\`\`
-╔═══════════════════════╗
-║                       ║
-║   🎲 🎲 🎲     ↗️    ║
-║  ═══════════════↗️    ║
-║                       ║
-║   ĐANG MỞ TÔ...      ║
-║                       ║
-╚═══════════════════════╝
-\`\`\`
-
-👀 **Chuẩn bị xem kết quả nào!**
-                `)
+                .setDescription('👀 **Chuẩn bị xem kết quả nào!**')
                 .setImage('attachment://bowl.png')
                 .setTimestamp();
             
@@ -197,85 +173,38 @@ async function animateResult(sentMessage, client) {
             }).catch(() => {});
         }
         
-        await sleep(1500);
-        
-        // ===== FRAME 3: LẬT XÚC XẮC 1 (1 giây) =====
-        const reveal1 = createRevealDice([dice1, 0, 0]);
-        
-        if (reveal1) {
-            const embed3 = new EmbedBuilder()
-                .setTitle('🎲 XÚC XẮC THỨ NHẤT!')
-                .setColor('#3498db')
-                .setDescription(`
-🎯 **Con đầu tiên:** ${dice1} điểm
-❓ **Con thứ 2:** ???
-❓ **Con thứ 3:** ???
-
-⏳ **Đang lật tiếp...**
-                `)
-                .setImage('attachment://dice.png')
-                .setTimestamp();
-            
-            await sentMessage.edit({ 
-                embeds: [embed3], 
-                files: [new AttachmentBuilder(reveal1, { name: 'dice.png' })]
-            }).catch(() => {});
-        }
-        
         await sleep(1000);
         
-        // ===== FRAME 4: LẬT XÚC XẮC 2 (1 giây) =====
-        const reveal2 = createRevealDice([dice1, dice2, 0]);
-        
-        if (reveal2) {
-            const embed4 = new EmbedBuilder()
-                .setTitle('🎲 XÚC XẮC THỨ HAI!')
-                .setColor('#3498db')
-                .setDescription(`
-🎯 **Con thứ 1:** ${dice1} điểm
-🎯 **Con thứ 2:** ${dice2} điểm
-❓ **Con thứ 3:** ???
-
-📊 **Tổng tạm:** ${dice1 + dice2} điểm
-${dice1 + dice2 >= 11 ? '💭 *Có thể Tài đây...*' : '💭 *Có thể Xỉu đây...*'}
-
-⏳ **Lật con cuối nào!**
-                `)
-                .setImage('attachment://dice.png')
-                .setTimestamp();
-            
-            await sentMessage.edit({ 
-                embeds: [embed4], 
-                files: [new AttachmentBuilder(reveal2, { name: 'dice.png' })]
-            }).catch(() => {});
-        }
-        
-        await sleep(1000);
-        
-        // ===== FRAME 5: LẬT XÚC XẮC 3 - HỒI HỘP (1.5 giây) =====
+        // ===== FRAME 3: TÔ LẬT RA - HIỆN XÚC XẮC (1.5 giây) =====
+        const bowlFlipped = createBowlCover(100); // Tô lật hoàn toàn
         const reveal3 = createRevealDice([dice1, dice2, dice3]);
         
-        if (reveal3) {
-            const embed5 = new EmbedBuilder()
-                .setTitle(isJackpot ? '🎰💥 NỔ HŨ RỒI NÈ!!! 💥🎰' : '🎲 XÚC XẮC THỨ BA!')
+        if (bowlFlipped && reveal3) {
+            const embed3 = new EmbedBuilder()
+                .setTitle(isJackpot ? '🎰💥 NỔ HŨ RỒI!!! 💥🎰' : '🎲 XÚC XẮC ĐÃ HIỆN!')
                 .setColor(isJackpot ? '#FFD700' : '#3498db')
                 .setDescription(`
 🎯 **Con thứ 1:** ${dice1} điểm
-🎯 **Con thứ 2:** ${dice2} điểm
+🎯 **Con thứ 2:** ${dice2} điểm  
 🎯 **Con thứ 3:** ${dice3} điểm
 
 📊 **TỔNG:** ${total} điểm
-${isJackpot ? '\n🎰🎰🎰 **BA CON GIỐNG NHAU - NỔ HŨ!!!** 🎰🎰🎰' : ''}
+**🎯 ${result.tai ? '🔴 TÀI' : '🔵 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
+
+${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU - NỔ HŨ!!!** 🎰🎰🎰' : ''}
 
 ⏳ **Đang tính toán kết quả...**
                 `)
                 .setImage('attachment://dice.png')
-                .setFooter({ text: isJackpot ? 'TRÚNG JACKPOT RỒI!!!' : 'Chờ xíu...' })
+                .setThumbnail('attachment://bowl.png')
                 .setTimestamp();
             
             await sentMessage.edit({ 
-                embeds: [embed5], 
-                files: [new AttachmentBuilder(reveal3, { name: 'dice.png' })]
+                embeds: [embed3], 
+                files: [
+                    new AttachmentBuilder(reveal3, { name: 'dice.png' }),
+                    new AttachmentBuilder(bowlFlipped, { name: 'bowl.png' })
+                ]
             }).catch(() => {});
         }
         
@@ -366,7 +295,6 @@ ${isJackpot && jackpotWinners.length === 0 ? '⚠️ **Không có người thắ
             files.push(new AttachmentBuilder(diceBuffer, { name: 'dice.png' }));
             
         } else {
-            // Fallback nếu Canvas lỗi
             embedDescription = `
 🎲 **${dice1}  ${dice2}  ${dice3}**
 
@@ -379,7 +307,6 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
             resultEmbed.setDescription(embedDescription);
         }
         
-        // Thêm Jackpot winners
         if (isJackpot && jackpotWinners.length > 0) {
             resultEmbed.addFields({
                 name: '🎰💎 JACKPOT - CHỈ NGƯỜI THẮNG NHẬN! 💎🎰',
@@ -388,7 +315,6 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
             });
         }
         
-        // Thêm winners & losers
         resultEmbed.addFields(
             { 
                 name: '✅ NGƯỜI THẮNG', 
@@ -415,7 +341,6 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
         resultEmbed.setFooter({ text: isJackpot ? 'Chúc mừng người trúng Jackpot! 🎰' : 'Chúc may mắn lần sau!' });
         resultEmbed.setTimestamp();
         
-        // GỬI KẾT QUẢ
         try {
             await sentMessage.edit({ 
                 content: isJackpot ? '**🎰💥 TRÚNG ĐẠI JACKPOT!!! 💥🎰**' : '**🎊 PHIÊN ĐÃ KẾT THÚC**', 
@@ -488,4 +413,3 @@ module.exports = {
     getBettingSession,
     setBettingSession
 };
-
