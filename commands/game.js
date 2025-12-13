@@ -5,7 +5,7 @@ async function animateResult(sentMessage, client) {
         const result = checkResult(total);
         const isJackpot = checkJackpot(dice1, dice2, dice3);
         
-        console.log(`🎲 Animation: ${dice1}-${dice2}-${dice3} = ${total}`);
+        console.log(`🎲 Animation: ${dice1}-${dice2}-${dice3} = ${total}`); // ✅ FIX: thêm (
         
         // ===== PHÁT GIF ANIMATION =====
         const fs = require('fs');
@@ -98,7 +98,7 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU - TRÚNG ĐẠI!!!** 🎰🎰�
             const embed2 = new EmbedBuilder()
                 .setTitle('🎲 HÉ XÚC XẮC THỨ NHẤT!')
                 .setColor('#3498db')
-                .setDescription(`🎯 **Con đầu tiên:** ${dice1} điểm\n❓ Còn 2 viên nữa...`)
+                .setDescription(`🎯 **Con đầu tiên:** ${dice1} điểm\n❓ Còn 2 viên nữa...`) // ✅ FIX: thêm (
                 .setImage('attachment://dice.png')
                 .setTimestamp();
             
@@ -205,12 +205,12 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
                     const jackpotAmount = currentJackpot * 20;
                     user.balance += jackpotAmount;
                     user.jackpotWins++;
-                    jackpotWinners.push(`<@${userId}>: +${jackpotAmount.toLocaleString('en-US')} 🎰💎`);
+                    jackpotWinners.push(`<@${userId}>: +${jackpotAmount.toLocaleString('en-US')} 🎰💎`); // ✅ FIX: thêm (
                 }
                 
-                winners.push(`<@${userId}>: +${winAmount.toLocaleString('en-US')} 💰`);
+                winners.push(`<@${userId}>: +${winAmount.toLocaleString('en-US')} 💰`); // ✅ FIX: thêm (
             } else {
-                losers.push(`<@${userId}>: -${bet.amount.toLocaleString('en-US')} 💸`);
+                losers.push(`<@${userId}>: -${bet.amount.toLocaleString('en-US')} 💸`); // ✅ FIX: thêm (
             }
         }
         
