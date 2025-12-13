@@ -1,7 +1,8 @@
-// commands/game.js - TÀI XỈU VỚI ANIMATION (Dùng database.json)
-
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { getUser, saveDB, database } = require('../utils/database');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
+const { database, saveDB, getUser } = require('../utils/database');
+const { rollDice, checkResult, checkJackpot } = require('../utils/game');
+const { createDiceImageSafe, createHistoryChart, createDiceBowlImage } = require('../utils/canvas');
+const { updateQuest } = require('../services/quest');
 
 let bettingSession = null;
 
@@ -15,345 +16,374 @@ const DICE_EMOJI = {
     6: '⚅'
 };
 
-function rollDice() {
-    return [
-        Math.floor(Math.random() * 6) + 1,
-        Math.floor(Math.random() * 6) + 1,
-        Math.floor(Math.random() * 6) + 1
-    ];
-}
-
-function checkResult(dice) {
-    const sum = dice.reduce((a, b) => a + b, 0);
-    return sum >= 11 ? 'TÀI' : 'XỈU';
-}
-
-function checkJackpot() {
-    return Math.random() < 0.01; // 1% jackpot
-}
-
 // Lệnh: .tx
 async function handleTaiXiu(message, client) {
-    if (bettingSession && bettingSession.active) {
-        return message.reply('⚠️ Đang có phiên cược đang chạy!');
+    if (bettingSession) {
+        return message.reply('⏳ Đang có phiên cược, vui lòng đợi!');
     }
     
     bettingSession = {
-        active: true,
-        messageId: null,
         channelId: message.channel.id,
-        bets: new Map(),
-        startTime: Date.now()
+        bets: {},
+        startTime: Date.now(),
+        messageId: null,
+        phienNumber: (database.history.length + 1)
     };
     
+    database.activeBettingSession = {
+        channelId: message.channel.id,
+        bets: {},
+        startTime: Date.now()
+    };
+    saveDB();
+    
+    const jackpotDisplay = database.jackpot ? database.jackpot.toLocaleString('en-US') : '0';
+    
     const embed = new EmbedBuilder()
-        .setTitle('🎲 TÀI XỈU - BẮT ĐẦU PHIÊN MỚI!')
-        .setColor('#3498db')
+        .setTitle('🎲 PHIÊN CƯỢC MỚI')
+        .setColor('#e67e22')
         .setDescription(`
-**📜 Luật chơi:**
-3 xúc xắc, tổng điểm:
-• **TÀI**: 11 - 18 điểm
-• **XỈU**: 3 - 10 điểm
+**Cửa cược:**
+🔵 **Tài** (11-18) | 🔴 **Xỉu** (3-10)
+🟣 **Chẵn** | 🟡 **Lẻ**
 
-⏰ **Thời gian cược:** 30 giây
-💰 **Tối thiểu:** 1,000 Mcoin
-💎 **Tối đa:** 1,000,000,000 Mcoin
-🎰 **Jackpot:** ${database.jackpot.toLocaleString('en-US')} Mcoin
+**Tỷ lệ:**
+✅ Thắng nhận **1.9x** tiền cược
+❌ Thua mất tiền cược
+🎰 **Nổ hũ x20** khi 3 xúc xắc trùng nhau!
+⚠️ **Chỉ người THẮNG cược mới nhận hũ!**
+
+💎 **HŨ HIỆN TẠI: ${jackpotDisplay} Mcoin**
+📊 Mỗi cược cộng 2/3 vào hũ
         `)
-        .setFooter({ text: 'Click button để đặt cược!' })
+        .addFields(
+            { name: '⏰ Thời gian còn lại', value: '30 giây', inline: true },
+            { name: '👥 Người chơi', value: '0', inline: true }
+        )
+        .setFooter({ text: 'Bấm nút để đặt cược!' })
         .setTimestamp();
     
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId('bet_tai')
-            .setLabel('🔴 TÀI')
-            .setStyle(ButtonStyle.Danger),
-        new ButtonBuilder()
-            .setCustomId('bet_xiu')
-            .setLabel('🔵 XỈU')
-            .setStyle(ButtonStyle.Primary)
-    );
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('bet_tai')
+                .setLabel('🔵 Tài')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId('bet_xiu')
+                .setLabel('🔴 Xỉu')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('bet_chan')
+                .setLabel('🟣 Chẵn')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('bet_le')
+                .setLabel('🟡 Lẻ')
+                .setStyle(ButtonStyle.Success)
+        );
     
-    const msg = await message.reply({ embeds: [embed], components: [row] });
-    bettingSession.messageId = msg.id;
+    const sentMessage = await message.reply({ embeds: [embed], components: [row] });
+    bettingSession.messageId = sentMessage.id;
     
-    setTimeout(() => endBettingSession(client), 30000);
+    let timeLeft = 30;
+    const countdown = setInterval(async () => {
+        timeLeft -= 5;
+        
+        if (timeLeft > 0) {
+            embed.spliceFields(0, 1, { name: '⏰ Thời gian còn lại', value: `${timeLeft} giây`, inline: true });
+            await sentMessage.edit({ embeds: [embed], components: [row] }).catch(() => {});
+        } else {
+            clearInterval(countdown);
+            
+            row.components.forEach(btn => btn.setDisabled(true));
+            await sentMessage.edit({ components: [row] }).catch(() => {});
+            
+            if (Object.keys(bettingSession.bets).length === 0) {
+                await sentMessage.edit({ 
+                    content: '❌ Không có ai đặt cược. Phiên bị hủy!',
+                    embeds: [],
+                    components: []
+                }).catch(() => {});
+                bettingSession = null;
+                database.activeBettingSession = null;
+                saveDB();
+                return;
+            }
+            
+            // Bắt đầu animation với tô úp
+            await animateDiceReveal(sentMessage, client);
+        }
+    }, 5000);
 }
 
-// ANIMATION: Tô úp → Hé → Lật từng xúc xắc
-async function endBettingSession(client) {
+// ANIMATION: Tô úp → Lật từng xúc xắc như casino
+async function animateDiceReveal(sentMessage, client) {
     try {
-        if (!bettingSession || !bettingSession.active) return;
+        const { dice1, dice2, dice3, total } = rollDice();
+        const result = checkResult(total);
+        const isJackpot = checkJackpot(dice1, dice2, dice3);
         
-        const channel = await client.channels.fetch(bettingSession.channelId);
-        const message = await channel.messages.fetch(bettingSession.messageId);
+        // ===== FRAME 1: TÔ ĐẬY KÍN (2 giây) =====
+        const bowlClosed = createDiceBowlImage('closed');
         
-        if (bettingSession.bets.size === 0) {
-            bettingSession.active = false;
-            const embed = new EmbedBuilder()
-                .setTitle('🎲 TÀI XỈU - KẾT THÚC')
-                .setColor('#95a5a6')
-                .setDescription('❌ **Không có ai cược!**')
-                .setTimestamp();
-            await message.edit({ embeds: [embed], components: [] });
-            return;
-        }
-        
-        const dice = rollDice();
-        const result = checkResult(dice);
-        const sum = dice.reduce((a, b) => a + b, 0);
-        const isJackpot = checkJackpot();
-        
-        // ===== FRAME 1: TÔ ÚP (3 giây) =====
         const frame1 = new EmbedBuilder()
-            .setTitle('🎲 Đang lắc lắc nè đợi xíu...')
-            .setColor('#f39c12')
-            .setDescription(`
-\`\`\`
-╔════════════════════╗
-║                    ║
-║    🎲 🎲 🎲       ║
-║  ══════════════    ║
-║                    ║
-║    TÔ ÚP...        ║
-║                    ║
-╚════════════════════╝
-\`\`\`
-
-⏳ **Đang lắc xúc xắc...**
-            `)
+            .setTitle('🎲 ĐANG LẮC XÚC XẮC...')
+            .setColor('#8B4513')
+            .setDescription('🔊 **Sột soạt sột soạt...**\n⏳ Đang lắc mạnh nè!')
+            .setImage('attachment://bowl.png')
             .setTimestamp();
         
-        await message.edit({ embeds: [frame1], components: [] });
-        await new Promise(r => setTimeout(r, 3000));
+        await sentMessage.edit({ 
+            embeds: [frame1], 
+            files: [new AttachmentBuilder(bowlClosed, { name: 'bowl.png' })],
+            components: [] 
+        });
+        await sleep(2000);
         
-        // ===== FRAME 2: HÉ TÔ (2 giây) =====
+        // ===== FRAME 2: BẮT ĐẦU HÉ (1.5 giây) =====
+        const bowlOpening = createDiceBowlImage('opening');
+        
         const frame2 = new EmbedBuilder()
-            .setTitle('🎲 Hé ra xíu nè...')
-            .setColor('#f39c12')
-            .setDescription(`
-\`\`\`
-╔════════════════════╗
-║                    ║
-║    🎲 🎲 🎲       ║
-║  ════════════↗️     ║
-║                    ║
-║   ĐANG MỞ...       ║
-║                    ║
-╚════════════════════╝
-\`\`\`
-
-👀 **Chuẩn bị xem kết quả...**
-            `)
+            .setTitle('🎲 ĐANG MỞ TÔ...')
+            .setColor('#A0522D')
+            .setDescription('👀 **Hé ra xíu thôi...**\n✨ Chuẩn bị xem!')
+            .setImage('attachment://bowl.png')
             .setTimestamp();
         
-        await message.edit({ embeds: [frame2] });
-        await new Promise(r => setTimeout(r, 2000));
+        await sentMessage.edit({ 
+            embeds: [frame2],
+            files: [new AttachmentBuilder(bowlOpening, { name: 'bowl.png' })]
+        });
+        await sleep(1500);
         
-        // ===== FRAME 3: XÚC XẮC 1 (0.8 giây) =====
+        // ===== FRAME 3: THẤY XÚC XẮC 1 (1 giây) =====
+        const dice1Img = createDiceBowlImage('reveal1', dice1);
+        
         const frame3 = new EmbedBuilder()
-            .setTitle('🎲 TÀI XỈU - KẾT QUẢ')
-            .setColor('#e74c3c')
+            .setTitle('🎲 CON THỨ NHẤT...')
+            .setColor('#3498db')
             .setDescription(`
-\`\`\`
-╔════════════════════╗
-║                    ║
-║    ${DICE_EMOJI[dice[0]]}   ❓   ❓       ║
-║                    ║
-╚════════════════════╝
-\`\`\`
+${DICE_EMOJI[dice1]} **Xúc xắc 1: ${dice1}**
 
-🎲 **Xúc xắc 1:** ${dice[0]} điểm
+❓ Xúc xắc 2: ???
+❓ Xúc xắc 3: ???
             `)
+            .setImage('attachment://bowl.png')
             .setTimestamp();
         
-        await message.edit({ embeds: [frame3] });
-        await new Promise(r => setTimeout(r, 800));
+        await sentMessage.edit({ 
+            embeds: [frame3],
+            files: [new AttachmentBuilder(dice1Img, { name: 'bowl.png' })]
+        });
+        await sleep(1000);
         
-        // ===== FRAME 4: XÚC XẮC 2 (0.8 giây) =====
+        // ===== FRAME 4: THẤY XÚC XẮC 2 (1 giây) =====
+        const dice2Img = createDiceBowlImage('reveal2', dice1, dice2);
+        
         const frame4 = new EmbedBuilder()
-            .setTitle('🎲 TÀI XỈU - KẾT QUẢ')
-            .setColor('#e74c3c')
+            .setTitle('🎲 CON THỨ HAI...')
+            .setColor('#3498db')
             .setDescription(`
-\`\`\`
-╔════════════════════╗
-║                    ║
-║    ${DICE_EMOJI[dice[0]]}   ${DICE_EMOJI[dice[1]]}   ❓       ║
-║                    ║
-╚════════════════════╝
-\`\`\`
+${DICE_EMOJI[dice1]} **Xúc xắc 1: ${dice1}**
+${DICE_EMOJI[dice2]} **Xúc xắc 2: ${dice2}**
 
-🎲 **Xúc xắc 1:** ${dice[0]} điểm
-🎲 **Xúc xắc 2:** ${dice[1]} điểm
+❓ Xúc xắc 3: ???
+
+📊 **Tổng tạm:** ${dice1 + dice2}
             `)
+            .setImage('attachment://bowl.png')
             .setTimestamp();
         
-        await message.edit({ embeds: [frame4] });
-        await new Promise(r => setTimeout(r, 800));
+        await sentMessage.edit({ 
+            embeds: [frame4],
+            files: [new AttachmentBuilder(dice2Img, { name: 'bowl.png' })]
+        });
+        await sleep(1000);
         
-        // ===== FRAME 5: XÚC XẮC 3 (1 giây) =====
+        // ===== FRAME 5: THẤY XÚC XẮC 3 (1.5 giây) =====
+        const dice3Img = createDiceBowlImage('reveal3', dice1, dice2, dice3);
+        
         const frame5 = new EmbedBuilder()
-            .setTitle('🎲 TÀI XỈU - KẾT QUẢ')
-            .setColor('#e74c3c')
+            .setTitle(isJackpot ? '🎰 NỔ HŨ RỒI!!!' : '🎲 ĐỦ CẢ BA CON!')
+            .setColor(isJackpot ? '#FFD700' : '#2ecc71')
             .setDescription(`
-\`\`\`
-╔════════════════════╗
-║                    ║
-║    ${DICE_EMOJI[dice[0]]}   ${DICE_EMOJI[dice[1]]}   ${DICE_EMOJI[dice[2]]}       ║
-║                    ║
-╚════════════════════╝
-\`\`\`
+${DICE_EMOJI[dice1]} **Xúc xắc 1: ${dice1}**
+${DICE_EMOJI[dice2]} **Xúc xắc 2: ${dice2}**
+${DICE_EMOJI[dice3]} **Xúc xắc 3: ${dice3}**
 
-🎲 **Xúc xắc 1:** ${dice[0]} điểm
-🎲 **Xúc xắc 2:** ${dice[1]} điểm
-🎲 **Xúc xắc 3:** ${dice[2]} điểm
+📊 **Tổng: ${total}**
+${isJackpot ? '\n🎰💥 **3 CON GIỐNG NHAU!!!** 💥🎰' : ''}
             `)
+            .setImage('attachment://bowl.png')
             .setTimestamp();
         
-        await message.edit({ embeds: [frame5] });
-        await new Promise(r => setTimeout(r, 1000));
+        await sentMessage.edit({ 
+            embeds: [frame5],
+            files: [new AttachmentBuilder(dice3Img, { name: 'bowl.png' })]
+        });
+        await sleep(1500);
         
         // ===== TÍNH TOÁN KẾT QUẢ =====
-        const winners = [];
-        const losers = [];
-        let totalWin = 0;
-        let totalLose = 0;
+        database.history.push({ total, tai: result.tai, timestamp: Date.now() });
+        if (database.history.length > 50) database.history.shift();
+        
+        let winners = [];
+        let losers = [];
         let jackpotWinners = [];
         
-        for (const [userId, bet] of bettingSession.bets) {
+        for (const [userId, bet] of Object.entries(bettingSession.bets)) {
             const user = getUser(userId);
+            let win = false;
             
-            if (bet.choice === result.toLowerCase()) {
-                const payout = bet.amount * 2;
-                user.balance += payout;
-                user.totalWin += payout;
-                user.winStreak++;
-                user.loseStreak = 0;
+            updateQuest(userId, 1);
+            updateQuest(userId, 3, bet.amount);
+            
+            if (bet.type === 'tai' && result.tai) {
+                win = true;
+                user.tai++;
+                updateQuest(userId, 4);
+            } else if (bet.type === 'xiu' && result.xiu) {
+                win = true;
+                user.xiu++;
+                updateQuest(userId, 5);
+            } else if (bet.type === 'chan' && result.chan) {
+                win = true;
+                user.chan++;
+            } else if (bet.type === 'le' && result.le) {
+                win = true;
+                user.le++;
+            }
+            
+            const jackpotAdd = Math.floor(bet.amount * 2 / 3);
+            database.jackpot = (database.jackpot || 0) + jackpotAdd;
+            
+            if (win) {
+                const winAmount = Math.floor(bet.amount * 1.9);
+                user.balance += winAmount;
+                
+                updateQuest(userId, 2);
                 
                 if (isJackpot) {
-                    user.balance += database.jackpot;
-                    jackpotWinners.push(userId);
+                    const currentJackpot = database.jackpot || 0;
+                    const jackpotAmount = currentJackpot * 20;
+                    user.balance += jackpotAmount;
+                    user.jackpotWins++;
+                    jackpotWinners.push(`<@${userId}>: +${jackpotAmount.toLocaleString('en-US')} 🎰💎`);
                 }
                 
-                winners.push({ id: userId, bet: bet.amount, payout });
-                totalWin += payout;
+                winners.push(`<@${userId}>: +${winAmount.toLocaleString('en-US')} 💰`);
             } else {
-                user.totalLose += bet.amount;
-                user.loseStreak++;
-                user.winStreak = 0;
-                losers.push({ id: userId, bet: bet.amount });
-                totalLose += bet.amount;
+                losers.push(`<@${userId}>: -${bet.amount.toLocaleString('en-US')} 💸`);
             }
         }
         
-        // Cập nhật jackpot
         if (isJackpot && jackpotWinners.length > 0) {
             database.jackpot = 0;
-        } else {
-            database.jackpot += Math.floor(totalLose * 0.01);
         }
         
         saveDB();
         
-        // Lưu lịch sử
-        database.history.unshift({
-            result: `${result} (${sum})`,
-            dice: dice,
-            timestamp: Date.now(),
-            totalBet: totalLose,
-            winners: winners.map(w => w.id),
-            losers: losers.map(l => l.id)
-        });
+        // ===== FRAME CUỐI: KẾT QUẢ CHÍNH THỨC =====
+        const finalDiceImg = createDiceImageSafe(dice1, dice2, dice3);
         
-        if (database.history.length > 50) {
-            database.history = database.history.slice(0, 50);
-        }
-        
-        saveDB();
-        
-        // ===== FRAME CUỐI: KẾT QUẢ =====
-        let participantsList = '';
-        winners.forEach(w => {
-            participantsList += `<@${w.id}> | ${result}: ${w.bet.toLocaleString('en-US')} | ✅(+${w.payout.toLocaleString('en-US')} Mcoin) + 1 🍪\n`;
-        });
-        losers.forEach(l => {
-            const lostBet = result === 'TÀI' ? 'Xỉu' : 'Tài';
-            participantsList += `<@${l.id}> | ${lostBet}: ${l.bet.toLocaleString('en-US')} | ❌ + 1 🍪\n`;
-        });
-        
-        const finalEmbed = new EmbedBuilder()
-            .setTitle(isJackpot ? '🎰💥 TRÚNG JACKPOT! 💥🎰' : `KẾT QUẢ TÀI XỈU`)
-            .setColor(result === 'TÀI' ? '#e74c3c' : '#3498db')
+        const resultEmbed = new EmbedBuilder()
+            .setTitle(isJackpot ? '🎰💥 TRÚNG ĐẬC!!! 💥🎰' : `🎲 KẾT QUẢ #${bettingSession.phienNumber}`)
+            .setColor(isJackpot ? '#FFD700' : (result.tai ? '#3498db' : '#e74c3c'))
             .setDescription(`
-${DICE_EMOJI[dice[0]]} ${DICE_EMOJI[dice[1]]} ${DICE_EMOJI[dice[2]]}
-
-➡️ **Kết quả:** ${dice[0]} + ${dice[1]} + ${dice[2]} = **${sum}**
-
-**Chung cuộc: ${result === 'TÀI' ? 'TÀI' : 'XỈU'} - ${sum % 2 === 0 ? 'CHẴN' : 'LẺ'}**
-
-${isJackpot ? `\n🎰 **TRÚNG JACKPOT!**\n` : ''}
-
-**HŨ TÀI XỈU**
-${database.jackpot.toLocaleString('en-US')} Mcoin
-
-**DANH SÁCH THAM GIA**
-${participantsList || 'Không có ai tham gia'}
-            `)
-            .setFooter({ text: 'Chế độ Chậm được bật. 🐌' })
-            .setTimestamp();
+**⇒ ${dice1} + ${dice2} + ${dice3} = ${total}**
+**${result.tai ? '🔵 TÀI' : '🔴 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
+${isJackpot ? '\n🎰 **BA CON TRÙNG NHAU - NỔ HŨ!!!** 🎰' : ''}
+            `);
         
-        await message.edit({ embeds: [finalEmbed] });
+        let files = [];
         
-        bettingSession.active = false;
+        if (finalDiceImg && Buffer.isBuffer(finalDiceImg)) {
+            resultEmbed.setImage('attachment://dice.png');
+            files.push(new AttachmentBuilder(finalDiceImg, { name: 'dice.png' }));
+        }
+        
+        if (isJackpot && jackpotWinners.length > 0) {
+            resultEmbed.addFields({
+                name: '🎰 JACKPOT - CHỈ NGƯỜI THẮNG NHẬN!!!',
+                value: jackpotWinners.join('\n'),
+                inline: false
+            });
+        }
+        
+        resultEmbed.addFields(
+            { 
+                name: '✅ THẮNG', 
+                value: winners.length > 0 ? winners.join('\n') : 'Không có',
+                inline: false
+            },
+            { 
+                name: '❌ THUA', 
+                value: losers.length > 0 ? losers.join('\n') : 'Không có',
+                inline: false
+            },
+            {
+                name: '🎰 Hũ hiện tại',
+                value: `${(database.jackpot || 0).toLocaleString('en-US')} Mcoin`,
+                inline: false
+            }
+        );
+        
+        resultEmbed.setTimestamp();
+        
+        await sentMessage.edit({ 
+            content: '**🎊 PHIÊN KẾT THÚC**', 
+            embeds: [resultEmbed],
+            files: files
+        });
+        
+        bettingSession = null;
+        database.activeBettingSession = null;
+        saveDB();
         
     } catch (error) {
-        console.error('❌ Lỗi endBettingSession:', error);
-        bettingSession.active = false;
-        
-        try {
-            const channel = await client.channels.fetch(bettingSession.channelId);
-            const message = await channel.messages.fetch(bettingSession.messageId);
-            const errorEmbed = new EmbedBuilder()
-                .setTitle('❌ LỖI')
-                .setColor('#e74c3c')
-                .setDescription(`Có lỗi xảy ra: ${error.message}\n\nVui lòng thử lại!`)
-                .setTimestamp();
-            await message.edit({ embeds: [errorEmbed], components: [] });
-        } catch (e) {
-            console.error('Không thể gửi error message:', e);
-        }
+        console.error('❌ Lỗi animation:', error);
+        bettingSession = null;
+        database.activeBettingSession = null;
+        saveDB();
     }
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Lệnh: .lichsu
 async function handleLichSu(message) {
-    const history = database.history.slice(0, 20);
+    const chartBuffer = createHistoryChart(database.history);
     
-    if (history.length === 0) {
-        return message.reply('📭 Chưa có lịch sử tài xỉu!');
+    if (!chartBuffer) {
+        return message.reply('❌ Không thể tạo biểu đồ lịch sử (Canvas lỗi)');
     }
     
-    let historyText = '';
-    history.forEach((h, index) => {
-        historyText += `**${index + 1}.** ${h.result}\n`;
-    });
+    const attachment = new AttachmentBuilder(chartBuffer, { name: 'history.png' });
     
     const embed = new EmbedBuilder()
-        .setTitle('🎲 LỊCH SỬ TÀI XỈU')
+        .setTitle('📊 BIỂU ĐỒ LỊCH SỬ')
         .setColor('#9b59b6')
-        .setDescription(historyText)
-        .setFooter({ text: `${history.length} phiên gần nhất` })
+        .setImage('attachment://history.png')
+        .setFooter({ text: 'Xanh = Tài | Đỏ = Xỉu' })
         .setTimestamp();
     
-    await message.reply({ embeds: [embed] });
+    await message.reply({ embeds: [embed], files: [attachment] });
 }
 
 function getBettingSession() {
     return bettingSession;
 }
 
+function setBettingSession(session) {
+    bettingSession = session;
+}
+
 module.exports = {
     handleTaiXiu,
     handleLichSu,
-    getBettingSession
+    getBettingSession,
+    setBettingSession
 };
