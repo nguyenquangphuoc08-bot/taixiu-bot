@@ -1,4 +1,4 @@
-// utils/canvas.js - Animation TÔ MỞ DẦN như thật
+// utils/canvas.js - Animation TÔ MỞ DẦN (BỎ LƯỚI)
 
 const { createCanvas } = require('canvas');
 
@@ -8,49 +8,49 @@ function createBowlCover(openPercent = 0) {
         const canvas = createCanvas(400, 300);
         const ctx = canvas.getContext('2d');
         
-        // Nền xanh lá như bàn cờ bạc
-        ctx.fillStyle = '#1a7a3e';
+        // NỀN XANH LÁ MƯỢT - KHÔNG CÓ LƯỚI
+        const gradient = ctx.createRadialGradient(200, 150, 0, 200, 150, 250);
+        gradient.addColorStop(0, '#1ea952');
+        gradient.addColorStop(1, '#137a38');
+        ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 400, 300);
         
-        // Vẽ pattern lưới
-        ctx.strokeStyle = '#145c2e';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 400; i += 20) {
-            ctx.beginPath();
-            ctx.moveTo(i, 0);
-            ctx.lineTo(i, 300);
-            ctx.stroke();
-        }
-        for (let j = 0; j < 300; j += 20) {
-            ctx.beginPath();
-            ctx.moveTo(0, j);
-            ctx.lineTo(400, j);
-            ctx.stroke();
-        }
-        
-        // Vẽ tô màu nâu với độ mở
         const centerX = 200;
         const centerY = 150;
-        const liftAmount = openPercent * 0.8; // Tô nâng lên dần
+        const liftAmount = openPercent * 1.2; // Tô nâng lên mượt hơn
+        const tiltAngle = (openPercent / 100) * 0.5; // Tô nghiêng khi lật
         
-        // Tô màu nâu
-        ctx.fillStyle = '#8B4513';
+        ctx.save();
+        ctx.translate(centerX, centerY - liftAmount);
+        ctx.rotate(tiltAngle);
+        
+        // BÓNG TÔ
+        ctx.fillStyle = `rgba(0, 0, 0, ${0.4 * (1 - openPercent / 100)})`;
         ctx.beginPath();
-        ctx.ellipse(centerX, centerY - liftAmount, 120, 70, 0, 0, Math.PI * 2);
+        ctx.ellipse(5, 10, 125, 75, 0, 0, Math.PI * 2);
         ctx.fill();
         
-        // Viền sáng
-        ctx.strokeStyle = '#A0522D';
-        ctx.lineWidth = 8;
+        // TÔ MÀU NÂU TRẦM
+        const bowlGradient = ctx.createRadialGradient(-20, -20, 0, 0, 0, 120);
+        bowlGradient.addColorStop(0, '#A0522D');
+        bowlGradient.addColorStop(1, '#6B3410');
+        ctx.fillStyle = bowlGradient;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 120, 70, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // VIỀN SÁNG
+        ctx.strokeStyle = '#D2691E';
+        ctx.lineWidth = 6;
         ctx.stroke();
         
-        // Bóng mờ dần khi tô nâng lên
-        if (openPercent < 100) {
-            ctx.fillStyle = `rgba(0, 0, 0, ${0.3 * (1 - openPercent / 100)})`;
-            ctx.beginPath();
-            ctx.ellipse(centerX + 5, centerY + 5, 120, 70, 0, 0, Math.PI * 2);
-            ctx.fill();
-        }
+        // HIGHLIGHT
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.beginPath();
+        ctx.ellipse(-30, -20, 40, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore();
         
         return canvas.toBuffer('image/png');
         
@@ -66,25 +66,12 @@ function createRevealDice(dice) {
         const canvas = createCanvas(400, 300);
         const ctx = canvas.getContext('2d');
         
-        // Nền xanh lá
-        ctx.fillStyle = '#1a7a3e';
+        // NỀN XANH LÁ MƯỢT - KHÔNG CÓ LƯỚI
+        const gradient = ctx.createRadialGradient(200, 150, 0, 200, 150, 250);
+        gradient.addColorStop(0, '#1ea952');
+        gradient.addColorStop(1, '#137a38');
+        ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 400, 300);
-        
-        // Vẽ pattern lưới
-        ctx.strokeStyle = '#145c2e';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 400; i += 20) {
-            ctx.beginPath();
-            ctx.moveTo(i, 0);
-            ctx.lineTo(i, 300);
-            ctx.stroke();
-        }
-        for (let j = 0; j < 300; j += 20) {
-            ctx.beginPath();
-            ctx.moveTo(0, j);
-            ctx.lineTo(400, j);
-            ctx.stroke();
-        }
         
         // Vẽ 3 xúc xắc
         const positions = [
@@ -98,9 +85,14 @@ function createRevealDice(dice) {
             
             if (num === 0) {
                 // Chưa lật - vẽ dấu ?
-                ctx.fillStyle = '#666';
+                ctx.fillStyle = '#555';
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                ctx.shadowBlur = 10;
+                ctx.shadowOffsetX = 3;
+                ctx.shadowOffsetY = 3;
                 ctx.fillRect(pos.x - 40, pos.y - 40, 80, 80);
                 
+                ctx.shadowBlur = 0;
                 ctx.strokeStyle = '#333';
                 ctx.lineWidth = 3;
                 ctx.strokeRect(pos.x - 40, pos.y - 40, 80, 80);
@@ -115,7 +107,12 @@ function createRevealDice(dice) {
                 // Đã lật - vẽ xúc xắc
                 const d = drawDiceSafe(num);
                 if (d) {
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                    ctx.shadowBlur = 10;
+                    ctx.shadowOffsetX = 3;
+                    ctx.shadowOffsetY = 3;
                     ctx.drawImage(d, pos.x - 40, pos.y - 40, 80, 80);
+                    ctx.shadowBlur = 0;
                 }
             }
         });
@@ -134,13 +131,17 @@ function drawDiceSafe(number) {
         const canvas = createCanvas(100, 100);
         const ctx = canvas.getContext('2d');
         
-        // Nền trắng
-        ctx.fillStyle = '#FFFFFF';
+        // Nền trắng với gradient
+        const gradient = ctx.createLinearGradient(0, 0, 100, 100);
+        gradient.addColorStop(0, '#FFFFFF');
+        gradient.addColorStop(1, '#F5F5F5');
+        ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 100, 100);
         
-        // Viền đen
+        // Bo tròn góc
         ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 4;
+        ctx.lineJoin = 'round';
         ctx.strokeRect(5, 5, 90, 90);
         
         // Vẽ chấm
@@ -169,12 +170,13 @@ function drawDiceSafe(number) {
     }
 }
 
-// Tạo ảnh 3 xúc xắc
+// Tạo ảnh 3 xúc xắc - NỀN TRONG SUỐT
 function createDiceImageSafe(dice1, dice2, dice3) {
     try {
         const canvas = createCanvas(340, 130);
         const ctx = canvas.getContext('2d');
         
+        // NỀN TRONG SUỐT
         ctx.clearRect(0, 0, 340, 130);
         
         const d1 = drawDiceSafe(dice1);
@@ -184,6 +186,12 @@ function createDiceImageSafe(dice1, dice2, dice3) {
         if (!d1 || !d2 || !d3) {
             return null;
         }
+        
+        // Vẽ bóng cho xúc xắc
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+        ctx.shadowBlur = 15;
+        ctx.shadowOffsetX = 5;
+        ctx.shadowOffsetY = 5;
         
         ctx.drawImage(d1, 10, 15, 100, 100);
         ctx.drawImage(d2, 120, 15, 100, 100);
@@ -204,7 +212,11 @@ function createHistoryChart(historyArray) {
         const canvas = createCanvas(800, 300);
         const ctx = canvas.getContext('2d');
         
-        ctx.fillStyle = '#2C2F33';
+        // Nền tối gradient
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, '#23272A');
+        gradient.addColorStop(1, '#2C2F33');
+        ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 800, 300);
         
         ctx.fillStyle = '#FFFFFF';
@@ -228,7 +240,17 @@ function createHistoryChart(historyArray) {
             const barHeight = (total / 18) * maxHeight;
             const y = 270 - barHeight;
             
-            ctx.fillStyle = h.tai ? '#3498db' : '#e74c3c';
+            // Gradient cho cột
+            const barGradient = ctx.createLinearGradient(x, y, x, y + barHeight);
+            if (h.tai) {
+                barGradient.addColorStop(0, '#5DADE2');
+                barGradient.addColorStop(1, '#2874A6');
+            } else {
+                barGradient.addColorStop(0, '#EC7063');
+                barGradient.addColorStop(1, '#C0392B');
+            }
+            
+            ctx.fillStyle = barGradient;
             ctx.fillRect(x, y, barWidth, barHeight);
             
             ctx.strokeStyle = '#FFFFFF';
@@ -241,14 +263,15 @@ function createHistoryChart(historyArray) {
             ctx.fillText(total.toString(), x + barWidth / 2, y - 5);
         });
         
-        ctx.fillStyle = '#3498db';
+        // Legend
+        ctx.fillStyle = '#5DADE2';
         ctx.fillRect(20, 280, 20, 15);
         ctx.fillStyle = '#FFFFFF';
         ctx.font = '12px Arial';
         ctx.textAlign = 'left';
         ctx.fillText('Tài', 45, 292);
         
-        ctx.fillStyle = '#e74c3c';
+        ctx.fillStyle = '#EC7063';
         ctx.fillRect(100, 280, 20, 15);
         ctx.fillStyle = '#FFFFFF';
         ctx.fillText('Xỉu', 125, 292);
