@@ -1,45 +1,12 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
 const { rollDice, checkResult, checkJackpot } = require('../utils/game');
-const { createDiceImageSafe, createHistoryChart } = require('../utils/canvas');
+const { createDiceImageSafe, createHistoryChart, overlayDiceOnGif } = require('../utils/canvas'); // ✅ THÊM overlayDiceOnGif
 const { updateQuest } = require('../services/quest');
 const fs = require('fs');
 const path = require('path');
 
 let bettingSession = null;
-
-// ===== HÀM VẼ ĐÈ XÚC XẮC LÊN GIF =====
-async function overlayDiceOnGif(backgroundPath, dice1, dice2, dice3) {
-    try {
-        // Load background (frame cuối GIF)
-        const bg = await loadImage(backgroundPath);
-        const canvas = createCanvas(bg.width, bg.height);
-        const ctx = canvas.getContext('2d');
-        
-        // Vẽ background
-        ctx.drawImage(bg, 0, 0);
-        
-        // Load ảnh xúc xắc
-        const dice1Img = await loadImage(`./assets/dice${dice1}.png`);
-        const dice2Img = await loadImage(`./assets/dice${dice2}.png`);
-        const dice3Img = await loadImage(`./assets/dice${dice3}.png`);
-        
-        // ⚙️ TÙY CHỈNH VỊ TRÍ VÀ KÍCH THƯỚC XÚC XẮC
-        const diceSize = 100;  // Kích thước xúc xắc (px)
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        
-        // Vẽ 3 xúc xắc xếp tam giác
-        ctx.drawImage(dice1Img, centerX - diceSize - 15, centerY - 30, diceSize, diceSize);
-        ctx.drawImage(dice2Img, centerX + 15, centerY - 30, diceSize, diceSize);
-        ctx.drawImage(dice3Img, centerX - diceSize/2, centerY + 50, diceSize, diceSize);
-        
-        return canvas.toBuffer('image/png');
-    } catch (err) {
-        console.error('❌ Lỗi overlay dice:', err);
-        return null;
-    }
-}
 
 // ===== LỆNH: .tx =====
 async function handleTaiXiu(message, client) {
@@ -371,4 +338,5 @@ module.exports = {
     getBettingSession,
     setBettingSession
 };
+
 
