@@ -79,34 +79,47 @@ async function handleTaiXiu(message, client) {
     bettingSession.messageId = sentMessage.id;
     
     let timeLeft = 30;
-    const countdown = setInterval(async () => {
-        timeLeft -= 5;
-        
-        if (timeLeft > 0) {
-            embed.spliceFields(0, 1, { name: '⏰ Thời gian còn lại', value: `${timeLeft} giây`, inline: true });
-            await sentMessage.edit({ embeds: [embed], components: [row] }).catch(() => {});
-        } else {
-            clearInterval(countdown);
-            
-            row.components.forEach(btn => btn.setDisabled(true));
-            await sentMessage.edit({ components: [row] }).catch(() => {});
-            
-            if (Object.keys(bettingSession.bets).length === 0) {
-                await sentMessage.edit({ 
-                    content: '❌ Không có ai đặt cược. Phiên bị hủy!',
-                    embeds: [],
-                    components: []
-                }).catch(() => {});
-                bettingSession = null;
-                database.activeBettingSession = null;
-                saveDB();
-                return;
-            }
-            
-            // Bắt đầu animation
-            await animateResult(sentMessage, client);
+const countdown = setInterval(async () => {
+    timeLeft -= 1;
+    
+    if (timeLeft > 0) {
+        // Emoji thay đổi theo thời gian
+        let emoji = '⏰';
+        if (timeLeft <= 5) {
+            emoji = '🔥';  // 5 giây cuối - cháy
+        } else if (timeLeft <= 10) {
+            emoji = '⚡';  // 10 giây - sét
+        } else if (timeLeft <= 15) {
+            emoji = '⏳';  // 15 giây - đồng hồ cát
         }
-    }, 5000);
+        
+        embed.spliceFields(0, 1, { 
+            name: `${emoji} Thời gian còn lại`, 
+            value: `**${timeLeft}** giây`, 
+            inline: true 
+        });
+        
+        await sentMessage.edit({ embeds: [embed], components: [row] }).catch(() => {});
+    } else {
+        clearInterval(countdown);
+        
+        row.components.forEach(btn => btn.setDisabled(true));
+        await sentMessage.edit({ components: [row] }).catch(() => {});
+        
+        if (Object.keys(bettingSession.bets).length === 0) {
+            await sentMessage.edit({ 
+                content: '❌ Không có ai đặt cược. Phiên bị hủy!',
+                embeds: [],
+                components: []
+            }).catch(() => {});
+            bettingSession = null;
+            return;
+        }
+        
+        // Tiếp tục code animation...
+        await endBettingSession(client);
+    }
+}, 1000);
 }
 
 // ===== ANIMATION MƯỢT VỚI CANVAS =====
@@ -475,3 +488,4 @@ module.exports = {
     getBettingSession,
     setBettingSession
 };
+
