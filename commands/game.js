@@ -1,14 +1,48 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
 const { rollDice, checkResult, checkJackpot } = require('../utils/game');
-const { createDiceImageSafe, createHistoryChart, createRevealDice } = require('../utils/canvas');
+const { createDiceImageSafe, createHistoryChart } = require('../utils/canvas');
 const { updateQuest } = require('../services/quest');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const fs = require('fs');
 const path = require('path');
 
 let bettingSession = null;
 
-// Lệnh: .tx
+// ===== HÀM VẼ ĐÈ XÚC XẮC LÊN GIF =====
+async function overlayDiceOnGif(backgroundPath, dice1, dice2, dice3) {
+    try {
+        // Load background (frame cuối GIF)
+        const bg = await loadImage(backgroundPath);
+        const canvas = createCanvas(bg.width, bg.height);
+        const ctx = canvas.getContext('2d');
+        
+        // Vẽ background
+        ctx.drawImage(bg, 0, 0);
+        
+        // Load ảnh xúc xắc
+        const dice1Img = await loadImage(`./assets/dice${dice1}.png`);
+        const dice2Img = await loadImage(`./assets/dice${dice2}.png`);
+        const dice3Img = await loadImage(`./assets/dice${dice3}.png`);
+        
+        // ⚙️ TÙY CHỈNH VỊ TRÍ VÀ KÍCH THƯỚC XÚC XẮC
+        const diceSize = 100;  // Kích thước xúc xắc (px)
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        
+        // Vẽ 3 xúc xắc xếp tam giác
+        ctx.drawImage(dice1Img, centerX - diceSize - 15, centerY - 30, diceSize, diceSize);
+        ctx.drawImage(dice2Img, centerX + 15, centerY - 30, diceSize, diceSize);
+        ctx.drawImage(dice3Img, centerX - diceSize/2, centerY + 50, diceSize, diceSize);
+        
+        return canvas.toBuffer('image/png');
+    } catch (err) {
+        console.error('❌ Lỗi overlay dice:', err);
+        return null;
+    }
+}
+
+// ===== LỆNH: .tx =====
 async function handleTaiXiu(message, client) {
     if (bettingSession) {
         return message.reply('⏳ Đang có phiên cược, vui lòng đợi!');
@@ -83,7 +117,6 @@ async function handleTaiXiu(message, client) {
         timeLeft -= 5;
         
         if (timeLeft > 0) {
-            // ✅ CHỈ update embed - KHÔNG update components để button không bị reset
             const newEmbed = EmbedBuilder.from(embed);
             newEmbed.spliceFields(0, 1, { name: '⏰ Thời gian còn lại', value: `${timeLeft} giây`, inline: true });
             
@@ -108,9 +141,10 @@ async function handleTaiXiu(message, client) {
             
             await animateResult(sentMessage, client);
         }
-    }, 5000); // ✅ Chạy mỗi 5 giây (30→25→20→15→10→5→0)
+    }, 5000);
 }
 
+// ===== ANIMATION KẾT QUẢ =====
 async function animateResult(sentMessage, client) {
     try {
         const { dice1, dice2, dice3, total } = rollDice();
@@ -120,8 +154,9 @@ async function animateResult(sentMessage, client) {
         console.log('🎲 BƯỚC 0: Bắt đầu animation');
         console.log(`🎲 Result: ${dice1}-${dice2}-${dice3} = ${total}`);
         
-        // ===== BƯỚC 1: PHÁT GIF =====
-        const gifFullPath = './assets/taixiu_spin_59026.GIF';
+        // ===== BƯỚC 1: PHÁT GIF (KHÔNG CÓ XÚC XẮC) =====
+        const gifFullPath = './assets/taixiu_spin.gif';
+        const gifFramePath = './assets/taixiu_lastframe.png';
         
         if (fs.existsSync(gifFullPath)) {
             console.log('✅ BƯỚC 1: Phát GIF...');
@@ -145,8 +180,42 @@ async function animateResult(sentMessage, client) {
             console.log('✅ Hết thời gian đợi GIF');
         }
         
-        // ===== BƯỚC 2: TÍNH TOÁN TRƯỚC =====
-        console.log('💰 BƯỚC 2: Tính kết quả...');
+        // ===== BƯỚC 2: VẼ ĐÈ XÚC XẮC LÊN FRAME CUỐI =====
+        console.log('🎨 BƯỚC 2: Vẽ xúc xắc lên frame cuối...');
+        
+        let diceBuffer = null;
+        
+        if (fs.existsSync(gifFramePath)) {
+            diceBuffer = await overlayDiceOnGif(gifFramePath, dice1, dice2, dice3);
+            console.log('✅ Đã vẽ xúc xắc lên GIF frame');
+        } else {
+            // Fallback: dùng canvas thông thường
+            diceBuffer = createDiceImageSafe(dice1, dice2, dice3);
+            console.log('⚠️ Không tìm thấy frame, dùng canvas thường');
+        }
+        
+        // ===== BƯỚC 3: HIỆN XÚC XẮC =====
+        console.log('📤 BƯỚC 3: Hiện xúc xắc...');
+        
+        if (diceBuffer) {
+            const embedReveal = new EmbedBuilder()
+                .setTitle(isJackpot ? '🎰💥 NỔ HŨ!!! 💥🎰' : '🎲 KẾT QUẢ!')
+                .setColor(isJackpot ? '#FFD700' : '#3498db')
+                .setDescription(`🎯 **${dice1} - ${dice2} - ${dice3} = ${total}**`)
+                .setImage('attachment://result.png')
+                .setTimestamp();
+            
+            await sentMessage.edit({ 
+                embeds: [embedReveal], 
+                files: [new AttachmentBuilder(diceBuffer, { name: 'result.png' })]
+            });
+            
+            console.log('✅ Đã hiện xúc xắc, đợi 2 giây...');
+            await sleep(2000);
+        }
+        
+        // ===== BƯỚC 4: TÍNH TOÁN =====
+        console.log('💰 BƯỚC 4: Tính kết quả...');
         
         database.history.push({ total, tai: result.tai, timestamp: Date.now() });
         if (database.history.length > 50) database.history.shift();
@@ -207,12 +276,8 @@ async function animateResult(sentMessage, client) {
         
         console.log(`✅ Tính xong: ${winners.length} thắng, ${losers.length} thua`);
         
-        // ===== BƯỚC 3: TẠO ẢNH XÚC XẮC =====
-        console.log('🎨 BƯỚC 3: Tạo ảnh xúc xắc...');
-        const diceBuffer = createDiceImageSafe(dice1, dice2, dice3);
-        
-        // ===== BƯỚC 4: HIỆN KẾT QUẢ CUỐI (ẢNH + TEXT CÙNG LÚC) =====
-        console.log('📊 BƯỚC 4: Gửi kết quả cuối...');
+        // ===== BƯỚC 5: EMBED CUỐI =====
+        console.log('📊 BƯỚC 5: Gửi kết quả cuối...');
         
         const resultEmbed = new EmbedBuilder()
             .setTitle(isJackpot ? '🎰💥 NỔ HŨ!!! 💥🎰' : `🎲 KẾT QUẢ #${bettingSession.phienNumber}`)
@@ -272,7 +337,7 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Lệnh: .lichsu
+// ===== LỆNH: .lichsu =====
 async function handleLichSu(message) {
     const chartBuffer = createHistoryChart(database.history);
     
@@ -307,4 +372,3 @@ module.exports = {
     getBettingSession,
     setBettingSession
 };
-
