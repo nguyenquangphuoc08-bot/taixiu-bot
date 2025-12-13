@@ -2,12 +2,14 @@ const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = req
 const { getUser } = require('../utils/database');
 
 async function handleButton(interaction, bettingSession) {
+    // ✅ Không defer - show modal ngay
+    
     if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
-        return interaction.reply({ content: '❌ Không có phiên cược nào đang diễn ra!', flags: 64 });
+        return interaction.reply({ content: '❌ Không có phiên cược nào đang diễn ra!', ephemeral: true }).catch(() => {});
     }
     
     if (bettingSession.bets[interaction.user.id]) {
-        return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', flags: 64 });
+        return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', ephemeral: true }).catch(() => {});
     }
     
     const betTypes = {
@@ -38,7 +40,9 @@ async function handleButton(interaction, bettingSession) {
     const row = new ActionRowBuilder().addComponents(amountInput);
     modal.addComponents(row);
     
-    await interaction.showModal(modal);
+    await interaction.showModal(modal).catch(error => {
+        console.error('❌ Modal error:', error.message);
+    });
 }
 
 module.exports = handleButton;
