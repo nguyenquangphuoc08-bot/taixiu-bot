@@ -2,59 +2,57 @@
 
 const { createCanvas, loadImage } = require('canvas');
 
-// Vẽ đĩa TRÒN (không phải ellipse) + 3 xúc xắc + tô che với độ mờ dần
-function createBowlReveal(dice1, dice2, dice3, revealPercent = 0) {
+// Vẽ xúc xắc cố định + tô NÂNG LÊN (không mờ)
+function createBowlLift(dice1, dice2, dice3, liftPercent = 0) {
     try {
         const canvas = createCanvas(800, 600);
         const ctx = canvas.getContext('2d');
         
-        // NỀN XANH LÁ
+        // NỀN XANH
         ctx.fillStyle = '#2d8a4f';
         ctx.fillRect(0, 0, 800, 600);
         
         const centerX = 400;
         const centerY = 300;
-        const plateRadius = 220; // Đĩa TRÒN
         
-        // === VẼ ĐĨA TRÒN ===
+        // === ĐĨA TRÒN TRẮNG ===
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
-        ctx.arc(centerX, centerY, plateRadius, 0, Math.PI * 2);
+        ctx.arc(centerX, centerY, 220, 0, Math.PI * 2);
         ctx.fill();
         
         ctx.strokeStyle = '#E0E0E0';
         ctx.lineWidth = 4;
         ctx.stroke();
         
-        // === VẼ 3 XÚC XẮC CỐ ĐỊNH TRÊN ĐĨA ===
+        // === 3 XÚC XẮC CỐ ĐỊNH (luôn ở đĩa) ===
         const diceSize = 90;
         const positions = [
-            { x: centerX, y: centerY - 60 },      // Trên
-            { x: centerX - 90, y: centerY + 50 }, // Dưới trái
-            { x: centerX + 90, y: centerY + 50 }  // Dưới phải
+            { x: centerX, y: centerY - 60 },
+            { x: centerX - 90, y: centerY + 50 },
+            { x: centerX + 90, y: centerY + 50 }
         ];
         
         [dice1, dice2, dice3].forEach((num, i) => {
             drawRealisticDice(ctx, num, positions[i].x, positions[i].y, diceSize);
         });
         
-        // === VẼ TÔ CHE (dần dần mờ đi) ===
-        if (revealPercent < 100) {
-            const bowlOpacity = 1 - (revealPercent / 100); // 100% → 0%
-            const liftAmount = revealPercent * 1.2; // Tô nâng lên
-            
+        // === TÔ NÂNG LÊN (che xúc xắc) ===
+        const liftAmount = liftPercent * 2.5; // Tô di chuyển lên trên
+        const bowlY = centerY - liftAmount;
+        
+        // CHỈ VẼ TÔ NẾU CHƯA NÂNG HẾT
+        if (liftPercent < 100) {
             // Bóng tô
-            ctx.fillStyle = `rgba(0, 0, 0, ${0.3 * bowlOpacity})`;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
             ctx.beginPath();
-            ctx.arc(centerX + 5, centerY - liftAmount + 5, 150, 0, Math.PI * 2);
+            ctx.arc(centerX + 5, bowlY + 5, 150, 0, Math.PI * 2);
             ctx.fill();
             
-            // Tô màu nâu
-            ctx.globalAlpha = bowlOpacity;
-            
+            // Tô màu nâu (KHÔNG mờ - opacity = 1)
             ctx.fillStyle = '#8B5A3C';
             ctx.beginPath();
-            ctx.arc(centerX, centerY - liftAmount, 150, 0, Math.PI * 2);
+            ctx.arc(centerX, bowlY, 150, 0, Math.PI * 2);
             ctx.fill();
             
             ctx.strokeStyle = '#A0694F';
@@ -64,16 +62,14 @@ function createBowlReveal(dice1, dice2, dice3, revealPercent = 0) {
             // Highlight
             ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
             ctx.beginPath();
-            ctx.arc(centerX - 40, centerY - liftAmount - 30, 50, 0, Math.PI * 2);
+            ctx.arc(centerX - 40, bowlY - 30, 50, 0, Math.PI * 2);
             ctx.fill();
-            
-            ctx.globalAlpha = 1.0; // Reset
         }
         
         return canvas.toBuffer('image/png');
         
     } catch (error) {
-        console.error('❌ createBowlReveal error:', error.message);
+        console.error('❌ createBowlLift error:', error.message);
         return null;
     }
 }
@@ -318,7 +314,7 @@ function createHistoryChart(historyArray) {
 }
 
 module.exports = {
-    createBowlReveal,
+    createBowlLift,
     createRevealDice,
     drawDiceSafe,
     createDiceImageSafe,
