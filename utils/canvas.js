@@ -1,4 +1,4 @@
-const { createCanvas, loadImage } = require('canvas');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
 // Vẽ tô trên đĩa trắng
 function createBowlCover(openPercent = 0, shakeOffset = 0) {
@@ -321,3 +321,4 @@ module.exports = {
     createHistoryChart,
     overlayDiceOnGif  // ← Thêm export
 };
+
