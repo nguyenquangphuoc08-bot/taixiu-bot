@@ -1,60 +1,79 @@
+// utils/canvas.js - Xúc xắc giống ảnh mẫu
+
 const { createCanvas, loadImage } = require('canvas');
 
-// Vẽ tô trên đĩa trắng
-function createBowlCover(openPercent = 0, shakeOffset = 0) {
+// Vẽ đĩa TRÒN (không phải ellipse) + 3 xúc xắc + tô che với độ mờ dần
+function createBowlReveal(dice1, dice2, dice3, revealPercent = 0) {
     try {
-        const canvas = createCanvas(600, 400);
+        const canvas = createCanvas(800, 600);
         const ctx = canvas.getContext('2d');
         
         // NỀN XANH LÁ
         ctx.fillStyle = '#2d8a4f';
-        ctx.fillRect(0, 0, 600, 400);
+        ctx.fillRect(0, 0, 800, 600);
         
-        const centerX = 300;
-        const centerY = 200;
+        const centerX = 400;
+        const centerY = 300;
+        const plateRadius = 220; // Đĩa TRÒN
         
-        // VẼ ĐĨA TRẮNG
+        // === VẼ ĐĨA TRÒN ===
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
-        ctx.ellipse(centerX, centerY + 20, 200, 100, 0, 0, Math.PI * 2);
+        ctx.arc(centerX, centerY, plateRadius, 0, Math.PI * 2);
         ctx.fill();
         
         ctx.strokeStyle = '#E0E0E0';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 4;
         ctx.stroke();
         
-        // Tính vị trí tô
-        const liftAmount = openPercent * 1.5;
-        const bowlX = centerX + shakeOffset;
-        const bowlY = centerY - liftAmount;
+        // === VẼ 3 XÚC XẮC CỐ ĐỊNH TRÊN ĐĨA ===
+        const diceSize = 90;
+        const positions = [
+            { x: centerX, y: centerY - 60 },      // Trên
+            { x: centerX - 90, y: centerY + 50 }, // Dưới trái
+            { x: centerX + 90, y: centerY + 50 }  // Dưới phải
+        ];
         
-        // Bóng tô
-        if (openPercent < 100) {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        [dice1, dice2, dice3].forEach((num, i) => {
+            drawRealisticDice(ctx, num, positions[i].x, positions[i].y, diceSize);
+        });
+        
+        // === VẼ TÔ CHE (dần dần mờ đi) ===
+        if (revealPercent < 100) {
+            const bowlOpacity = 1 - (revealPercent / 100); // 100% → 0%
+            const liftAmount = revealPercent * 1.2; // Tô nâng lên
+            
+            // Bóng tô
+            ctx.fillStyle = `rgba(0, 0, 0, ${0.3 * bowlOpacity})`;
             ctx.beginPath();
-            ctx.ellipse(bowlX + 3, bowlY + 8, 130, 75, 0, 0, Math.PI * 2);
+            ctx.arc(centerX + 5, centerY - liftAmount + 5, 150, 0, Math.PI * 2);
             ctx.fill();
+            
+            // Tô màu nâu
+            ctx.globalAlpha = bowlOpacity;
+            
+            ctx.fillStyle = '#8B5A3C';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY - liftAmount, 150, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#A0694F';
+            ctx.lineWidth = 8;
+            ctx.stroke();
+            
+            // Highlight
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.beginPath();
+            ctx.arc(centerX - 40, centerY - liftAmount - 30, 50, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.globalAlpha = 1.0; // Reset
         }
-        
-        // VẼ TÔ
-        ctx.fillStyle = '#8B5A3C';
-        ctx.beginPath();
-        ctx.ellipse(bowlX, bowlY, 130, 75, 0, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.strokeStyle = '#A0694F';
-        ctx.lineWidth = 6;
-        ctx.stroke();
-        
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-        ctx.beginPath();
-        ctx.ellipse(bowlX - 35, bowlY - 20, 45, 20, 0, 0, Math.PI * 2);
-        ctx.fill();
         
         return canvas.toBuffer('image/png');
         
     } catch (error) {
-        console.error('❌ createBowlCover error:', error.message);
+        console.error('❌ createBowlReveal error:', error.message);
         return null;
     }
 }
@@ -171,7 +190,7 @@ function drawDiceSafe(number) {
     }
 }
 
-// ✅ SỬA LỖI: Tạo ảnh 3 xúc xắc nằm ngang
+// Tạo ảnh 3 xúc xắc nằm ngang cho kết quả cuối
 function createDiceImageSafe(dice1, dice2, dice3) {
     try {
         const canvas = createCanvas(360, 130);
@@ -179,26 +198,58 @@ function createDiceImageSafe(dice1, dice2, dice3) {
         
         ctx.clearRect(0, 0, 360, 130);
         
-        const y = 65; // ✅ ĐỊNH NGHĨA y Ở ĐÂY
-        
-        // Vẽ 3 viên ngang
+        // Vẽ 3 viên ngang với bóng
         [dice1, dice2, dice3].forEach((num, i) => {
             const x = 60 + i * 120;
             
             // Bóng
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-            ctx.beginPath();
-            ctx.ellipse(x + 2, y + 52, 48, 8, 0, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(x - 47, y - 47, 104, 104);
             
-            // Vẽ xúc xắc
-            drawRealisticDice(ctx, num, x, y, 100);
+            drawRealisticDice(ctx, num, x, 65, 100);
         });
         
         return canvas.toBuffer('image/png');
         
     } catch (error) {
         console.error('❌ createDiceImageSafe error:', error.message);
+        return null;
+    }
+}
+
+// Vẽ xúc xắc ĐÈ LÊN ẢNH NỀN (không cần che gì)
+async function overlayDiceOnBackground(bgImagePath, dice1, dice2, dice3) {
+    try {
+        const baseImage = await loadImage(bgImagePath);
+        
+        const canvas = createCanvas(baseImage.width, baseImage.height);
+        const ctx = canvas.getContext('2d');
+        
+        // Vẽ nền GIF frame cuối
+        ctx.drawImage(baseImage, 0, 0);
+        
+        // Tính vị trí giữa ảnh
+        const centerX = baseImage.width / 2;
+        const centerY = baseImage.height / 2;
+        
+        // Kích thước xúc xắc tùy theo ảnh
+        const diceSize = Math.min(baseImage.width, baseImage.height) * 0.15;
+        
+        // VẼ 3 XÚC XẮC TAM GIÁC
+        const positions = [
+            { x: centerX, y: centerY - diceSize * 0.7 },           // Trên
+            { x: centerX - diceSize * 1.1, y: centerY + diceSize * 0.5 },  // Dưới trái
+            { x: centerX + diceSize * 1.1, y: centerY + diceSize * 0.5 }   // Dưới phải
+        ];
+        
+        [dice1, dice2, dice3].forEach((num, i) => {
+            drawRealisticDice(ctx, num, positions[i].x, positions[i].y, diceSize);
+        });
+        
+        return canvas.toBuffer('image/png');
+        
+    } catch (error) {
+        console.error('❌ overlayDiceOnBackground error:', error.message);
         return null;
     }
 }
@@ -266,60 +317,11 @@ function createHistoryChart(historyArray) {
     }
 }
 
-// Vẽ đè xúc xắc mới lên GIF frame cuối
-async function overlayDiceOnGif(gifFramePath, dice1, dice2, dice3) {
-    try {
-        const baseImage = await loadImage(gifFramePath);
-        
-        const canvas = createCanvas(baseImage.width, baseImage.height);
-        const ctx = canvas.getContext('2d');
-        
-        // Vẽ ảnh GIF làm nền
-        ctx.drawImage(baseImage, 0, 0);
-        
-        // === CHE VÙNG XÚC XẮC CŨ ===
-        const centerX = baseImage.width / 2;
-        const centerY = baseImage.height / 2;
-        
-        // Vẽ hình ellipse trắng che đĩa (đè lên xúc xắc cũ)
-        ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath();
-        ctx.ellipse(centerX, centerY + 10, 180, 90, 0, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Viền đĩa
-        ctx.strokeStyle = '#E0E0E0';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        
-        // === VẼ 3 XÚC XẮC MỚI (tam giác) ===
-        const diceSize = 70;
-        
-        const positions = [
-            { x: centerX, y: centerY - 35 },      // Trên
-            { x: centerX - 70, y: centerY + 30 }, // Dưới trái
-            { x: centerX + 70, y: centerY + 30 }  // Dưới phải
-        ];
-        
-        [dice1, dice2, dice3].forEach((num, i) => {
-            drawRealisticDice(ctx, num, positions[i].x, positions[i].y, diceSize);
-        });
-        
-        return canvas.toBuffer('image/png');
-        
-    } catch (error) {
-        console.error('❌ overlayDiceOnGif error:', error.message);
-        return null;
-    }
-}
-
 module.exports = {
-    createBowlCover,
+    createBowlReveal,
     createRevealDice,
     drawDiceSafe,
     createDiceImageSafe,
-    createHistoryChart,
-    overlayDiceOnGif  // ← Thêm export
+    overlayDiceOnBackground,
+    createHistoryChart
 };
-
-
