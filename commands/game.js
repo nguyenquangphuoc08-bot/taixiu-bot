@@ -3,7 +3,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
 const { rollDice, checkResult, checkJackpot } = require('../utils/game');
-const { createDiceImageSafe, createHistoryChart, createBowlReveal } = require('../utils/canvas');
+const { createDiceImageSafe, createHistoryChart, createBowlLift } = require('../utils/canvas');
 const { updateQuest } = require('../services/quest');
 const fs = require('fs');
 
@@ -134,16 +134,18 @@ async function animateResult(sentMessage, client) {
         
         console.log(`🎲 Animation: ${dice1}-${dice2}-${dice3} = ${total}`);
         
-        // ===== PHÁT GIF NẾU CÓ =====
+        // ===== ANIMATION: TÔ KÉO LÊN - LỘ XÚC XẮC =====
+        
         const gifPath = './assets/taixiu_spin.gif';
         
+        // PHÁT GIF LẮC TÔ (nếu có)
         if (fs.existsSync(gifPath)) {
             const gifAttachment = new AttachmentBuilder(gifPath, { name: 'animation.gif' });
             
             const embed1 = new EmbedBuilder()
                 .setTitle('🎲 ĐANG LẮC XÚC XẮC...')
                 .setColor('#e67e22')
-                .setDescription('⏳ **Đang lắc... Hồi hộp chưa?** 😱')
+                .setDescription('⏳ **Đang lắc... Xúc xắc ở dưới tô!** 😱')
                 .setImage('attachment://animation.gif')
                 .setTimestamp();
             
@@ -153,48 +155,58 @@ async function animateResult(sentMessage, client) {
                 components: [] 
             }).catch(() => {});
             
-            await sleep(4000);
+            await sleep(3500); // Đợi GIF gần xong
         }
         
-        // ===== TÔ BIẾN DẦN - LỘ XÚC XẮC =====
-        // Frame 1: Tô che 100%
-        const frame1 = createBowlReveal(dice1, dice2, dice3, 0);
+        // ===== TÔ KÉO LÊN TỪNG BƯỚC =====
+        
+        // Frame 1: Tô đè hoàn toàn (0%)
+        const frame1 = createBowlLift(dice1, dice2, dice3, 0);
         if (frame1) {
             const embed2 = new EmbedBuilder()
-                .setTitle('🎲 TÔ ĐANG MỞ...')
+                .setTitle('🎲 TÔ ĐANG NÂNG LÊN...')
                 .setColor('#f39c12')
                 .setDescription('👀 **Chuẩn bị xem kết quả!**')
-                .setImage('attachment://reveal.png')
+                .setImage('attachment://lift.png')
                 .setTimestamp();
             
             await sentMessage.edit({ 
                 embeds: [embed2], 
-                files: [new AttachmentBuilder(frame1, { name: 'reveal.png' })]
+                files: [new AttachmentBuilder(frame1, { name: 'lift.png' })]
             }).catch(() => {});
         }
-        await sleep(500);
+        await sleep(300);
         
-        // Frame 2: Tô mở 30%
-        const frame2 = createBowlReveal(dice1, dice2, dice3, 30);
+        // Frame 2: Tô nâng 25% - Bắt đầu thấy xúc xắc
+        const frame2 = createBowlLift(dice1, dice2, dice3, 25);
         if (frame2) {
             await sentMessage.edit({ 
-                files: [new AttachmentBuilder(frame2, { name: 'reveal.png' })]
+                files: [new AttachmentBuilder(frame2, { name: 'lift.png' })]
             }).catch(() => {});
         }
-        await sleep(400);
+        await sleep(300);
         
-        // Frame 3: Tô mở 60%
-        const frame3 = createBowlReveal(dice1, dice2, dice3, 60);
+        // Frame 3: Tô nâng 50% - Thấy rõ hơn
+        const frame3 = createBowlLift(dice1, dice2, dice3, 50);
         if (frame3) {
             await sentMessage.edit({ 
-                files: [new AttachmentBuilder(frame3, { name: 'reveal.png' })]
+                files: [new AttachmentBuilder(frame3, { name: 'lift.png' })]
             }).catch(() => {});
         }
-        await sleep(400);
+        await sleep(300);
         
-        // Frame 4: Tô biến mất 100% - LỘ XÚC XẮC
-        const frame4 = createBowlReveal(dice1, dice2, dice3, 100);
+        // Frame 4: Tô nâng 75% - Gần lộ hết
+        const frame4 = createBowlLift(dice1, dice2, dice3, 75);
         if (frame4) {
+            await sentMessage.edit({ 
+                files: [new AttachmentBuilder(frame4, { name: 'lift.png' })]
+            }).catch(() => {});
+        }
+        await sleep(300);
+        
+        // Frame 5: Tô biến mất hoàn toàn (100%) - LỘ XÚC XẮC
+        const frame5 = createBowlLift(dice1, dice2, dice3, 100);
+        if (frame5) {
             const embed3 = new EmbedBuilder()
                 .setTitle(isJackpot ? '🎰💥 NỔ HŨ!!! 💥🎰' : '🎲 XÚC XẮC ĐÃ LỘ!')
                 .setColor(isJackpot ? '#FFD700' : '#3498db')
@@ -204,12 +216,12 @@ async function animateResult(sentMessage, client) {
 
 ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
                 `)
-                .setImage('attachment://reveal.png')
+                .setImage('attachment://lift.png')
                 .setTimestamp();
             
             await sentMessage.edit({ 
                 embeds: [embed3], 
-                files: [new AttachmentBuilder(frame4, { name: 'reveal.png' })]
+                files: [new AttachmentBuilder(frame5, { name: 'lift.png' })]
             }).catch(() => {});
         }
         await sleep(1200);
