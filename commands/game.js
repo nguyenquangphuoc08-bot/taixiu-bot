@@ -80,7 +80,7 @@ async function handleTaiXiu(message, client) {
     
     let timeLeft = 30;
     const countdown = setInterval(async () => {
-        timeLeft -= 5;
+        timeLeft -= 1;  // ← SỬA: Giảm 1 giây thay vì 5
         
         if (timeLeft > 0) {
             embed.spliceFields(0, 1, { name: '⏰ Thời gian còn lại', value: `${timeLeft} giây`, inline: true });
@@ -105,7 +105,7 @@ async function handleTaiXiu(message, client) {
             
             await animateResult(sentMessage, client);
         }
-    }, 5000);
+    }, 1000); // ← SỬA: Chạy mỗi 1 giây thay vì 5 giây
 }
 
 // ANIMATION với GIF - KHÔNG CÓ TEXT
