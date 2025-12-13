@@ -2,6 +2,14 @@ const { EmbedBuilder } = require('discord.js');
 const { getUser, saveDB, database } = require('../utils/database');
 
 async function handleModal(interaction, bettingSession, client) {
+    // ✅ QUAN TRỌNG: Defer NGAY LẬP TỨC
+    try {
+        await interaction.deferReply({ ephemeral: true });
+    } catch (deferError) {
+        console.error('❌ Cannot defer:', deferError.message);
+        return; // Nếu không defer được thì bỏ qua
+    }
+    
     if (!interaction.customId.startsWith('bet_modal_')) return;
     
     const betType = interaction.customId.replace('bet_modal_', '');
@@ -15,28 +23,27 @@ async function handleModal(interaction, bettingSession, client) {
     };
     
     if (!amount || isNaN(amount)) {
-        return interaction.reply({ content: '❌ Số tiền không hợp lệ!', flags: 64 });
+        return interaction.editReply({ content: '❌ Số tiền không hợp lệ!' }).catch(() => {});
     }
     
     if (amount < 15000) {
-        return interaction.reply({ content: '❌ Cược tối thiểu 15,000 Mcoin!', flags: 64 });
+        return interaction.editReply({ content: '❌ Cược tối thiểu 15,000 Mcoin!' }).catch(() => {});
     }
     
     const user = getUser(interaction.user.id);
     
     if (user.balance < amount) {
-        return interaction.reply({ 
-            content: `❌ Số dư không đủ! Bạn có: **${user.balance.toLocaleString('en-US')} Mcoin**`, 
-            flags: 64
-        });
+        return interaction.editReply({ 
+            content: `❌ Số dư không đủ! Bạn có: **${user.balance.toLocaleString('en-US')} Mcoin**`
+        }).catch(() => {});
     }
     
     if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
-        return interaction.reply({ content: '❌ Phiên cược đã kết thúc!', flags: 64 });
+        return interaction.editReply({ content: '❌ Phiên cược đã kết thúc!' }).catch(() => {});
     }
     
     if (bettingSession.bets[interaction.user.id]) {
-        return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', flags: 64 });
+        return interaction.editReply({ content: '❌ Bạn đã đặt cược rồi!' }).catch(() => {});
     }
     
     // Trừ tiền và lưu cược
@@ -54,10 +61,9 @@ async function handleModal(interaction, bettingSession, client) {
     };
     saveDB();
     
-    await interaction.reply({ 
-        content: `✅ Đã đặt **${amount.toLocaleString('en-US')} Mcoin** vào ${betNames[betType]}!`, 
-        flags: 64
-    });
+    await interaction.editReply({ 
+        content: `✅ Đã đặt **${amount.toLocaleString('en-US')} Mcoin** vào ${betNames[betType]}!`
+    }).catch(() => {});
     
     // Cập nhật số người chơi
     try {
