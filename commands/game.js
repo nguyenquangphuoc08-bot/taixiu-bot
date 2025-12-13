@@ -134,29 +134,7 @@ async function animateResult(sentMessage, client) {
         
         console.log(`🎲 Animation: ${dice1}-${dice2}-${dice3} = ${total}`);
         
-        // ===== ANIMATION: TÔ KÉO LÊN - LỘ XÚC XẮC =====
-        
-        const gifPath = './assets/taixiu_spin.gif';
-        
-        // PHÁT GIF LẮC TÔ (nếu có)
-        if (fs.existsSync(gifPath)) {
-            const gifAttachment = new AttachmentBuilder(gifPath, { name: 'animation.gif' });
-            
-            const embed1 = new EmbedBuilder()
-                .setTitle('🎲 ĐANG LẮC XÚC XẮC...')
-                .setColor('#e67e22')
-                .setDescription('⏳ **Đang lắc... Xúc xắc ở dưới tô!** 😱')
-                .setImage('attachment://animation.gif')
-                .setTimestamp();
-            
-            await sentMessage.edit({ 
-                embeds: [embed1], 
-                files: [gifAttachment],
-                components: [] 
-            }).catch(() => {});
-            
-            await sleep(3500); // Đợi GIF gần xong
-        }
+        // ===== ANIMATION: TÔ KÉO LÊN - LỘ XÚC XẮC (KHÔNG CẦN GIF) =====
         
         // ===== TÔ KÉO LÊN TỪNG BƯỚC =====
         
@@ -172,10 +150,11 @@ async function animateResult(sentMessage, client) {
             
             await sentMessage.edit({ 
                 embeds: [embed2], 
-                files: [new AttachmentBuilder(frame1, { name: 'lift.png' })]
+                files: [new AttachmentBuilder(frame1, { name: 'lift.png' })],
+                components: []
             }).catch(() => {});
         }
-        await sleep(300);
+        await sleep(500);
         
         // Frame 2: Tô nâng 25% - Bắt đầu thấy xúc xắc
         const frame2 = createBowlLift(dice1, dice2, dice3, 25);
@@ -184,7 +163,7 @@ async function animateResult(sentMessage, client) {
                 files: [new AttachmentBuilder(frame2, { name: 'lift.png' })]
             }).catch(() => {});
         }
-        await sleep(300);
+        await sleep(400);
         
         // Frame 3: Tô nâng 50% - Thấy rõ hơn
         const frame3 = createBowlLift(dice1, dice2, dice3, 50);
@@ -193,7 +172,7 @@ async function animateResult(sentMessage, client) {
                 files: [new AttachmentBuilder(frame3, { name: 'lift.png' })]
             }).catch(() => {});
         }
-        await sleep(300);
+        await sleep(400);
         
         // Frame 4: Tô nâng 75% - Gần lộ hết
         const frame4 = createBowlLift(dice1, dice2, dice3, 75);
@@ -202,7 +181,7 @@ async function animateResult(sentMessage, client) {
                 files: [new AttachmentBuilder(frame4, { name: 'lift.png' })]
             }).catch(() => {});
         }
-        await sleep(300);
+        await sleep(400);
         
         // Frame 5: Tô biến mất hoàn toàn (100%) - LỘ XÚC XẮC
         const frame5 = createBowlLift(dice1, dice2, dice3, 100);
@@ -224,7 +203,7 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
                 files: [new AttachmentBuilder(frame5, { name: 'lift.png' })]
             }).catch(() => {});
         }
-        await sleep(1200);
+        await sleep(1500);
         
         // ===== TÍNH TOÁN KẾT QUẢ =====
         database.history.push({ total, tai: result.tai, timestamp: Date.now() });
