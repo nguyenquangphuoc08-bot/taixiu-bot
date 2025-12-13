@@ -328,3 +328,39 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+// Lệnh: .lichsu
+async function handleLichSu(message) {
+    const chartBuffer = createHistoryChart(database.history);
+    
+    if (!chartBuffer) {
+        return message.reply('❌ Không thể tạo biểu đồ lịch sử (Canvas lỗi)');
+    }
+    
+    const attachment = new AttachmentBuilder(chartBuffer, { name: 'history.png' });
+    
+    const embed = new EmbedBuilder()
+        .setTitle('📊 BIỂU ĐỒ LỊCH SỬ')
+        .setColor('#9b59b6')
+        .setImage('attachment://history.png')
+        .setFooter({ text: 'Xanh = Tài | Đỏ = Xỉu' })
+        .setTimestamp();
+    
+    await message.reply({ embeds: [embed], files: [attachment] });
+}
+
+function getBettingSession() {
+    return bettingSession;
+}
+
+function setBettingSession(session) {
+    bettingSession = session;
+}
+
+// ✅✅✅ BẮT BUỘC PHẢI CÓ DÒNG NÀY ✅✅✅
+module.exports = {
+    handleTaiXiu,
+    handleLichSu,
+    getBettingSession,
+    setBettingSession
+};
