@@ -3,7 +3,6 @@ const { database, saveDB, getUser } = require('../utils/database');
 const { rollDice, checkResult, checkJackpot } = require('../utils/game');
 const { createDiceImageSafe, createHistoryChart } = require('../utils/canvas');
 const { updateQuest } = require('../services/quest');
-const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const fs = require('fs');
 const path = require('path');
 
@@ -372,3 +371,4 @@ module.exports = {
     getBettingSession,
     setBettingSession
 };
+
