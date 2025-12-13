@@ -1,9 +1,9 @@
-// utils/canvas.js - Vẽ ảnh cho Tài Xỉu
+// utils/canvas.js - Animation TÔ MỞ DẦN như thật
 
 const { createCanvas } = require('canvas');
 
-// Vẽ tô úp màu nâu (giống ảnh)
-function createBowlCover(state = 'shaking') {
+// Vẽ tô với độ mở khác nhau (0-100%)
+function createBowlCover(openPercent = 0) {
     try {
         const canvas = createCanvas(400, 300);
         const ctx = canvas.getContext('2d');
@@ -28,56 +28,28 @@ function createBowlCover(state = 'shaking') {
             ctx.stroke();
         }
         
-        // Vẽ tô màu nâu
+        // Vẽ tô màu nâu với độ mở
         const centerX = 200;
         const centerY = 150;
+        const liftAmount = openPercent * 0.8; // Tô nâng lên dần
         
-        if (state === 'shaking') {
-            // Tô úp - hình elip nâu
-            ctx.fillStyle = '#8B4513';
-            ctx.beginPath();
-            ctx.ellipse(centerX, centerY, 120, 70, 0, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Viền sáng
-            ctx.strokeStyle = '#A0522D';
-            ctx.lineWidth = 8;
-            ctx.stroke();
-            
-            // Bóng
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        // Tô màu nâu
+        ctx.fillStyle = '#8B4513';
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY - liftAmount, 120, 70, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Viền sáng
+        ctx.strokeStyle = '#A0522D';
+        ctx.lineWidth = 8;
+        ctx.stroke();
+        
+        // Bóng mờ dần khi tô nâng lên
+        if (openPercent < 100) {
+            ctx.fillStyle = `rgba(0, 0, 0, ${0.3 * (1 - openPercent / 100)})`;
             ctx.beginPath();
             ctx.ellipse(centerX + 5, centerY + 5, 120, 70, 0, 0, Math.PI * 2);
             ctx.fill();
-            
-            // Text
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 24px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('🔊 Sột soạt...', centerX, centerY + 120);
-            
-        } else if (state === 'lifting') {
-            // Tô đang hé lên
-            ctx.fillStyle = '#8B4513';
-            ctx.beginPath();
-            ctx.ellipse(centerX, centerY - 30, 120, 70, 0, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Viền
-            ctx.strokeStyle = '#A0522D';
-            ctx.lineWidth = 8;
-            ctx.stroke();
-            
-            // Mũi tên chỉ lên
-            ctx.fillStyle = '#FFD700';
-            ctx.font = 'bold 40px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('↗️', centerX + 80, centerY - 20);
-            
-            // Text
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 20px Arial';
-            ctx.fillText('Đang mở...', centerX, centerY + 100);
         }
         
         return canvas.toBuffer('image/png');
@@ -156,7 +128,7 @@ function createRevealDice(dice) {
     }
 }
 
-// Vẽ 1 viên xúc xắc (an toàn, không crash)
+// Vẽ 1 viên xúc xắc
 function drawDiceSafe(number) {
     try {
         const canvas = createCanvas(100, 100);
@@ -197,11 +169,9 @@ function drawDiceSafe(number) {
     }
 }
 
-// Tạo ảnh 3 xúc xắc (an toàn, không crash)
+// Tạo ảnh 3 xúc xắc
 function createDiceImageSafe(dice1, dice2, dice3) {
     try {
-        console.log(`🎲 Creating dice: ${dice1}-${dice2}-${dice3}`);
-        
         const canvas = createCanvas(340, 130);
         const ctx = canvas.getContext('2d');
         
@@ -212,7 +182,6 @@ function createDiceImageSafe(dice1, dice2, dice3) {
         const d3 = drawDiceSafe(dice3);
         
         if (!d1 || !d2 || !d3) {
-            console.log('⚠️ Cannot create dice, using text fallback');
             return null;
         }
         
@@ -220,9 +189,7 @@ function createDiceImageSafe(dice1, dice2, dice3) {
         ctx.drawImage(d2, 120, 15, 100, 100);
         ctx.drawImage(d3, 230, 15, 100, 100);
         
-        const buffer = canvas.toBuffer('image/png');
-        console.log(`✅ Dice image created: ${buffer.length} bytes`);
-        return buffer;
+        return canvas.toBuffer('image/png');
         
     } catch (error) {
         console.error('❌ createDiceImageSafe error:', error.message);
