@@ -10,7 +10,7 @@ const handleButton = require('./handlers/buttonHandler');
 const handleModal = require('./handlers/modalHandler');
 
 // Import commands - ✅ FIX: Sửa từ './commands/game' thành './handlers/game'
-const { handleTaiXiu, handleLichSu, getBettingSession } = require('./handlers/game');
+const { handleTaiXiu, handleLichSu, getBettingSession } = require('./commands/game');
 const { handleMcoin, handleTang, handleDiemDanh } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { 
@@ -303,3 +303,4 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
+
