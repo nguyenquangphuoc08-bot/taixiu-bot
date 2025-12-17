@@ -165,8 +165,8 @@ client.on('interactionCreate', async (interaction) => {
     try {
         // === XỬ LÝ BUTTON (từ handlers/buttonHandler.js) ===
         if (interaction.isButton()) {
-            await handleButtonClick(interaction);
-        }
+         await handleButtonClick(interaction, currentBettingSession);
+}
         
         // === XỬ LÝ MODAL (từ handlers/modalHandler.js) ===
         else if (interaction.isModalSubmit()) {
@@ -209,4 +209,5 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
+
 
