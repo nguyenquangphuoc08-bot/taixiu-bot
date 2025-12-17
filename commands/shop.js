@@ -16,7 +16,7 @@ const VIP_ITEMS = {
     vip2: {
         id: 'vip2',
         name: '⭐⭐ VIP 2',
-        price: 150000000,
+        price: 1500000000,
         dailyBonus: 5000000,
         betBonus: 10,
         description: '+5M điểm danh, +10% thắng cược'
@@ -24,8 +24,8 @@ const VIP_ITEMS = {
     vip3: {
         id: 'vip3',
         name: '⭐⭐⭐ VIP 3',
-        price: 500000000,
-        dailyBonus: 15000000,
+        price: 5000000000,
+        dailyBonus: 150000000,
         betBonus: 20,
         description: '+15M điểm danh, +20% thắng cược'
     },
