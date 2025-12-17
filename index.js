@@ -162,8 +162,18 @@ client.on('interactionCreate', async (interaction) => {
             if (['bet_tai', 'bet_xiu', 'bet_chan', 'bet_le'].includes(customId)) {
                 await handleBetButton(interaction);
             }
+            // ✅ THÊM: Button Shop VIP
+            else if (customId === 'shop_vip') {
+                const { showVipPackages } = require('./commands/shop');
+                await showVipPackages(interaction);
+            }
+            // ✅ THÊM: Button Shop Danh hiệu
+            else if (customId === 'shop_titles') {
+                const { showTitles } = require('./commands/shop');
+                await showTitles(interaction);
+            }
         }
-        
+            
         // === XỬ LÝ MODAL ===
         else if (interaction.isModalSubmit()) {
             const { customId } = interaction;
@@ -338,3 +348,4 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
+
