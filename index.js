@@ -182,6 +182,27 @@ client.on('messageCreate', async (message) => {
         else if (command === '.mshop') {
             await handleMShop(message);
         }
+        else if (command === '.mshop') {
+            await handleMShop(message);
+        }
+        
+        // === GIFTCODE COMMANDS ===
+        else if (command === '.giftcode' || command === '.gc') {
+            const { handleCreateGiftcode } = require('./commands/giftcode');
+            await handleCreateGiftcode(message, args);
+        }
+        else if (command === '.code') {
+            const { handleCode } = require('./commands/giftcode');
+            await handleCode(message, args);
+        }
+        else if (command === '.delcode' || command === '.xoacode') {
+            const { handleDeleteCode } = require('./commands/giftcode');
+            await handleDeleteCode(message, args);
+        }
+        else if (command === '.delallcode' || command === '.xoatatca') {
+            const { handleDeleteAllCodes } = require('./commands/giftcode');
+            await handleDeleteAllCodes(message);
+        }
         
         // === COMMANDS ADMIN ===
         else if (command === '.dbinfo') {
@@ -450,6 +471,7 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
+
 
 
 
