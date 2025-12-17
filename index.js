@@ -4,6 +4,18 @@ const http = require('http'); // ← FIX: Thêm module http
 const { Client, GatewayIntentBits } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID } = require('./config');
 
+// ✅ THÊM VALIDATION TOKEN
+if (!TOKEN) {
+    console.error('❌ CRITICAL ERROR: DISCORD_TOKEN is not set!');
+    console.error('📍 Please add DISCORD_TOKEN to your environment variables on Render');
+    console.error('🔗 Go to: Dashboard → Environment → Add Environment Variable');
+    process.exit(1);
+}
+
+
+console.log('✅ Token loaded successfully');
+console.log('🔑 Token preview:', TOKEN.substring(0, 30) + '...');
+
 // Import COMMANDS (xử lý lệnh chat)
 const { handleTaiXiu, handleLichSu } = require('./commands/game');
 const { handleMcoin, handleTang, handleDiemDanh } = require('./commands/user');
@@ -197,3 +209,4 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
+
