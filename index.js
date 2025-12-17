@@ -1,5 +1,6 @@
 // index.js - FILE CHÍNH TÍCH HỢP TẤT CẢ
 
+const http = require('http'); // ← THÊM DÒNG NÀY
 const { Client, GatewayIntentBits } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID } = require('./config');
 
@@ -177,8 +178,10 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
+// Login bot
 client.login(TOKEN);
 
+// Tạo HTTP server để giữ Render hoạt động
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot is running!');
@@ -187,4 +190,3 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000, () => {
     console.log("🌐 Server is running to keep Render alive.");
 });
-
