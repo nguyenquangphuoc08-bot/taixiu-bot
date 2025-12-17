@@ -1,13 +1,13 @@
 // index.js - FILE CHÍNH TÍCH HỢP TẤT CẢ
 
-const http = require('http'); // ← THÊM DÒNG NÀY
+const http = require('http'); // ← FIX: Thêm module http
 const { Client, GatewayIntentBits } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID } = require('./config');
 
-// Import handlers
-const { handleTaiXiu, handleLichSu } = require('./handlers/game');
-const { handleMcoin, handleTang, handleDiemDanh } = require('./handlers/user');
-const { handleDaily, handleClaimAll } = require('./handlers/quest');
+// Import COMMANDS (xử lý lệnh chat)
+const { handleTaiXiu, handleLichSu } = require('./commands/game');
+const { handleMcoin, handleTang, handleDiemDanh } = require('./commands/user');
+const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { 
     handleDbInfo, 
     handleBackup, 
@@ -18,9 +18,12 @@ const {
     handleGiveVip,
     handleRemoveVip,
     handleGiveTitle
-} = require('./handlers/admin');
-const { handleMShop, showVipPackages, showTitles, buyVipPackage, buyTitle } = require('./handlers/shop');
-const { handleBetInteraction } = require('./handlers/bet');
+} = require('./commands/admin');
+const { handleMShop, showVipPackages, showTitles, buyVipPackage, buyTitle } = require('./commands/shop');
+
+// Import HANDLERS (xử lý button & modal interactions)
+const { handleButtonClick } = require('./handlers/buttonHandler');
+const { handleModalSubmit } = require('./handlers/modalHandler');
 
 const client = new Client({
     intents: [
@@ -43,63 +46,64 @@ client.on('messageCreate', async (message) => {
     const args = message.content.trim().split(/\s+/);
     const command = args[0].toLowerCase();
     
-    // === COMMANDS NGƯỜI CHƠI ===
-    if (command === '.tx') {
-        await handleTaiXiu(message, client);
-    }
-    else if (command === '.lichsu') {
-        await handleLichSu(message);
-    }
-    else if (command === '.mcoin') {
-        await handleMcoin(message);
-    }
-    else if (command === '.tang') {
-        await handleTang(message, args);
-    }
-    else if (command === '.diemdanh' || command === '.dd') {
-        await handleDiemDanh(message);
-    }
-    else if (command === '.daily') {
-        await handleDaily(message);
-    }
-    else if (command === '.claimall') {
-        await handleClaimAll(message);
-    }
-    else if (command === '.mshop') {
-        await handleMShop(message);
-    }
-    
-    // === COMMANDS ADMIN ===
-    else if (command === '.dbinfo') {
-        await handleDbInfo(message);
-    }
-    else if (command === '.backup') {
-        await handleBackup(message);
-    }
-    else if (command === '.backupnow') {
-        await handleBackupNow(message);
-    }
-    else if (command === '.restore') {
-        await handleRestore(message);
-    }
-    else if (command === '.sendcode') {
-        await handleSendCode(message, GIFTCODE_CHANNEL_ID);
-    }
-    else if (command === '.givevip') {
-        await handleGiveVip(message, args);
-    }
-    else if (command === '.removevip') {
-        await handleRemoveVip(message, args);
-    }
-    else if (command === '.givetitle') {
-        await handleGiveTitle(message, args);
-    }
-    
-    // === HELP COMMAND ===
-    else if (command === '.help') {
-        const isAdmin = message.author.id === ADMIN_ID;
+    try {
+        // === COMMANDS NGƯỜI CHƠI ===
+        if (command === '.tx') {
+            await handleTaiXiu(message, client);
+        }
+        else if (command === '.lichsu') {
+            await handleLichSu(message);
+        }
+        else if (command === '.mcoin') {
+            await handleMcoin(message);
+        }
+        else if (command === '.tang') {
+            await handleTang(message, args);
+        }
+        else if (command === '.diemdanh' || command === '.dd') {
+            await handleDiemDanh(message);
+        }
+        else if (command === '.daily') {
+            await handleDaily(message);
+        }
+        else if (command === '.claimall') {
+            await handleClaimAll(message);
+        }
+        else if (command === '.mshop') {
+            await handleMShop(message);
+        }
         
-        const helpText = `
+        // === COMMANDS ADMIN ===
+        else if (command === '.dbinfo') {
+            await handleDbInfo(message);
+        }
+        else if (command === '.backup') {
+            await handleBackup(message);
+        }
+        else if (command === '.backupnow') {
+            await handleBackupNow(message);
+        }
+        else if (command === '.restore') {
+            await handleRestore(message);
+        }
+        else if (command === '.sendcode') {
+            await handleSendCode(message, GIFTCODE_CHANNEL_ID);
+        }
+        else if (command === '.givevip') {
+            await handleGiveVip(message, args);
+        }
+        else if (command === '.removevip') {
+            await handleRemoveVip(message, args);
+        }
+        else if (command === '.givetitle') {
+            await handleGiveTitle(message, args);
+        }
+        
+        // === HELP COMMAND ===
+        else if (command === '.help') {
+            const isAdmin = message.author.id === ADMIN_ID;
+            
+            const helpText = `
 📜 **DANH SÁCH LỆNH**
 
 **👤 Người chơi:**
@@ -128,35 +132,37 @@ ${isAdmin ? `
 \`.backupnow\` - Backup thủ công
 \`.restore\` - Hướng dẫn restore
 ` : ''}
-        `;
+            `;
+            
+            await message.reply(helpText);
+        }
         
-        await message.reply(helpText);
-    }
-    
-    // Xử lý restore file
-    if (message.attachments.size > 0 && message.content.toLowerCase().includes('restore confirm')) {
-        await handleRestoreFile(message);
+        // Xử lý restore file
+        if (message.attachments.size > 0 && message.content.toLowerCase().includes('restore confirm')) {
+            await handleRestoreFile(message);
+        }
+        
+    } catch (error) {
+        console.error('❌ Command error:', error);
+        await message.reply('❌ Có lỗi xảy ra khi xử lý lệnh!').catch(() => {});
     }
 });
 
-// Xử lý interactions (buttons & select menus)
+// Xử lý interactions (buttons & modals)
 client.on('interactionCreate', async (interaction) => {
     try {
-        // === BUTTON ĐẶT CƯỢC ===
+        // === XỬ LÝ BUTTON (từ handlers/buttonHandler.js) ===
         if (interaction.isButton()) {
-            if (interaction.customId.startsWith('bet_')) {
-                await handleBetInteraction(interaction);
-            }
-            else if (interaction.customId === 'shop_vip') {
-                await showVipPackages(interaction);
-            }
-            else if (interaction.customId === 'shop_title') {
-                await showTitles(interaction);
-            }
+            await handleButtonClick(interaction);
         }
         
-        // === SELECT MENU MUA VIP/DANH HIỆU ===
-        if (interaction.isStringSelectMenu()) {
+        // === XỬ LÝ MODAL (từ handlers/modalHandler.js) ===
+        else if (interaction.isModalSubmit()) {
+            await handleModalSubmit(interaction);
+        }
+        
+        // === XỬ LÝ SELECT MENU (shop) ===
+        else if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'buy_vip') {
                 const vipId = interaction.values[0];
                 await buyVipPackage(interaction, vipId);
@@ -187,6 +193,7 @@ const server = http.createServer((req, res) => {
     res.end('Bot is running!');
 });
 
-server.listen(process.env.PORT || 3000, () => {
-    console.log("🌐 Server is running to keep Render alive.");
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`🌐 Server is running on port ${PORT}`);
 });
