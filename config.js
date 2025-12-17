@@ -1,4 +1,5 @@
 // config.js - File cấu hình chung
+require('dotenv').config(); 
 
 module.exports = {
     TOKEN: process.env.DISCORD_TOKEN, // ← THÊM DÒNG NÀY
