@@ -21,7 +21,7 @@ const {
     handleRemoveVip,
     handleGiveTitle
 } = require('./commands/admin');
-const { handleMShop, buyVipPackage, buyTitle } = require('./commands/shop');
+const { handleMShop, buyVipPackage, buyTitle, showVipPackages, showTitles } = require('./commands/shop');
 
 // ✅ Validation token
 if (!TOKEN) {
@@ -271,12 +271,10 @@ client.on('interactionCreate', async (interaction) => {
             }
             // ✅ THÊM: Button Shop VIP
             else if (customId === 'shop_vip') {
-                const { showVipPackages } = require('./commands/shop');
                 await showVipPackages(interaction);
             }
             // ✅ THÊM: Button Shop Danh hiệu
             else if (customId === 'shop_titles') {
-                const { showTitles } = require('./commands/shop');
                 await showTitles(interaction);
             }
         }
@@ -452,5 +450,6 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
+
 
 
