@@ -39,14 +39,14 @@ const VIP_ITEMS = {
     title_dragon: {
         id: 'title_dragon',
         name: '🐉 Rồng Thần',
-        price: 200000000,
+        price: 500000000,
         titleName: 'Rồng Thần',
         description: 'Danh hiệu quý hiếm'
     },
     title_god: {
         id: 'title_god',
         name: '🌟 Thần Tài',
-        price: 300000000,
+        price: 3000000000,
         titleName: 'Thần Tài',
         description: 'Danh hiệu siêu VIP'
     }
