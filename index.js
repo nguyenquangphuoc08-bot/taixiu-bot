@@ -3,7 +3,7 @@
 const http = require('http');
 const { Client, GatewayIntentBits } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
-const { loadDB, database, saveDB, getUser } = require('./utils/database');
+const { database, saveDB, getUser } = require('./utils/database');
 const { autoBackup } = require('./services/backup');
 
 // Import commands
@@ -452,4 +452,5 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
+
 
