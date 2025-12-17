@@ -1,23 +1,11 @@
 // index.js - FILE CHÍNH TÍCH HỢP TẤT CẢ
 
-const http = require('http'); // ← FIX: Thêm module http
+const http = require('http');
 const { Client, GatewayIntentBits } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID } = require('./config');
 
-// ✅ THÊM VALIDATION TOKEN
-if (!TOKEN) {
-    console.error('❌ CRITICAL ERROR: DISCORD_TOKEN is not set!');
-    console.error('📍 Please add DISCORD_TOKEN to your environment variables on Render');
-    console.error('🔗 Go to: Dashboard → Environment → Add Environment Variable');
-    process.exit(1);
-}
-
-
-console.log('✅ Token loaded successfully');
-console.log('🔑 Token preview:', TOKEN.substring(0, 30) + '...');
-
-// Import COMMANDS (xử lý lệnh chat)
-const { handleTaiXiu, handleLichSu } = require('./commands/game');
+// ✅ THÊM: Import getBettingSession từ handlers/game.js
+const { handleTaiXiu, handleLichSu, getBettingSession } = require('./handlers/game');
 const { handleMcoin, handleTang, handleDiemDanh } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { 
@@ -34,8 +22,15 @@ const {
 const { handleMShop, showVipPackages, showTitles, buyVipPackage, buyTitle } = require('./commands/shop');
 
 // Import HANDLERS (xử lý button & modal interactions)
-const { handleButtonClick } = require('./handlers/buttonHandler');
+const { handleButtonClick } = require('./handlers/buttonHandler'); // ✅ Giữ nguyên named export
 const { handleModalSubmit } = require('./handlers/modalHandler');
+
+// ✅ Validation token
+if (!TOKEN) {
+    console.error('❌ CRITICAL ERROR: DISCORD_TOKEN is not set!');
+    console.error('📍 Please add DISCORD_TOKEN to your environment variables on Render');
+    process.exit(1);
+}
 
 const client = new Client({
     intents: [
@@ -165,8 +160,10 @@ client.on('interactionCreate', async (interaction) => {
     try {
         // === XỬ LÝ BUTTON (từ handlers/buttonHandler.js) ===
         if (interaction.isButton()) {
-         await handleButtonClick(interaction, currentBettingSession);
-}
+            // ✅ FIX: Lấy bettingSession từ handlers/game.js
+            const currentSession = getBettingSession();
+            await handleButtonClick(interaction, currentSession);
+        }
         
         // === XỬ LÝ MODAL (từ handlers/modalHandler.js) ===
         else if (interaction.isModalSubmit()) {
@@ -209,5 +206,3 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
-
-
