@@ -1,29 +1,67 @@
-const { EmbedBuilder } = require('discord.js');
-const { database, getUser, saveDB } = require('../utils/database');
+// handlers/user.js - CẬP NHẬT LỆNH USER VỚI VIP
 
-// Lệnh: .mcoin
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { database, getUser, saveDB } = require('../utils/database');
+const { createProfileCard } = require('../utils/canvas');
+
+// Lệnh: .mcoin (với ảnh đẹp)
 async function handleMcoin(message) {
     const user = getUser(message.author.id);
-    const streak = user.dailyQuests.streak;
-    const completedQuests = user.dailyQuests.quests.filter(q => q.completed).length;
+    const streak = user.dailyQuests?.streak || 0;
+    const completedQuests = user.dailyQuests?.quests?.filter(q => q.completed).length || 0;
+    
+    // Lấy avatar URL
+    const avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 256 });
+    
+    // Tạo profile card
+    const profileBuffer = await createProfileCard(message.author, user, avatarUrl);
+    
+    if (!profileBuffer) {
+        // Fallback về embed text nếu canvas lỗi
+        const embed = new EmbedBuilder()
+            .setTitle('💰 SỐ DƯ CỦA BẠN')
+            .setColor('#2ecc71')
+            .setDescription(`**${user.balance.toLocaleString('en-US')} Mcoin**`)
+            .addFields(
+                { name: '🔵 Tài', value: `${user.tai}`, inline: true },
+                { name: '🔴 Xỉu', value: `${user.xiu}`, inline: true },
+                { name: '🟣 Chẵn', value: `${user.chan}`, inline: true },
+                { name: '🟡 Lẻ', value: `${user.le}`, inline: true },
+                { name: '🎰 Nổ hũ', value: `${user.jackpotWins} lần`, inline: true },
+                { name: '💎 VIP Level', value: `${user.vipLevel || 0}`, inline: true },
+                { name: '🔥 Chuỗi ngày', value: `${streak} ngày`, inline: true },
+                { name: '📋 Nhiệm vụ', value: `${completedQuests}/5`, inline: true }
+            )
+            .setTimestamp();
+        
+        return await message.reply({ embeds: [embed] });
+    }
+    
+    // Gửi ảnh profile
+    const attachment = new AttachmentBuilder(profileBuffer, { name: 'profile.png' });
     
     const embed = new EmbedBuilder()
-        .setTitle('💰 SỐ DƯ CỦA BẠN')
-        .setColor('#2ecc71')
-        .setDescription(`**${user.balance.toLocaleString('en-US')} Mcoin**`)
+        .setTitle(`🎴 Trang cá nhân của ${message.author.username}`)
+        .setColor('#FFB6C1')
+        .setImage('attachment://profile.png')
         .addFields(
-            { name: '🔵 Tài', value: `${user.tai}`, inline: true },
-            { name: '🔴 Xỉu', value: `${user.xiu}`, inline: true },
-            { name: '🟣 Chẵn', value: `${user.chan}`, inline: true },
-            { name: '🟡 Lẻ', value: `${user.le}`, inline: true },
+            { name: '💎 Hũ hiện tại', value: `${(database.jackpot || 0).toLocaleString('en-US')} Mcoin`, inline: true },
             { name: '🎰 Nổ hũ', value: `${user.jackpotWins} lần`, inline: true },
-            { name: '💎 Hũ hiện tại', value: `${(database.jackpot || 0).toLocaleString('en-US')}`, inline: true },
-            { name: '🔥 Chuỗi ngày', value: `${streak} ngày ${streak >= 3 ? '(x2 DD!)' : ''}`, inline: true },
-            { name: '📋 Nhiệm vụ hôm nay', value: `${completedQuests}/5`, inline: true }
-        )
-        .setTimestamp();
+            { name: '🔥 Chuỗi ngày', value: `${streak} ngày ${streak >= 3 ? '(x2 DD!)' : ''}`, inline: true }
+        );
     
-    await message.reply({ embeds: [embed] });
+    if (user.vipLevel && user.vipLevel > 0) {
+        embed.addFields({
+            name: '⭐ VIP Benefits',
+            value: `
+🎁 Điểm danh: +${user.vipBonus?.dailyBonus || 0} Mcoin
+🎲 Cược: +${user.vipBonus?.betBonus || 0}% thắng
+            `,
+            inline: false
+        });
+    }
+    
+    await message.reply({ embeds: [embed], files: [attachment] });
 }
 
 // Lệnh: .tang
@@ -67,7 +105,7 @@ async function handleTang(message, args) {
     await message.reply({ embeds: [embed] });
 }
 
-// Lệnh: .diemdanh
+// Lệnh: .diemdanh (có VIP bonus)
 async function handleDiemDanh(message) {
     const userId = message.author.id;
     const now = Date.now();
@@ -81,9 +119,15 @@ async function handleDiemDanh(message) {
     }
     
     const user = getUser(userId);
-    const streak = user.dailyQuests.streak;
+    const streak = user.dailyQuests?.streak || 0;
     const multiplier = streak >= 3 ? 2 : 1;
-    const reward = 3000000 * multiplier;
+    
+    // Base reward
+    let reward = 3000000 * multiplier;
+    
+    // VIP bonus
+    const vipBonus = user.vipBonus?.dailyBonus || 0;
+    reward += vipBonus;
     
     user.balance += reward;
     database.lastCheckin[userId] = now;
@@ -94,7 +138,8 @@ async function handleDiemDanh(message) {
         .setColor('#2ecc71')
         .setDescription(`
 Bạn nhận được **${reward.toLocaleString('en-US')} Mcoin**!
-${multiplier === 2 ? '\n✨ **X2 nhờ chuỗi 3+ ngày làm nhiệm vụ!**' : ''}
+${multiplier === 2 ? '✨ **X2 nhờ chuỗi 3+ ngày làm nhiệm vụ!**' : ''}
+${vipBonus > 0 ? `⭐ **+${vipBonus.toLocaleString('en-US')} Mcoin từ VIP!**` : ''}
         `)
         .addFields(
             {
@@ -103,7 +148,7 @@ ${multiplier === 2 ? '\n✨ **X2 nhờ chuỗi 3+ ngày làm nhiệm vụ!**' : 
             },
             {
                 name: '🔥 Chuỗi nhiệm vụ',
-                value: `${streak} ngày ${streak >= 3 ? '(Đang x2!)' : '(Cần 3+ ngày để x2)'}`
+                value: `${streak} ngày ${streak >= 3 ? '(Đang x2!)' : '(Cần 3+ để x2)'}`
             }
         )
         .setFooter({ text: 'Quay lại sau 8 giờ | Làm .daily để giữ chuỗi!' })
