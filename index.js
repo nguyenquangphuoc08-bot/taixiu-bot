@@ -1,299 +1,183 @@
-require('dotenv').config();
-const { Client, GatewayIntentBits } = require('discord.js');
-const http = require('http');
+// index.js - FILE CHÍNH TÍCH HỢP TẤT CẢ
 
-// Import utils
-const { loadDB } = require('./utils/database');
+const { Client, GatewayIntentBits } = require('discord.js');
+const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID } = require('./config');
 
 // Import handlers
-const handleButton = require('./handlers/buttonHandler');
-const handleModal = require('./handlers/modalHandler');
-
-// Import commands - ✅ FIX: Sửa từ './commands/game' thành './handlers/game'
-const { handleTaiXiu, handleLichSu, getBettingSession } = require('./commands/game');
-const { handleMcoin, handleTang, handleDiemDanh } = require('./commands/user');
-const { handleDaily, handleClaimAll } = require('./commands/quest');
-const { 
-    handleCreateGiftcode, 
-    handleCode, 
-    handleDeleteCode, 
-    handleDeleteAllCodes 
-} = require('./commands/giftcode');
+const { handleTaiXiu, handleLichSu } = require('./handlers/game');
+const { handleMcoin, handleTang, handleDiemDanh } = require('./handlers/user');
+const { handleDaily, handleClaimAll } = require('./handlers/quest');
 const { 
     handleDbInfo, 
     handleBackup, 
     handleBackupNow, 
     handleRestore, 
     handleRestoreFile,
-    handleSendCode
-} = require('./commands/admin');
+    handleSendCode,
+    handleGiveVip,
+    handleRemoveVip,
+    handleGiveTitle
+} = require('./handlers/admin');
+const { handleMShop, showVipPackages, showTitles, buyVipPackage, buyTitle } = require('./handlers/shop');
+const { handleBetInteraction } = require('./handlers/bet');
 
-// Import services
-const { backupOnStartup, autoBackup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
-
-// ===== CẤU HÌNH =====
-const { ADMIN_ID, BACKUP_CHANNEL_ID, GIFTCODE_CHANNEL_ID } = require('./config');
-
-// ===== KHỞI TẠO CLIENT =====
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers
     ]
 });
 
-// Load database khi khởi động
-loadDB();
-
-// ===== BOT READY =====
-client.once('ready', async () => {
-    console.log(`✅ Bot ${client.user.tag} đã online!`); // ✅ FIX: thêm (
-    client.user.setActivity('.tx để chơi | .daily nhiệm vụ', { type: 'PLAYING' });
-    
-    // Khôi phục phiên cược bị gián đoạn
-    await restoreInterruptedSession(client);
-    
-    // Backup khi khởi động
-    await backupOnStartup(client, BACKUP_CHANNEL_ID);
-    
-    // Phát code ngay khi bot khởi động (optional)
-    console.log('🎁 Auto giftcode sẽ phát code đầu tiên sau 2 giờ');
+client.once('ready', () => {
+    console.log(`✅ Bot đã online: ${client.user.tag}`);
+    client.user.setActivity('🎲 Tài Xỉu | .help', { type: 'PLAYING' });
 });
 
-// ===== AUTO BACKUP MỖI 6 GIỜ =====
-setInterval(() => autoBackup(client, BACKUP_CHANNEL_ID), 6 * 60 * 60 * 1000);
-
-// ===== AUTO GIFTCODE MỖI 2 GIỜ =====
-setInterval(async () => {
-    try {
-        const giftcode = require('./giftcode');
-        const { EmbedBuilder } = require('discord.js');
-        
-        // Random số tiền từ 1M đến 100M
-        const reward = Math.floor(Math.random() * (100000000 - 1000000 + 1)) + 1000000;
-        
-        // Tạo code mới (2 giờ = thời hạn code)
-        const newCode = giftcode.createGiftcode('AUTO_SYSTEM', reward, 2);
-        
-        const channel = await client.channels.fetch(GIFTCODE_CHANNEL_ID);
-        
-        const embed = new EmbedBuilder()
-            .setTitle('🎁 GIFTCODE TỰ ĐỘNG!')
-            .setColor('#f39c12')
-            .setDescription(`
-Bot vừa phát hành code mới!
-**🎟️ Code:** \`${newCode.code}\`
-**💰 Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin
-**👥 Số lượt:** ${newCode.maxUses} người
-**⏰ Hết hạn:** <t:${Math.floor(newCode.expiresAt / 1000)}:R>
-
-📢 **Nhanh tay nhập code ngay!**
-Gõ: \`.code ${newCode.code}\`
-            `)
-            .setFooter({ text: 'Code tự động phát mỗi 2 giờ' })
-            .setTimestamp();
-        
-        await channel.send({ 
-            content: '@everyone 🎉 **CODE MỚI ĐÃ XUẤT HIỆN!**',
-            embeds: [embed] 
-        });
-        
-        console.log(`✅ [${new Date().toLocaleString('vi-VN')}] Auto giftcode: ${newCode.code} - ${reward.toLocaleString('en-US')} Mcoin`); // ✅ FIX: thêm (
-        
-    } catch (e) {
-        console.error('❌ Lỗi auto giftcode:', e.message);
-    }
-}, 2 * 60 * 60 * 1000); // 2 giờ
-
-// ===== BACKUP KHI BOT TẮT =====
-process.on('SIGTERM', async () => {
-    console.log('⚠️ Bot nhận tín hiệu tắt, đang backup...');
-    await backupOnShutdown(client, BACKUP_CHANNEL_ID);
-    process.exit(0);
-});
-
-// ===== XỬ LÝ LỆNH =====
+// Xử lý tin nhắn (commands)
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     
-    const args = message.content.split(' ');
+    const args = message.content.trim().split(/\s+/);
     const command = args[0].toLowerCase();
     
-    // ===== GAME COMMANDS =====
+    // === COMMANDS NGƯỜI CHƠI ===
     if (command === '.tx') {
         await handleTaiXiu(message, client);
-        return;
     }
-    
-    if (command === '.lichsu' || command === '.ls') {
+    else if (command === '.lichsu') {
         await handleLichSu(message);
-        return;
     }
-    
-    // ===== USER COMMANDS =====
-    if (command === '.mcoin') {
+    else if (command === '.mcoin') {
         await handleMcoin(message);
-        return;
     }
-    
-    if (command === '.tang' || command === '.give') {
+    else if (command === '.tang') {
         await handleTang(message, args);
-        return;
     }
-    
-    if (command === '.diemdanh' || command === '.dd') {
+    else if (command === '.diemdanh' || command === '.dd') {
         await handleDiemDanh(message);
-        return;
     }
-    
-    // ===== QUEST COMMANDS =====
-    if (command === '.daily') {
+    else if (command === '.daily') {
         await handleDaily(message);
-        return;
     }
-    
-    if (command === '.claimall') {
+    else if (command === '.claimall') {
         await handleClaimAll(message);
-        return;
+    }
+    else if (command === '.mshop') {
+        await handleMShop(message);
     }
     
-    // ===== GIFTCODE COMMANDS =====
-    if (command === '.giftcode' || command === '.gc') {
-        await handleCreateGiftcode(message, args);
-        return;
-    }
-    
-    if (command === '.code') {
-        await handleCode(message, args);
-        return;
-    }
-    
-    if (command === '.delcode' || command === '.xoacode') {
-        await handleDeleteCode(message, args);
-        return;
-    }
-    
-    if (command === '.delallcode' || command === '.xoatatca') {
-        await handleDeleteAllCodes(message);
-        return;
-    }
-    
-    // ===== ADMIN COMMANDS =====
-    if (command === '.dbinfo') {
+    // === COMMANDS ADMIN ===
+    else if (command === '.dbinfo') {
         await handleDbInfo(message);
-        return;
     }
-    
-    if (command === '.backup') {
+    else if (command === '.backup') {
         await handleBackup(message);
-        return;
     }
-    
-    if (command === '.backupnow') {
+    else if (command === '.backupnow') {
         await handleBackupNow(message);
-        return;
     }
-    
-    if (command === '.restore') {
+    else if (command === '.restore') {
         await handleRestore(message);
-        return;
+    }
+    else if (command === '.sendcode') {
+        await handleSendCode(message, GIFTCODE_CHANNEL_ID);
+    }
+    else if (command === '.givevip') {
+        await handleGiveVip(message, args);
+    }
+    else if (command === '.removevip') {
+        await handleRemoveVip(message, args);
+    }
+    else if (command === '.givetitle') {
+        await handleGiveTitle(message, args);
     }
     
-    if (command === '.sendcode') {
-        await handleSendCode(message, GIFTCODE_CHANNEL_ID);
-        return;
+    // === HELP COMMAND ===
+    else if (command === '.help') {
+        const isAdmin = message.author.id === ADMIN_ID;
+        
+        const helpText = `
+📜 **DANH SÁCH LỆNH**
+
+**👤 Người chơi:**
+\`.tx\` - Bắt đầu phiên cược mới
+\`.mcoin\` - Xem profile & số dư (có ảnh!)
+\`.lichsu\` - Xem biểu đồ lịch sử
+\`.tang @user [số]\` - Tặng tiền
+\`.dd\` / \`.diemdanh\` - Điểm danh (8h/lần)
+\`.daily\` - Xem nhiệm vụ hằng ngày
+\`.claimall\` - Nhận thưởng nhiệm vụ
+\`.mshop\` - Cửa hàng VIP & danh hiệu
+
+**🎲 Đặt cược:**
+Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
+Ví dụ: \`1k\`, \`5m\`, \`10b\`, \`100000000\`
+Giới hạn: **1,000** - **100,000,000,000** Mcoin
+
+${isAdmin ? `
+**🔧 Admin:**
+\`.givevip @user [1-3]\` - Cấp VIP
+\`.removevip @user\` - Xóa VIP
+\`.givetitle @user [tên]\` - Cấp danh hiệu tùy chỉnh
+\`.sendcode\` - Phát giftcode
+\`.dbinfo\` - Thông tin database
+\`.backup\` - Backup database
+\`.backupnow\` - Backup thủ công
+\`.restore\` - Hướng dẫn restore
+` : ''}
+        `;
+        
+        await message.reply(helpText);
     }
     
     // Xử lý restore file
-    if (message.content.toLowerCase().includes('restore confirm') && message.attachments.size > 0) {
+    if (message.attachments.size > 0 && message.content.toLowerCase().includes('restore confirm')) {
         await handleRestoreFile(message);
-        return;
-    }
-    
-    // ===== HELP COMMAND =====
-    if (command === '.help' || command === '.h') {
-        const { EmbedBuilder } = require('discord.js');
-        const embed = new EmbedBuilder()
-            .setTitle('📚 HƯỚNG DẪN SỬ DỤNG BOT')
-            .setColor('#3498db')
-            .setDescription('**Danh sách lệnh:**')
-            .addFields(
-                { 
-                    name: '🎲 Game Tài Xỉu', 
-                    value: '`.tx` - Bắt đầu phiên cược mới\n`.lichsu` hoặc `.ls` - Xem lịch sử 20 phiên', 
-                    inline: false 
-                },
-                { 
-                    name: '💰 Quản lý tiền', 
-                    value: '`.mcoin` - Xem số dư và thống kê\n`.tang @user [số tiền]` - Tặng tiền cho người khác\n`.diemdanh` hoặc `.dd` - Điểm danh nhận 3M (8h/lần)', 
-                    inline: false 
-                },
-                { 
-                    name: '📋 Nhiệm vụ', 
-                    value: '`.daily` - Xem nhiệm vụ hằng ngày\n`.claimall` - Nhận thưởng khi hoàn thành tất cả', 
-                    inline: false 
-                },
-                { 
-                    name: '🎁 Giftcode', 
-                    value: '`.code` - Xem danh sách code đang hoạt động\n`.code <MÃ CODE>` - Nhập code để nhận thưởng', 
-                    inline: false 
-                }
-            )
-            .setFooter({ text: 'Chúc bạn chơi vui vẻ! 🎉' })
-            .setTimestamp();
-        
-        if (message.author.id === ADMIN_ID) {
-            embed.addFields(
-                {
-                    name: '🔧 Lệnh Admin',
-                    value: '`.dbinfo` - Thông tin database\n`.backup` - Tạo backup\n`.backupnow` - Backup thủ công\n`.restore` - Khôi phục database\n`.sendcode` - Phát code ngay lập tức',
-                    inline: false
-                },
-                {
-                    name: '🎁 Quản lý Giftcode (Admin)',
-                    value: '`.giftcode [tiền] [giờ]` - Tạo code\n`.delcode <code>` - Xóa 1 code\n`.delallcode` - Xóa tất cả code',
-                    inline: false
-                }
-            );
-        }
-        
-        await message.reply({ embeds: [embed] });
-        return;
     }
 });
 
-// ===== XỬ LÝ INTERACTION (BUTTON & MODAL) =====
+// Xử lý interactions (buttons & select menus)
 client.on('interactionCreate', async (interaction) => {
     try {
-        const bettingSession = getBettingSession();
-        
+        // === BUTTON ĐẶT CƯỢC ===
         if (interaction.isButton()) {
-            await handleButton(interaction, bettingSession);
+            if (interaction.customId.startsWith('bet_')) {
+                await handleBetInteraction(interaction);
+            }
+            else if (interaction.customId === 'shop_vip') {
+                await showVipPackages(interaction);
+            }
+            else if (interaction.customId === 'shop_title') {
+                await showTitles(interaction);
+            }
         }
         
-        if (interaction.isModalSubmit()) {
-            await handleModal(interaction, bettingSession, client);
+        // === SELECT MENU MUA VIP/DANH HIỆU ===
+        if (interaction.isStringSelectMenu()) {
+            if (interaction.customId === 'buy_vip') {
+                const vipId = interaction.values[0];
+                await buyVipPackage(interaction, vipId);
+            }
+            else if (interaction.customId === 'buy_title') {
+                const titleId = interaction.values[0];
+                await buyTitle(interaction, titleId);
+            }
         }
         
     } catch (error) {
-        console.error('❌ LỖI trong interactionCreate:', error);
-        
-        try {
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({ 
-                    content: '❌ Có lỗi xảy ra! Vui lòng thử lại.', 
-                    flags: 64 
-                }).catch(() => {});
-            }
-        } catch (replyError) {
-            console.error('Không thể gửi error message:', replyError);
+        console.error('❌ Interaction error:', error);
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ 
+                content: '❌ Có lỗi xảy ra!', 
+                ephemeral: true 
+            }).catch(() => {});
         }
     }
 });
 
-// ===== LOGIN & KEEP ALIVE =====
-client.login(process.env.TOKEN);
+client.login(TOKEN);
 
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
