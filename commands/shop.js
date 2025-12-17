@@ -77,7 +77,7 @@ async function handleMShop(message) {
                 .setLabel('🌟 VIP Package')
                 .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
-                .setCustomId('shop_title')
+                .setCustomId('shop_titles')
                 .setLabel('👑 Danh hiệu')
                 .setStyle(ButtonStyle.Success)
         );
