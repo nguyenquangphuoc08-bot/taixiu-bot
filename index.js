@@ -5,7 +5,7 @@ const { Client, GatewayIntentBits } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID } = require('./config');
 
 // ✅ THÊM: Import getBettingSession từ handlers/game.js
-const { handleTaiXiu, handleLichSu, getBettingSession } = require('./handlers/game');
+const { handleTaiXiu, handleLichSu, getBettingSession } = require('./commands/game');
 const { handleMcoin, handleTang, handleDiemDanh } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { 
@@ -206,3 +206,4 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
+
