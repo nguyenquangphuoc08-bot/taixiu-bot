@@ -2,7 +2,9 @@
 
 const http = require('http');
 const { Client, GatewayIntentBits } = require('discord.js');
-const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID } = require('./config');
+const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
+const { loadDB, database, saveDB, getUser } = require('./utils/database');
+const { autoBackup } = require('./services/backup');
 
 // Import commands
 const { handleTaiXiu, handleLichSu, getBettingSession, setBettingSession } = require('./commands/game');
@@ -37,9 +39,117 @@ const client = new Client({
     ]
 });
 
-client.once('ready', () => {
+// Load database
+loadDB();
+
+// ===== AUTO BACKUP KHI BOT TẮT =====
+
+async function emergencyBackup() {
+    try {
+        console.log('🚨 PHÁT HIỆN BOT SẮP TẮT - BACKUP KHẨN CẤP...');
+        
+        if (!client.isReady()) {
+            console.log('⚠️ Client chưa ready, bỏ qua backup');
+            return;
+        }
+        
+        const channel = await client.channels.fetch(BACKUP_CHANNEL_ID).catch(() => null);
+        if (!channel) {
+            console.error('❌ Không tìm thấy backup channel');
+            return;
+        }
+        
+        const backupData = JSON.stringify(database, null, 2);
+        const buffer = Buffer.from(backupData, 'utf-8');
+        const timestamp = new Date().toLocaleString('vi-VN');
+        const fileName = `emergency_${Date.now()}.json`;
+        
+        await channel.send({
+            content: `🚨 **BACKUP KHẨN CẤP** - Bot đang tắt\n⏰ ${timestamp}`,
+            files: [{
+                attachment: buffer,
+                name: fileName
+            }]
+        });
+        
+        console.log('✅ Backup khẩn cấp thành công!');
+    } catch (error) {
+        console.error('❌ Lỗi backup khẩn cấp:', error);
+    }
+}
+
+// Bắt SIGTERM (Render deploy)
+process.on('SIGTERM', async () => {
+    console.log('⚠️ Nhận SIGTERM - Bot sắp tắt');
+    await emergencyBackup();
+    setTimeout(() => process.exit(0), 3000);
+});
+
+// Bắt SIGINT (Ctrl+C)
+process.on('SIGINT', async () => {
+    console.log('⚠️ Nhận SIGINT - Người dùng tắt bot');
+    await emergencyBackup();
+    setTimeout(() => process.exit(0), 3000);
+});
+
+// Bắt SIGHUP (Terminal đóng)
+process.on('SIGHUP', async () => {
+    console.log('⚠️ Nhận SIGHUP');
+    await emergencyBackup();
+    setTimeout(() => process.exit(0), 3000);
+});
+
+// Bắt lỗi chưa xử lý
+process.on('uncaughtException', async (error) => {
+    console.error('❌ UNCAUGHT EXCEPTION:', error);
+    await emergencyBackup();
+    setTimeout(() => process.exit(1), 3000);
+});
+
+process.on('unhandledRejection', async (reason) => {
+    console.error('❌ UNHANDLED REJECTION:', reason);
+    await emergencyBackup();
+    setTimeout(() => process.exit(1), 3000);
+});
+
+// ===== HEARTBEAT - BACKUP ĐỊNH KỲ 10 PHÚT =====
+let lastHeartbeatBackup = Date.now();
+
+setInterval(async () => {
+    const now = Date.now();
+    const elapsed = now - lastHeartbeatBackup;
+    
+    // Backup mỗi 10 phút
+    if (elapsed >= 10 * 60 * 1000) {
+        console.log('⏰ Heartbeat: 10 phút - backup an toàn...');
+        
+        try {
+            if (client.isReady()) {
+                await autoBackup(client, BACKUP_CHANNEL_ID);
+                lastHeartbeatBackup = now;
+                console.log('✅ Heartbeat backup OK');
+            }
+        } catch (error) {
+            console.error('❌ Heartbeat backup lỗi:', error);
+        }
+    }
+    
+    // Kiểm tra memory
+    const memUsage = process.memoryUsage();
+    const memMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    
+    if (memMB > 450) {
+        console.warn(`⚠️ Memory cao (${memMB}MB) - Backup phòng ngừa`);
+        await emergencyBackup();
+    }
+    
+}, 60 * 1000); // Check mỗi 1 phút
+
+// ✅ FIX: Dùng 'clientReady' thay vì 'ready'
+client.once('clientReady', () => {
     console.log(`✅ Bot đã online: ${client.user.tag}`);
     client.user.setActivity('🎲 Tài Xỉu | .help', { type: 'PLAYING' });
+    console.log('✅ Hệ thống backup khẩn cấp đã kích hoạt!');
 });
 
 // Xử lý tin nhắn (commands)
@@ -201,7 +311,7 @@ client.on('interactionCreate', async (interaction) => {
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ 
                 content: '❌ Có lỗi xảy ra!', 
-                ephemeral: true 
+                flags: 64 // ✅ FIX: Dùng flags thay vì ephemeral
             }).catch(() => {});
         }
     }
@@ -210,14 +320,13 @@ client.on('interactionCreate', async (interaction) => {
 // ✅ HANDLER: Xử lý button đặt cược
 async function handleBetButton(interaction) {
     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-    const { getUser } = require('./utils/database');
     
     const bettingSession = getBettingSession();
     
     if (!bettingSession) {
         return interaction.reply({ 
             content: '❌ Không có phiên cược nào đang diễn ra!', 
-            ephemeral: true 
+            flags: 64
         });
     }
     
@@ -228,7 +337,7 @@ async function handleBetButton(interaction) {
     if (bettingSession.bets[userId]) {
         return interaction.reply({ 
             content: '⚠️ Bạn đã đặt cược rồi!', 
-            ephemeral: true 
+            flags: 64
         });
     }
     
@@ -252,8 +361,6 @@ async function handleBetButton(interaction) {
 
 // ✅ HANDLER: Xử lý modal đặt cược
 async function handleBetModal(interaction) {
-    const { getUser, saveDB } = require('./utils/database');
-    
     const customId = interaction.customId;
     let amountStr = interaction.fields.getTextInputValue('amount').toLowerCase().trim();
     const userId = interaction.user.id;
@@ -263,7 +370,7 @@ async function handleBetModal(interaction) {
     if (!bettingSession) {
         return interaction.reply({ 
             content: '❌ Phiên cược đã kết thúc!', 
-            ephemeral: true 
+            flags: 64
         });
     }
     
@@ -283,21 +390,21 @@ async function handleBetModal(interaction) {
     if (isNaN(amount) || amount < 1000) {
         return interaction.reply({ 
             content: '❌ Số tiền không hợp lệ! Tối thiểu **1,000** Mcoin\nVí dụ: `1k`, `5m`, `10b`', 
-            ephemeral: true 
+            flags: 64
         });
     }
     
     if (amount > 100000000000) {
         return interaction.reply({ 
             content: '❌ Số tiền quá lớn! Tối đa **100,000,000,000** Mcoin', 
-            ephemeral: true 
+            flags: 64
         });
     }
     
     if (user.balance < amount) {
         return interaction.reply({ 
             content: `❌ Bạn không đủ tiền!\n💰 Số dư: **${user.balance.toLocaleString('en-US')}** Mcoin`, 
-            ephemeral: true 
+            flags: 64
         });
     }
     
@@ -319,7 +426,7 @@ async function handleBetModal(interaction) {
     
     await interaction.reply({ 
         content: `✅ Đặt cược **${amount.toLocaleString('en-US')} Mcoin** vào **${typeEmoji[betType]}** thành công!\n💰 Số dư còn: **${user.balance.toLocaleString('en-US')} Mcoin**`, 
-        ephemeral: true 
+        flags: 64
     });
     
     // Cập nhật số người chơi trong embed
@@ -348,4 +455,3 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
-
