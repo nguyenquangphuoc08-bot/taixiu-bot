@@ -1,11 +1,126 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
-const { database, saveDB, DB_PATH } = require('../utils/database');
+const { database, saveDB, DB_PATH, getUser } = require('../utils/database');
 const fs = require('fs');
 const https = require('https');
 
 const { ADMIN_ID } = require('../config');
 
-// Lệnh: .sendcode (Admin phát code ngay lập tức)
+// === LỆNH MỚI: QUẢN LÝ VIP ===
+
+// Lệnh: .givevip (Admin cấp VIP cho user)
+async function handleGiveVip(message, args) {
+    if (message.author.id !== ADMIN_ID) {
+        return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+    }
+    
+    const targetUser = message.mentions.users.first();
+    const vipLevel = parseInt(args[2]);
+    
+    if (!targetUser) {
+        return message.reply('❌ Sử dụng: `.givevip @user [level]`\nVí dụ: `.givevip @Tên 3`');
+    }
+    
+    if (!vipLevel || vipLevel < 1 || vipLevel > 3) {
+        return message.reply('❌ VIP level phải từ 1-3!');
+    }
+    
+    const user = getUser(targetUser.id);
+    
+    // Cấp VIP theo level
+    const vipData = {
+        1: { dailyBonus: 2000000, betBonus: 5 },
+        2: { dailyBonus: 5000000, betBonus: 10 },
+        3: { dailyBonus: 15000000, betBonus: 20 }
+    };
+    
+    user.vipLevel = vipLevel;
+    user.vipBonus = vipData[vipLevel];
+    saveDB();
+    
+    const embed = new EmbedBuilder()
+        .setTitle('⭐ CẤP VIP THÀNH CÔNG!')
+        .setColor('#9b59b6')
+        .setDescription(`
+Admin đã cấp **VIP ${vipLevel}** cho <@${targetUser.id}>!
+
+**Đặc quyền:**
+🎁 Điểm danh: +${user.vipBonus.dailyBonus.toLocaleString('en-US')} Mcoin
+🎲 Thắng cược: +${user.vipBonus.betBonus}%
+        `)
+        .setFooter({ text: `Cấp bởi ${message.author.tag}` })
+        .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    
+    console.log(`✅ Admin ${message.author.tag} cấp VIP${vipLevel} cho ${targetUser.tag}`);
+}
+
+// Lệnh: .removevip (Admin xóa VIP)
+async function handleRemoveVip(message, args) {
+    if (message.author.id !== ADMIN_ID) {
+        return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+    }
+    
+    const targetUser = message.mentions.users.first();
+    
+    if (!targetUser) {
+        return message.reply('❌ Sử dụng: `.removevip @user`');
+    }
+    
+    const user = getUser(targetUser.id);
+    
+    if (!user.vipLevel || user.vipLevel === 0) {
+        return message.reply('❌ User này không có VIP!');
+    }
+    
+    user.vipLevel = 0;
+    user.vipBonus = null;
+    saveDB();
+    
+    await message.reply(`✅ Đã xóa VIP của <@${targetUser.id}>!`);
+    console.log(`✅ Admin ${message.author.tag} xóa VIP của ${targetUser.tag}`);
+}
+
+// Lệnh: .givetitle (Admin cấp danh hiệu)
+async function handleGiveTitle(message, args) {
+    if (message.author.id !== ADMIN_ID) {
+        return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+    }
+    
+    const targetUser = message.mentions.users.first();
+    const titleName = args.slice(2).join(' ');
+    
+    if (!targetUser) {
+        return message.reply('❌ Sử dụng: `.givetitle @user [tên danh hiệu]`\nVí dụ: `.givetitle @Tên Huyền Thoại`');
+    }
+    
+    if (!titleName || titleName.length < 2) {
+        return message.reply('❌ Tên danh hiệu phải có ít nhất 2 ký tự!');
+    }
+    
+    const user = getUser(targetUser.id);
+    user.vipTitle = titleName;
+    saveDB();
+    
+    const embed = new EmbedBuilder()
+        .setTitle('👑 CẤP DANH HIỆU THÀNH CÔNG!')
+        .setColor('#e91e63')
+        .setDescription(`
+Admin đã cấp danh hiệu **"${titleName}"** cho <@${targetUser.id}>!
+
+✨ Danh hiệu sẽ hiển thị trên profile!
+        `)
+        .setFooter({ text: `Cấp bởi ${message.author.tag}` })
+        .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    
+    console.log(`✅ Admin ${message.author.tag} cấp danh hiệu "${titleName}" cho ${targetUser.tag}`);
+}
+
+// === CÁC LỆNH CŨ GIỮ NGUYÊN ===
+
+// Lệnh: .sendcode
 async function handleSendCode(message, GIFTCODE_CHANNEL_ID) {
     if (message.author.id !== ADMIN_ID) {
         return message.reply('❌ Chỉ admin mới phát code được!');
@@ -15,10 +130,7 @@ async function handleSendCode(message, GIFTCODE_CHANNEL_ID) {
         const giftcode = require('../giftcode');
         const { EmbedBuilder } = require('discord.js');
         
-        // Random số tiền từ 1M đến 100M
         const reward = Math.floor(Math.random() * (100000000 - 1000000 + 1)) + 1000000;
-        
-        // Tạo code mới (2 giờ = thời hạn code)
         const newCode = giftcode.createGiftcode(message.author.id, reward, 2);
         
         const channel = await message.client.channels.fetch(GIFTCODE_CHANNEL_ID);
@@ -178,7 +290,7 @@ async function handleRestore(message) {
     `);
 }
 
-// Xử lý restore khi gửi file
+// Xử lý restore file
 async function handleRestoreFile(message) {
     if (message.author.id !== ADMIN_ID) {
         return message.reply('❌ Chỉ admin mới được restore database!');
@@ -211,7 +323,7 @@ async function handleRestoreFile(message) {
                     try {
                         resolve(JSON.parse(data));
                     } catch (e) {
-                        reject(new Error('File JSON không hợp lệ hoặc bị lỗi'));
+                        reject(new Error('File JSON không hợp lệ'));
                     }
                 });
             }).on('error', (e) => {
@@ -220,11 +332,11 @@ async function handleRestoreFile(message) {
         });
         
         if (!backupData.users || typeof backupData.users !== 'object') {
-            return processingMsg.edit('❌ File backup thiếu hoặc sai cấu trúc `users`!');
+            return processingMsg.edit('❌ File backup thiếu cấu trúc `users`!');
         }
         
         if (!Array.isArray(backupData.history)) {
-            return processingMsg.edit('❌ File backup thiếu hoặc sai cấu trúc `history`!');
+            return processingMsg.edit('❌ File backup thiếu cấu trúc `history`!');
         }
         
         const oldBackup = JSON.stringify(database, null, 2);
@@ -238,9 +350,6 @@ async function handleRestoreFile(message) {
         
         if (typeof database.jackpot !== 'number') database.jackpot = 0;
         if (!database.lastCheckin) database.lastCheckin = {};
-        if (database.activeBettingSession !== null && typeof database.activeBettingSession !== 'object') {
-            database.activeBettingSession = null;
-        }
         
         saveDB();
         
@@ -248,28 +357,24 @@ async function handleRestoreFile(message) {
             .setTitle('✅ RESTORE THÀNH CÔNG!')
             .setColor('#2ecc71')
             .setDescription(`
-Database đã được khôi phục từ backup!
+Database đã được khôi phục!
 
-**Thống kê sau restore:**
+**Thống kê:**
 👥 Người chơi: **${Object.keys(database.users).length}**
 📊 Lịch sử: **${database.history.length}** phiên
 🎰 Hũ: **${database.jackpot.toLocaleString('en-US')}** Mcoin
-⏳ Phiên đang chạy: ${database.activeBettingSession ? '✅ Có' : '❌ Không'}
 
-🔒 **Data cũ đã backup tại:** \`./database/backup_before_restore.json\`
+🔒 **Data cũ backup tại:** \`./database/backup_before_restore.json\`
             `)
-            .setFooter({ text: 'Đã restore lúc' })
             .setTimestamp();
         
         await processingMsg.edit({ content: null, embeds: [embed] });
         
-        console.log('✅ Database restored successfully by', message.author.tag);
+        console.log('✅ Database restored by', message.author.tag);
         
     } catch (error) {
         console.error('❌ Lỗi restore:', error);
-        return processingMsg.edit({
-            content: `❌ **Lỗi khi restore database:**\n\`\`\`${error.message}\`\`\`\n\n💡 Kiểm tra:\n- File JSON có đúng format không?\n- File có bị lỗi/hỏng không?`
-        });
+        return processingMsg.edit(`❌ **Lỗi:**\n\`\`\`${error.message}\`\`\``);
     }
 }
 
@@ -279,7 +384,8 @@ module.exports = {
     handleBackupNow,
     handleRestore,
     handleRestoreFile,
-    handleSendCode  
+    handleSendCode,
+    handleGiveVip,
+    handleRemoveVip,
+    handleGiveTitle
 };
-
-
