@@ -4,8 +4,8 @@ const http = require('http');
 const { Client, GatewayIntentBits } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID } = require('./config');
 
-// ✅ THÊM: Import getBettingSession từ handlers/game.js
-const { handleTaiXiu, handleLichSu, getBettingSession } = require('./commands/game');
+// Import commands
+const { handleTaiXiu, handleLichSu, getBettingSession, setBettingSession } = require('./commands/game');
 const { handleMcoin, handleTang, handleDiemDanh } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { 
@@ -19,11 +19,7 @@ const {
     handleRemoveVip,
     handleGiveTitle
 } = require('./commands/admin');
-const { handleMShop, showVipPackages, showTitles, buyVipPackage, buyTitle } = require('./commands/shop');
-
-// Import HANDLERS (xử lý button & modal interactions)
-const { handleButtonClick } = require('./handlers/buttonHandler'); // ✅ Giữ nguyên named export
-const { handleModalSubmit } = require('./handlers/modalHandler');
+const { handleMShop, buyVipPackage, buyTitle } = require('./commands/shop');
 
 // ✅ Validation token
 if (!TOKEN) {
@@ -155,19 +151,27 @@ ${isAdmin ? `
     }
 });
 
-// Xử lý interactions (buttons & modals)
+// ✅ XỬ LÝ INTERACTIONS (buttons & modals)
 client.on('interactionCreate', async (interaction) => {
     try {
-        // === XỬ LÝ BUTTON (từ handlers/buttonHandler.js) ===
+        // === XỬ LÝ BUTTON ===
         if (interaction.isButton()) {
-            // ✅ FIX: Lấy bettingSession từ handlers/game.js
-            const currentSession = getBettingSession();
-            await handleButtonClick(interaction, currentSession);
+            const { customId } = interaction;
+            
+            // Button đặt cược Tài Xỉu
+            if (['bet_tai', 'bet_xiu', 'bet_chan', 'bet_le'].includes(customId)) {
+                await handleBetButton(interaction);
+            }
         }
         
-        // === XỬ LÝ MODAL (từ handlers/modalHandler.js) ===
+        // === XỬ LÝ MODAL ===
         else if (interaction.isModalSubmit()) {
-            await handleModalSubmit(interaction);
+            const { customId } = interaction;
+            
+            // Modal đặt cược
+            if (customId.startsWith('bet_amount_')) {
+                await handleBetModal(interaction);
+            }
         }
         
         // === XỬ LÝ SELECT MENU (shop) ===
@@ -193,6 +197,134 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
+// ✅ HANDLER: Xử lý button đặt cược
+async function handleBetButton(interaction) {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const { getUser } = require('./utils/database');
+    
+    const bettingSession = getBettingSession();
+    
+    if (!bettingSession) {
+        return interaction.reply({ 
+            content: '❌ Không có phiên cược nào đang diễn ra!', 
+            ephemeral: true 
+        });
+    }
+    
+    const userId = interaction.user.id;
+    const user = getUser(userId);
+    
+    // Kiểm tra đã đặt cược chưa
+    if (bettingSession.bets[userId]) {
+        return interaction.reply({ 
+            content: '⚠️ Bạn đã đặt cược rồi!', 
+            ephemeral: true 
+        });
+    }
+    
+    // Hiển thị modal nhập số tiền
+    const modal = new ModalBuilder()
+        .setCustomId(`bet_amount_${interaction.customId}`)
+        .setTitle('💰 Nhập số tiền cược');
+    
+    const amountInput = new TextInputBuilder()
+        .setCustomId('amount')
+        .setLabel('Số tiền (VD: 1k, 5m, 10b)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Ví dụ: 100000 hoặc 1m')
+        .setRequired(true);
+    
+    const row = new ActionRowBuilder().addComponents(amountInput);
+    modal.addComponents(row);
+    
+    await interaction.showModal(modal);
+}
+
+// ✅ HANDLER: Xử lý modal đặt cược
+async function handleBetModal(interaction) {
+    const { getUser, saveDB } = require('./utils/database');
+    
+    const customId = interaction.customId;
+    let amountStr = interaction.fields.getTextInputValue('amount').toLowerCase().trim();
+    const userId = interaction.user.id;
+    const user = getUser(userId);
+    const bettingSession = getBettingSession();
+    
+    if (!bettingSession) {
+        return interaction.reply({ 
+            content: '❌ Phiên cược đã kết thúc!', 
+            ephemeral: true 
+        });
+    }
+    
+    // Parse số tiền (hỗ trợ 1k, 5m, 10b)
+    let amount = 0;
+    if (amountStr.endsWith('k')) {
+        amount = parseFloat(amountStr) * 1000;
+    } else if (amountStr.endsWith('m')) {
+        amount = parseFloat(amountStr) * 1000000;
+    } else if (amountStr.endsWith('b')) {
+        amount = parseFloat(amountStr) * 1000000000;
+    } else {
+        amount = parseInt(amountStr);
+    }
+    
+    // Validate
+    if (isNaN(amount) || amount < 1000) {
+        return interaction.reply({ 
+            content: '❌ Số tiền không hợp lệ! Tối thiểu **1,000** Mcoin\nVí dụ: `1k`, `5m`, `10b`', 
+            ephemeral: true 
+        });
+    }
+    
+    if (amount > 100000000000) {
+        return interaction.reply({ 
+            content: '❌ Số tiền quá lớn! Tối đa **100,000,000,000** Mcoin', 
+            ephemeral: true 
+        });
+    }
+    
+    if (user.balance < amount) {
+        return interaction.reply({ 
+            content: `❌ Bạn không đủ tiền!\n💰 Số dư: **${user.balance.toLocaleString('en-US')}** Mcoin`, 
+            ephemeral: true 
+        });
+    }
+    
+    // Trừ tiền
+    user.balance -= amount;
+    
+    // Lưu cược
+    const betType = customId.replace('bet_amount_bet_', '');
+    bettingSession.bets[userId] = { amount, type: betType };
+    
+    saveDB();
+    
+    const typeEmoji = {
+        'tai': '🔵 Tài',
+        'xiu': '🔴 Xỉu',
+        'chan': '🟣 Chẵn',
+        'le': '🟡 Lẻ'
+    };
+    
+    await interaction.reply({ 
+        content: `✅ Đặt cược **${amount.toLocaleString('en-US')} Mcoin** vào **${typeEmoji[betType]}** thành công!\n💰 Số dư còn: **${user.balance.toLocaleString('en-US')} Mcoin**`, 
+        ephemeral: true 
+    });
+    
+    // Cập nhật số người chơi trong embed
+    try {
+        const message = await interaction.channel.messages.fetch(bettingSession.messageId);
+        const embed = message.embeds[0];
+        const playerCount = Object.keys(bettingSession.bets).length;
+        
+        embed.fields[1].value = `${playerCount}`;
+        await message.edit({ embeds: [embed] });
+    } catch (err) {
+        console.error('Cannot update player count:', err);
+    }
+}
+
 // Login bot
 client.login(TOKEN);
 
@@ -206,4 +338,3 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
-
