@@ -333,7 +333,7 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
             }
         );
         
-        resultEmbed.setFooter({ text: isJackpot ? 'Chúc mừng người trúng Jackpot! 🎰' : 'Chúc may mắn lần sau!' });
+        resultEmbed.setFooter({ text: isJackpot ? 'NỔ HŨ, LÊN ĐỈNH NÀO! 🎰' : 'Hẹn gặp lại lần sau nhé ^_^' });
         resultEmbed.setTimestamp();
         
         try {
@@ -408,3 +408,4 @@ module.exports = {
     getBettingSession,
     setBettingSession
 };
+
