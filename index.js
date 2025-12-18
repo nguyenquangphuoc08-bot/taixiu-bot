@@ -182,9 +182,6 @@ client.on('messageCreate', async (message) => {
         else if (command === '.mshop') {
             await handleMShop(message);
         }
-        else if (command === '.mshop') {
-            await handleMShop(message);
-        }
         
         // === GIFTCODE COMMANDS ===
         else if (command === '.giftcode' || command === '.gc') {
@@ -471,6 +468,7 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
+
 
 
 
