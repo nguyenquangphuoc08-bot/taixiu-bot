@@ -1,3 +1,4 @@
+
 // index.js - FILE CHÍNH TÍCH HỢP TẤT CẢ
 
 const http = require('http');
@@ -19,7 +20,12 @@ const {
     handleSendCode,
     handleGiveVip,
     handleRemoveVip,
-    handleGiveTitle
+    handleGiveTitle,
+    // ✅ THÊM: Import giftcode commands
+    handleCreateGiftcode,
+    handleCode,
+    handleDeleteCode,
+    handleDeleteAllCodes
 } = require('./commands/admin');
 const { handleMShop, buyVipPackage, buyTitle, showVipPackages, showTitles } = require('./commands/shop');
 
@@ -183,21 +189,17 @@ client.on('messageCreate', async (message) => {
             await handleMShop(message);
         }
         
-        // === GIFTCODE COMMANDS ===
+        // === GIFTCODE COMMANDS (DÙNG TỪ ADMIN.JS) ===
         else if (command === '.giftcode' || command === '.gc') {
-            const { handleCreateGiftcode } = require('./commands/giftcode');
             await handleCreateGiftcode(message, args);
         }
         else if (command === '.code') {
-            const { handleCode } = require('./commands/giftcode');
             await handleCode(message, args);
         }
         else if (command === '.delcode' || command === '.xoacode') {
-            const { handleDeleteCode } = require('./commands/giftcode');
             await handleDeleteCode(message, args);
         }
         else if (command === '.delallcode' || command === '.xoatatca') {
-            const { handleDeleteAllCodes } = require('./commands/giftcode');
             await handleDeleteAllCodes(message);
         }
         
@@ -244,17 +246,31 @@ client.on('messageCreate', async (message) => {
 \`.claimall\` - Nhận thưởng nhiệm vụ
 \`.mshop\` - Cửa hàng VIP & danh hiệu
 
+**🎁 Giftcode:**
+\`.code\` - Xem danh sách code đang hoạt động
+\`.code <MÃ>\` - Nhập giftcode
+Ví dụ: \`.code ABC12345\`
+
 **🎲 Đặt cược:**
 Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
 Ví dụ: \`1k\`, \`5m\`, \`10b\`, \`100000000\`
 Giới hạn: **1,000** - **100,000,000,000** Mcoin
 
 ${isAdmin ? `
-**🔧 Admin:**
+**🔧 Admin - Giftcode:**
+\`.giftcode\` - Tạo code random (5M-1000M, 2h)
+\`.giftcode [số tiền] [giờ]\` - Tạo code tùy chỉnh
+  Ví dụ: \`.giftcode 50000000 5\` (50M, 5 giờ)
+\`.sendcode\` - Phát code công khai
+\`.delcode <MÃ>\` - Xóa code cụ thể
+\`.delallcode\` - Xóa tất cả code
+
+**🔧 Admin - VIP & Title:**
 \`.givevip @user [1-3]\` - Cấp VIP
 \`.removevip @user\` - Xóa VIP
 \`.givetitle @user [tên]\` - Cấp danh hiệu tùy chỉnh
-\`.sendcode\` - Phát giftcode
+
+**🔧 Admin - Database:**
 \`.dbinfo\` - Thông tin database
 \`.backup\` - Backup database
 \`.backupnow\` - Backup thủ công
@@ -287,11 +303,11 @@ client.on('interactionCreate', async (interaction) => {
             if (['bet_tai', 'bet_xiu', 'bet_chan', 'bet_le'].includes(customId)) {
                 await handleBetButton(interaction);
             }
-            // ✅ THÊM: Button Shop VIP
+            // Button Shop VIP
             else if (customId === 'shop_vip') {
                 await showVipPackages(interaction);
             }
-            // ✅ THÊM: Button Shop Danh hiệu
+            // Button Shop Danh hiệu
             else if (customId === 'shop_titles') {
                 await showTitles(interaction);
             }
@@ -324,7 +340,7 @@ client.on('interactionCreate', async (interaction) => {
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ 
                 content: '❌ Có lỗi xảy ra!', 
-                flags: 64 // ✅ FIX: Dùng flags thay vì ephemeral
+                flags: 64
             }).catch(() => {});
         }
     }
