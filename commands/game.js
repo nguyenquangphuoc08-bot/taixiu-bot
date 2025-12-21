@@ -1,13 +1,18 @@
-// handlers/game.js - ANIMATION TÔ BIẾN DẦN
+// commands/game.js - THÊM SỐ PHIÊN + FIX UI
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
 const { rollDice, checkResult, checkJackpot } = require('../utils/game');
 const { createDiceImageSafe, createHistoryChart, createBowlLift } = require('../utils/canvas');
 const { updateQuest } = require('../services/quest');
-const fs = require('fs');
 
 let bettingSession = null;
+
+// ===== KHỞI TẠO SỐ PHIÊN =====
+if (!database.phienCounter) {
+    database.phienCounter = 0;
+    saveDB();
+}
 
 // Lệnh: .tx
 async function handleTaiXiu(message, client) {
@@ -15,12 +20,17 @@ async function handleTaiXiu(message, client) {
         return message.reply('⏳ Đang có phiên cược, vui lòng đợi!');
     }
     
+    // Tăng số phiên
+    database.phienCounter++;
+    const phienNumber = database.phienCounter;
+    saveDB();
+    
     bettingSession = {
         channelId: message.channel.id,
         bets: {},
         startTime: Date.now(),
         messageId: null,
-        phienNumber: (database.history.length + 1)
+        phienNumber: phienNumber
     };
     
     database.activeBettingSession = {
@@ -33,7 +43,7 @@ async function handleTaiXiu(message, client) {
     const jackpotDisplay = database.jackpot ? database.jackpot.toLocaleString('en-US') : '0';
     
     const embed = new EmbedBuilder()
-        .setTitle('🎲 PHIÊN CƯỢC MỚI')
+        .setTitle(`🎲 PHIÊN CƯỢC #${phienNumber}`)
         .setColor('#e67e22')
         .setDescription(`
 **Cửa cược:**
@@ -51,7 +61,7 @@ async function handleTaiXiu(message, client) {
         `)
         .addFields(
             { name: '⏰ Thời gian còn lại', value: '30 giây', inline: true },
-            { name: '👥 Người chơi', value: '0', inline: true }
+            { name: '🎯 Phiên số', value: `#${phienNumber}`, inline: true }
         )
         .setFooter({ text: 'Bấm nút để đặt cược!' })
         .setTimestamp();
@@ -119,7 +129,7 @@ async function handleTaiXiu(message, client) {
                 return;
             }
             
-            console.log('✅ Bắt đầu animation...');
+            console.log(`✅ Bắt đầu animation phiên #${phienNumber}...`);
             await animateResult(sentMessage, client);
         }
     }, 1000);
@@ -131,18 +141,15 @@ async function animateResult(sentMessage, client) {
         const { dice1, dice2, dice3, total } = rollDice();
         const result = checkResult(total);
         const isJackpot = checkJackpot(dice1, dice2, dice3);
+        const phienNumber = bettingSession.phienNumber;
         
-        console.log(`🎲 Animation: ${dice1}-${dice2}-${dice3} = ${total}`);
-        
-        // ===== ANIMATION: TÔ KÉO LÊN - LỘ XÚC XẮC (KHÔNG CẦN GIF) =====
-        
-        // ===== TÔ KÉO LÊN TỪNG BƯỚC =====
+        console.log(`🎲 Phiên #${phienNumber}: ${dice1}-${dice2}-${dice3} = ${total}`);
         
         // Frame 1: Tô đè hoàn toàn (0%)
         const frame1 = createBowlLift(dice1, dice2, dice3, 0);
         if (frame1) {
             const embed2 = new EmbedBuilder()
-                .setTitle('🎲 TÔ ĐANG NÂNG LÊN...')
+                .setTitle(`🎲 PHIÊN #${phienNumber} - TÔ ĐANG NÂNG LÊN...`)
                 .setColor('#f39c12')
                 .setDescription('👀 **Chuẩn bị xem kết quả!**')
                 .setImage('attachment://lift.png')
@@ -156,38 +163,22 @@ async function animateResult(sentMessage, client) {
         }
         await sleep(500);
         
-        // Frame 2: Tô nâng 25% - Bắt đầu thấy xúc xắc
-        const frame2 = createBowlLift(dice1, dice2, dice3, 25);
-        if (frame2) {
-            await sentMessage.edit({ 
-                files: [new AttachmentBuilder(frame2, { name: 'lift.png' })]
-            }).catch(() => {});
+        // Frame 2-5: Animation tô nâng dần
+        for (let i = 25; i <= 100; i += 25) {
+            const frame = createBowlLift(dice1, dice2, dice3, i);
+            if (frame) {
+                await sentMessage.edit({ 
+                    files: [new AttachmentBuilder(frame, { name: 'lift.png' })]
+                }).catch(() => {});
+            }
+            await sleep(400);
         }
-        await sleep(400);
         
-        // Frame 3: Tô nâng 50% - Thấy rõ hơn
-        const frame3 = createBowlLift(dice1, dice2, dice3, 50);
-        if (frame3) {
-            await sentMessage.edit({ 
-                files: [new AttachmentBuilder(frame3, { name: 'lift.png' })]
-            }).catch(() => {});
-        }
-        await sleep(400);
-        
-        // Frame 4: Tô nâng 75% - Gần lộ hết
-        const frame4 = createBowlLift(dice1, dice2, dice3, 75);
-        if (frame4) {
-            await sentMessage.edit({ 
-                files: [new AttachmentBuilder(frame4, { name: 'lift.png' })]
-            }).catch(() => {});
-        }
-        await sleep(400);
-        
-        // Frame 5: Tô biến mất hoàn toàn (100%) - LỘ XÚC XẮC
+        // Hiển thị kết quả
         const frame5 = createBowlLift(dice1, dice2, dice3, 100);
         if (frame5) {
             const embed3 = new EmbedBuilder()
-                .setTitle(isJackpot ? '🎰💥 NỔ HŨ!!! 💥🎰' : '🎲 XÚC XẮC ĐÃ LỘ!')
+                .setTitle(isJackpot ? `🎰💥 PHIÊN #${phienNumber} - NỔ HŨ!!! 💥🎰` : `🎲 PHIÊN #${phienNumber} - XÚC XẮC ĐÃ LỘ!`)
                 .setColor(isJackpot ? '#FFD700' : '#3498db')
                 .setDescription(`
 🎯 **${dice1} - ${dice2} - ${dice3} = ${total}**
@@ -269,7 +260,7 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
         const diceBuffer = createDiceImageSafe(dice1, dice2, dice3);
         
         const resultEmbed = new EmbedBuilder()
-            .setTitle(isJackpot ? '🎰💥💥 NỔ HŨ!!! 💥💥🎰' : `🎊 KẾT QUẢ TÀI XỈU #${bettingSession.phienNumber}`)
+            .setTitle(isJackpot ? `🎰💥💥 PHIÊN #${phienNumber} - NỔ HŨ!!! 💥💥🎰` : `🎊 KẾT QUẢ PHIÊN #${phienNumber}`)
             .setColor(isJackpot ? '#FFD700' : (result.tai ? '#e74c3c' : '#3498db'));
         
         let files = [];
@@ -330,6 +321,11 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
                 name: '👥 Tổng người chơi',
                 value: `**${Object.keys(bettingSession.bets).length}** người`,
                 inline: true
+            },
+            {
+                name: '🎯 Phiên số',
+                value: `#${phienNumber}`,
+                inline: true
             }
         );
         
@@ -338,18 +334,18 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
         
         try {
             await sentMessage.edit({ 
-                content: isJackpot ? '**🎰💥 TRÚNG ĐẠI JACKPOT!!! 💥🎰**' : '**🎊 PHIÊN ĐÃ KẾT THÚC**', 
+                content: isJackpot ? '**🎰💥 TRÚNG ĐẠI JACKPOT!!! 💥🎰**' : `**🎊 PHIÊN #${phienNumber} ĐÃ KẾT THÚC**`, 
                 embeds: [resultEmbed],
                 files: files,
                 components: []
             });
-            console.log('✅ Animation hoàn tất!');
+            console.log(`✅ Phiên #${phienNumber} hoàn tất!`);
             
         } catch (editError) {
             console.error('❌ Edit error:', editError.message);
             try {
                 await sentMessage.channel.send({
-                    content: '**🎊 PHIÊN ĐÃ KẾT THÚC**',
+                    content: `**🎊 PHIÊN #${phienNumber} ĐÃ KẾT THÚC**`,
                     embeds: [resultEmbed],
                     files: files
                 });
@@ -374,8 +370,8 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Lệnh: .lichsu
-async function handleLichSu(message) {
+// Lệnh: .sc hoặc .soicau
+async function handleSoiCau(message) {
     const chartBuffer = createHistoryChart(database.history);
     
     if (!chartBuffer) {
@@ -385,10 +381,11 @@ async function handleLichSu(message) {
     const attachment = new AttachmentBuilder(chartBuffer, { name: 'history.png' });
     
     const embed = new EmbedBuilder()
-        .setTitle('📊 BIỂU ĐỒ LỊCH SỬ')
-        .setColor('#9b59b6')
+        .setTitle('📊 Thống kê 20 phiên Tài Xỉu gần nhất:')
+        .setColor('#2b2d31')
+        .setDescription('**THỐNG KÊ PHIÊN**')
         .setImage('attachment://history.png')
-        .setFooter({ text: 'Xanh = Tài | Đỏ = Xỉu' })
+        .setFooter({ text: 'Phân tích dựa trên 20 phiên gần nhất' })
         .setTimestamp();
     
     await message.reply({ embeds: [embed], files: [attachment] });
@@ -404,8 +401,7 @@ function setBettingSession(session) {
 
 module.exports = {
     handleTaiXiu,
-    handleLichSu,
+    handleSoiCau,
     getBettingSession,
     setBettingSession
 };
-
