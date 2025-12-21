@@ -197,11 +197,9 @@ async function createProfileCard(user, userData, avatarUrl) {
         if (userData.customBg) {
             try {
                 const bgImage = await loadImage(userData.customBg);
-                // Vẽ ảnh full canvas
                 ctx.drawImage(bgImage, 0, 0, 500, 250);
             } catch (e) {
                 console.error('❌ Không load được ảnh nền:', e.message);
-                // Fallback về gradient hồng
                 const gradient = ctx.createLinearGradient(0, 0, 500, 250);
                 gradient.addColorStop(0, '#FFB6C1');
                 gradient.addColorStop(1, '#FFE4E1');
@@ -209,7 +207,6 @@ async function createProfileCard(user, userData, avatarUrl) {
                 ctx.fillRect(0, 0, 500, 250);
             }
         } else {
-            // Gradient hồng mặc định
             const gradient = ctx.createLinearGradient(0, 0, 500, 250);
             gradient.addColorStop(0, '#FFB6C1');
             gradient.addColorStop(1, '#FFE4E1');
@@ -217,6 +214,7 @@ async function createProfileCard(user, userData, avatarUrl) {
             ctx.fillRect(0, 0, 500, 250);
         }
         
+        // Avatar
         try {
             const avatar = await loadImage(avatarUrl);
             ctx.save();
@@ -236,11 +234,30 @@ async function createProfileCard(user, userData, avatarUrl) {
             console.error('Avatar load failed:', e);
         }
         
-        ctx.fillStyle = '#333333';
-        ctx.font = 'bold 24px Arial';
+        // ✅ USERNAME - CHỮ TRẮNG + VIỀN ĐEN + BÓng
         ctx.textAlign = 'center';
+        ctx.font = 'bold 24px Arial';
+        
+        // Bóng đen
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+        
+        // Viền đen dày
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 6;
+        ctx.strokeText(user.username, 250, 145);
+        
+        // Chữ trắng
+        ctx.fillStyle = '#ffffff';
         ctx.fillText(user.username, 250, 145);
         
+        // Reset shadow
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        
+        // ✅ STATS - CHỮ TRẮNG + VIỀN ĐEN
         const stats = [
             { label: 'Mcoin', value: userData.balance.toLocaleString('en-US'), x: 75 },
             { label: 'Cược', value: (userData.tai + userData.xiu + userData.chan + userData.le).toString(), x: 190 },
@@ -248,20 +265,38 @@ async function createProfileCard(user, userData, avatarUrl) {
             { label: 'Danh hiệu', value: (userData.vipTitle || 'Thường').substring(0, 8), x: 420 }
         ];
         
+        // Bóng cho stats
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+        ctx.shadowBlur = 5;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        
         ctx.font = 'bold 13px Arial';
         stats.forEach(stat => {
-            ctx.fillStyle = '#666666';
+            // Label - viền đen + chữ trắng
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 4;
+            ctx.strokeText(stat.label, stat.x, 180);
+            ctx.fillStyle = '#ffffff';
             ctx.fillText(stat.label, stat.x, 180);
             
-            ctx.fillStyle = '#333333';
+            // Value - viền đen + chữ trắng
             ctx.font = 'bold 15px Arial';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 4;
+            ctx.strokeText(stat.value, stat.x, 205);
+            ctx.fillStyle = '#ffffff';
             ctx.fillText(stat.value, stat.x, 205);
             ctx.font = 'bold 13px Arial';
         });
         
+        // VIP Badge
         if (userData.vipLevel && userData.vipLevel > 0) {
-            ctx.fillStyle = '#FFD700';
             ctx.font = 'bold 12px Arial';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 4;
+            ctx.strokeText(`⭐ VIP ${userData.vipLevel}`, 250, 230);
+            ctx.fillStyle = '#FFD700';
             ctx.fillText(`⭐ VIP ${userData.vipLevel}`, 250, 230);
         }
         
