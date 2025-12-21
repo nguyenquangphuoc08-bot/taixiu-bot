@@ -1,14 +1,16 @@
-
-// index.js - FILE CHÍNH TÍCH HỢP TẤT CẢ
+// index.js - FILE CHÍNH (BẢO TRÌ THÔNG BÁO KÊNH CỐ ĐỊNH)
 
 const http = require('http');
 const { Client, GatewayIntentBits } = require('discord.js');
-const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
+const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID, MAINTENANCE_CHANNEL_ID } = require('./config');
 const { database, saveDB, getUser } = require('./utils/database');
 const { autoBackup } = require('./services/backup');
 
+// ✅ Import bảo trì
+const { initMaintenanceScheduler, isMaintenanceMode, getMaintenanceTimeLeft, cleanExpiredGiftcodes } = require('./services/maintenance');
+
 // Import commands
-const { handleTaiXiu, handleLichSu, getBettingSession, setBettingSession } = require('./commands/game');
+const { handleTaiXiu, handleSoiCau, getBettingSession, setBettingSession } = require('./commands/game');
 const { handleMcoin, handleTang, handleDiemDanh } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { 
@@ -21,7 +23,6 @@ const {
     handleGiveVip,
     handleRemoveVip,
     handleGiveTitle,
-    // ✅ THÊM: Import giftcode commands
     handleCreateGiftcode,
     handleCode,
     handleDeleteCode,
@@ -152,7 +153,18 @@ setInterval(async () => {
 client.once('clientReady', () => {
     console.log(`✅ Bot đã online: ${client.user.tag}`);
     client.user.setActivity('🎲 Tài Xỉu | .help', { type: 'PLAYING' });
+    
+    // ✅ KHỞI ĐỘNG BẢO TRÌ TỰ ĐỘNG (truyền MAINTENANCE_CHANNEL_ID)
+    initMaintenanceScheduler(client, MAINTENANCE_CHANNEL_ID);
+    
+    // Dọn dẹp giftcode hết hạn khi khởi động
+    cleanExpiredGiftcodes();
+    
+    // Dọn dẹp giftcode hết hạn mỗi giờ
+    setInterval(cleanExpiredGiftcodes, 60 * 60 * 1000);
+    
     console.log('✅ Hệ thống backup khẩn cấp đã kích hoạt!');
+    console.log('✅ Tất cả hệ thống đã sẵn sàng!');
 });
 
 // Xử lý tin nhắn (commands)
@@ -162,13 +174,19 @@ client.on('messageCreate', async (message) => {
     const args = message.content.trim().split(/\s+/);
     const command = args[0].toLowerCase();
     
+    // ✅ KIỂM TRA BẢO TRÌ (trừ lệnh admin)
+    if (isMaintenanceMode() && command !== '.dbinfo' && command !== '.backup' && message.author.id !== ADMIN_ID) {
+        const timeLeft = getMaintenanceTimeLeft();
+        return message.reply(`🔧 **Hệ thống đang bảo trì!**\n⏰ Còn khoảng **${timeLeft} phút**\n🎁 Sau bảo trì sẽ có giftcode 10M!`);
+    }
+    
     try {
         // === COMMANDS NGƯỜI CHƠI ===
         if (command === '.tx') {
             await handleTaiXiu(message, client);
         }
-        else if (command === '.lichsu') {
-            await handleLichSu(message);
+        else if (command === '.sc' || command === '.soicau') {
+            await handleSoiCau(message);
         }
         else if (command === '.mcoin') {
             await handleMcoin(message);
@@ -189,7 +207,7 @@ client.on('messageCreate', async (message) => {
             await handleMShop(message);
         }
         
-        // === GIFTCODE COMMANDS (DÙNG TỪ ADMIN.JS) ===
+        // === GIFTCODE COMMANDS ===
         else if (command === '.giftcode' || command === '.gc') {
             await handleCreateGiftcode(message, args);
         }
@@ -239,7 +257,7 @@ client.on('messageCreate', async (message) => {
 **👤 Người chơi:**
 \`.tx\` - Bắt đầu phiên cược mới
 \`.mcoin\` - Xem profile & số dư (có ảnh!)
-\`.lichsu\` - Xem biểu đồ lịch sử
+\`.sc\` / \`.soicau\` - Xem biểu đồ lịch sử
 \`.tang @user [số]\` - Tặng tiền
 \`.dd\` / \`.diemdanh\` - Điểm danh (8h/lần)
 \`.daily\` - Xem nhiệm vụ hằng ngày
@@ -255,6 +273,9 @@ Ví dụ: \`.code ABC12345\`
 Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
 Ví dụ: \`1k\`, \`5m\`, \`10b\`, \`100000000\`
 Giới hạn: **1,000** - **100,000,000,000** Mcoin
+
+**🔧 Hệ thống tự động:**
+🕛 **Bảo trì:** Mỗi ngày 00:00 (1 tiếng) - Tặng code 10M
 
 ${isAdmin ? `
 **🔧 Admin - Giftcode:**
@@ -377,9 +398,9 @@ async function handleBetButton(interaction) {
     
     const amountInput = new TextInputBuilder()
         .setCustomId('amount')
-        .setLabel('Số tiền (VD: 1k, 5m, 10b)')
+        .setLabel(`Số dư hiện tại: ${user.balance.toLocaleString('en-US')} Mcoin`)
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Ví dụ: 100000 hoặc 1m')
+        .setPlaceholder(`Nhập số tiền (tối đa: ${user.balance.toLocaleString('en-US')})`)
         .setRequired(true);
     
     const row = new ActionRowBuilder().addComponents(amountInput);
@@ -484,8 +505,3 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
-
-
-
-
-
