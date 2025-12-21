@@ -11,7 +11,7 @@ const { initMaintenanceScheduler, isMaintenanceMode, getMaintenanceTimeLeft, cle
 
 // Import commands
 const { handleTaiXiu, handleSoiCau, getBettingSession, setBettingSession } = require('./commands/game');
-const { handleMcoin, handleTang, handleDiemDanh } = require('./commands/user');
+const { handleMcoin, handleSetBg, handleTang, handleDiemDanh } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { 
     handleDbInfo, 
@@ -191,6 +191,9 @@ client.on('messageCreate', async (message) => {
         else if (command === '.mcoin') {
             await handleMcoin(message);
         }
+        else if (command === '.setbg') {
+            await handleSetBg(message, args);
+        }
         else if (command === '.tang') {
             await handleTang(message, args);
         }
@@ -251,12 +254,49 @@ client.on('messageCreate', async (message) => {
         else if (command === '.help') {
             const isAdmin = message.author.id === ADMIN_ID;
             
-            const helpText = `
+            // ✅ HELP CHO NGƯỜI CHƠI THƯỜNG (KHÔNG THẤY ADMIN COMMANDS)
+            if (!isAdmin) {
+                const helpText = `
 📜 **DANH SÁCH LỆNH**
 
 **👤 Người chơi:**
 \`.tx\` - Bắt đầu phiên cược mới
-\`.mcoin\` - Xem profile & số dư (có ảnh!)
+\`.mcoin\` - Xem profile card (ảnh đẹp!)
+\`.setbg\` - Đặt ảnh nền profile (upload ảnh + gõ lệnh)
+\`.setbg reset\` - Xóa ảnh nền, về mặc định
+\`.sc\` / \`.soicau\` - Xem biểu đồ lịch sử
+\`.tang @user [số]\` - Tặng tiền
+\`.dd\` / \`.diemdanh\` - Điểm danh (8h/lần)
+\`.daily\` - Xem nhiệm vụ hằng ngày
+\`.claimall\` - Nhận thưởng nhiệm vụ
+\`.mshop\` - Cửa hàng VIP & danh hiệu
+
+**🎁 Giftcode:**
+\`.code\` - Xem danh sách code đang hoạt động
+\`.code <MÃ>\` - Nhập giftcode
+Ví dụ: \`.code ABC12345\`
+
+**🎲 Đặt cược:**
+Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
+Ví dụ: \`1k\`, \`5m\`, \`10b\`, \`100000000\`
+Giới hạn: **1,000** - **100,000,000,000** Mcoin
+
+**🔧 Hệ thống tự động:**
+🕛 **Bảo trì:** Mỗi ngày 00:00 (1 tiếng) - Tặng code 10M
+                `;
+                
+                return await message.reply(helpText);
+            }
+            
+            // ✅ HELP CHO ADMIN (CÓ THÊM ADMIN COMMANDS)
+            const adminHelpText = `
+📜 **DANH SÁCH LỆNH**
+
+**👤 Người chơi:**
+\`.tx\` - Bắt đầu phiên cược mới
+\`.mcoin\` - Xem profile card (ảnh đẹp!)
+\`.setbg\` - Đặt ảnh nền profile (upload ảnh + gõ lệnh)
+\`.setbg reset\` - Xóa ảnh nền, về mặc định
 \`.sc\` / \`.soicau\` - Xem biểu đồ lịch sử
 \`.tang @user [số]\` - Tặng tiền
 \`.dd\` / \`.diemdanh\` - Điểm danh (8h/lần)
@@ -277,7 +317,6 @@ Giới hạn: **1,000** - **100,000,000,000** Mcoin
 **🔧 Hệ thống tự động:**
 🕛 **Bảo trì:** Mỗi ngày 00:00 (1 tiếng) - Tặng code 10M
 
-${isAdmin ? `
 **🔧 Admin - Giftcode:**
 \`.giftcode\` - Tạo code random (5M-1000M, 2h)
 \`.giftcode [số tiền] [giờ]\` - Tạo code tùy chỉnh
@@ -296,10 +335,9 @@ ${isAdmin ? `
 \`.backup\` - Backup database
 \`.backupnow\` - Backup thủ công
 \`.restore\` - Hướng dẫn restore
-` : ''}
             `;
             
-            await message.reply(helpText);
+            await message.reply(adminHelpText);
         }
         
         // Xử lý restore file
