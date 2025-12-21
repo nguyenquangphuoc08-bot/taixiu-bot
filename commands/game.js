@@ -197,7 +197,14 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
         await sleep(1500);
         
         // ===== TÍNH TOÁN KẾT QUẢ =====
-        database.history.push({ total, tai: result.tai, timestamp: Date.now() });
+        database.history.push({ 
+            total, 
+            dice1, 
+            dice2, 
+            dice3, 
+            tai: result.tai, 
+            timestamp: Date.now() 
+        });
         if (database.history.length > 50) database.history.shift();
         
         let winners = [];
