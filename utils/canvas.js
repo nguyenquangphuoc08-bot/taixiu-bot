@@ -193,11 +193,29 @@ async function createProfileCard(user, userData, avatarUrl) {
         const canvas = createCanvas(500, 250);
         const ctx = canvas.getContext('2d');
         
-        const gradient = ctx.createLinearGradient(0, 0, 500, 250);
-        gradient.addColorStop(0, '#FFB6C1');
-        gradient.addColorStop(1, '#FFE4E1');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 500, 250);
+        // ✅ DÙNG ẢNH NỀN TÙY CHỈNH NẾU CÓ
+        if (userData.customBg) {
+            try {
+                const bgImage = await loadImage(userData.customBg);
+                // Vẽ ảnh full canvas
+                ctx.drawImage(bgImage, 0, 0, 500, 250);
+            } catch (e) {
+                console.error('❌ Không load được ảnh nền:', e.message);
+                // Fallback về gradient hồng
+                const gradient = ctx.createLinearGradient(0, 0, 500, 250);
+                gradient.addColorStop(0, '#FFB6C1');
+                gradient.addColorStop(1, '#FFE4E1');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 500, 250);
+            }
+        } else {
+            // Gradient hồng mặc định
+            const gradient = ctx.createLinearGradient(0, 0, 500, 250);
+            gradient.addColorStop(0, '#FFB6C1');
+            gradient.addColorStop(1, '#FFE4E1');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 500, 250);
+        }
         
         try {
             const avatar = await loadImage(avatarUrl);
