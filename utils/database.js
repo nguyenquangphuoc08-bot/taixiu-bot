@@ -57,6 +57,9 @@ function getUser(userId) {
             vipBonus: null,
             ownedTitles: [],
             
+            // ✅ THÊM: Custom background
+            customBg: null,
+            
             // Quest system
             dailyQuests: {
                 lastReset: new Date().toDateString(),
@@ -81,6 +84,10 @@ function getUser(userId) {
     if (!user.vipTitle) user.vipTitle = null;
     if (!user.vipBonus) user.vipBonus = null;
     if (!user.ownedTitles) user.ownedTitles = [];
+    
+    // ✅ THÊM: Migration cho customBg
+    if (user.customBg === undefined) user.customBg = null;
+    
     if (!user.dailyQuests) {
         user.dailyQuests = {
             lastReset: new Date().toDateString(),
