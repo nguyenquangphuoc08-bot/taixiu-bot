@@ -1,21 +1,190 @@
-// utils/canvas.js - THÊM HÀM VẼ PROFILE CARD
+// utils/canvas.js - CẬP NHẬT HÀM createHistoryChart()
 
 const { createCanvas, loadImage } = require('canvas');
 
-// === HÀM MỚI: VẼ PROFILE CARD ===
+// === HÀM MỚI: VẼ BIỂU ĐỒ GIỐNG ẢNH ===
+function createHistoryChart(historyArray) {
+    try {
+        const last20 = historyArray.slice(-20);
+        
+        if (last20.length === 0) {
+            const canvas = createCanvas(400, 200);
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#2b2d31';
+            ctx.fillRect(0, 0, 400, 200);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '16px Arial';
+            ctx.fillText('Chưa có dữ liệu', 150, 100);
+            return canvas.toBuffer('image/png');
+        }
+        
+        const canvas = createCanvas(400, 380);
+        const ctx = canvas.getContext('2d');
+        
+        // Background
+        ctx.fillStyle = '#2b2d31';
+        ctx.fillRect(0, 0, 400, 380);
+        
+        // Title
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px Arial';
+        ctx.fillText('THỐNG KÊ PHIÊN', 10, 20);
+        
+        // Subtitle
+        ctx.fillStyle = '#888888';
+        ctx.font = '10px Arial';
+        ctx.fillText('Phân tích dựa trên 20 phiên gần nhất', 220, 22);
+        
+        // ===== CHART 1: LINE CHART (TỔNG ĐIỂM) =====
+        const chart1Y = 40;
+        const chart1Height = 130;
+        const chartWidth = 370;
+        const chartX = 20;
+        
+        // Grid lines
+        ctx.strokeStyle = '#3a3c40';
+        ctx.lineWidth = 1;
+        for (let i = 3; i <= 18; i += 3) {
+            const y = chart1Y + chart1Height - ((i - 3) / 15) * chart1Height;
+            ctx.beginPath();
+            ctx.moveTo(chartX, y);
+            ctx.lineTo(chartX + chartWidth, y);
+            ctx.stroke();
+            
+            // Y-axis labels
+            ctx.fillStyle = '#888888';
+            ctx.font = '9px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText(i.toString(), chartX - 5, y + 3);
+        }
+        
+        // Draw line
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        
+        last20.forEach((h, i) => {
+            const x = chartX + (i / (last20.length - 1)) * chartWidth;
+            const total = h.total || 10;
+            const y = chart1Y + chart1Height - ((total - 3) / 15) * chart1Height;
+            
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        });
+        ctx.stroke();
+        
+        // Draw dots
+        last20.forEach((h, i) => {
+            const x = chartX + (i / (last20.length - 1)) * chartWidth;
+            const total = h.total || 10;
+            const y = chart1Y + chart1Height - ((total - 3) / 15) * chart1Height;
+            
+            ctx.fillStyle = '#2b2d31';
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.stroke();
+        });
+        
+        // ===== CHART 2: MULTI-LINE CHART (TÀI/XỈU/CHẴN/LẺ) =====
+        const chart2Y = 200;
+        const chart2Height = 130;
+        
+        // Grid lines
+        ctx.strokeStyle = '#3a3c40';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 10; i += 2) {
+            const y = chart2Y + chart2Height - (i / 10) * chart2Height;
+            ctx.beginPath();
+            ctx.moveTo(chartX, y);
+            ctx.lineTo(chartX + chartWidth, y);
+            ctx.stroke();
+            
+            // Y-axis labels
+            ctx.fillStyle = '#888888';
+            ctx.font = '9px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText(i.toString(), chartX - 5, y + 3);
+        }
+        
+        // Prepare data for 4 lines
+        const lines = [
+            { name: 'Tài', color: '#5865f2', data: [] },
+            { name: 'Xỉu', color: '#57f287', data: [] },
+            { name: 'Chẵn', color: '#eb459e', data: [] },
+            { name: 'Lẻ', color: '#fee75c', data: [] }
+        ];
+        
+        // Generate wave data (random for demo)
+        last20.forEach((h, i) => {
+            lines[0].data.push(h.tai ? 8 : 2); // Tài
+            lines[1].data.push(!h.tai ? 8 : 2); // Xỉu
+            lines[2].data.push((h.total % 2 === 0) ? 7 : 3); // Chẵn
+            lines[3].data.push((h.total % 2 !== 0) ? 7 : 3); // Lẻ
+        });
+        
+        // Draw 4 lines
+        lines.forEach(line => {
+            ctx.strokeStyle = line.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            line.data.forEach((val, i) => {
+                const x = chartX + (i / (last20.length - 1)) * chartWidth;
+                const y = chart2Y + chart2Height - (val / 10) * chart2Height;
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.stroke();
+        });
+        
+        // Legend
+        const legendY = 350;
+        lines.forEach((line, i) => {
+            const legendX = 20 + i * 90;
+            
+            ctx.fillStyle = line.color;
+            ctx.fillRect(legendX, legendY, 12, 12);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(line.name, legendX + 18, legendY + 10);
+        });
+        
+        return canvas.toBuffer('image/png');
+        
+    } catch (error) {
+        console.error('❌ createHistoryChart error:', error.message);
+        return null;
+    }
+}
+
+// === CÁC HÀM KHÁC GIỮ NGUYÊN ===
+
 async function createProfileCard(user, userData, avatarUrl) {
     try {
         const canvas = createCanvas(500, 250);
         const ctx = canvas.getContext('2d');
         
-        // Background gradient hồng
         const gradient = ctx.createLinearGradient(0, 0, 500, 250);
         gradient.addColorStop(0, '#FFB6C1');
         gradient.addColorStop(1, '#FFE4E1');
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 500, 250);
         
-        // Avatar circle
         try {
             const avatar = await loadImage(avatarUrl);
             ctx.save();
@@ -26,7 +195,6 @@ async function createProfileCard(user, userData, avatarUrl) {
             ctx.drawImage(avatar, 205, 35, 90, 90);
             ctx.restore();
             
-            // Avatar border
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -36,13 +204,11 @@ async function createProfileCard(user, userData, avatarUrl) {
             console.error('Avatar load failed:', e);
         }
         
-        // Username
         ctx.fillStyle = '#333333';
         ctx.font = 'bold 24px Arial';
         ctx.textAlign = 'center';
         ctx.fillText(user.username, 250, 145);
         
-        // Stats boxes (4 ô ngang)
         const stats = [
             { label: 'Mcoin', value: userData.balance.toLocaleString('en-US'), x: 75 },
             { label: 'Cược', value: (userData.tai + userData.xiu + userData.chan + userData.le).toString(), x: 190 },
@@ -52,18 +218,15 @@ async function createProfileCard(user, userData, avatarUrl) {
         
         ctx.font = 'bold 13px Arial';
         stats.forEach(stat => {
-            // Label
             ctx.fillStyle = '#666666';
             ctx.fillText(stat.label, stat.x, 180);
             
-            // Value
             ctx.fillStyle = '#333333';
             ctx.font = 'bold 15px Arial';
             ctx.fillText(stat.value, stat.x, 205);
             ctx.font = 'bold 13px Arial';
         });
         
-        // VIP Badge nếu có
         if (userData.vipLevel && userData.vipLevel > 0) {
             ctx.fillStyle = '#FFD700';
             ctx.font = 'bold 12px Arial';
@@ -78,16 +241,11 @@ async function createProfileCard(user, userData, avatarUrl) {
     }
 }
 
-// === CÁC HÀM CŨ GIỮ NGUYÊN ===
-
-// Vẽ xúc xắc ĐÈ LÊN ẢNH NỀN (không cần che gì)
 async function overlayDiceOnBackground(bgImagePath, dice1, dice2, dice3) {
     try {
         const baseImage = await loadImage(bgImagePath);
-        
         const canvas = createCanvas(baseImage.width, baseImage.height);
         const ctx = canvas.getContext('2d');
-        
         ctx.drawImage(baseImage, 0, 0);
         
         const centerX = baseImage.width / 2;
@@ -105,14 +263,12 @@ async function overlayDiceOnBackground(bgImagePath, dice1, dice2, dice3) {
         });
         
         return canvas.toBuffer('image/png');
-        
     } catch (error) {
         console.error('❌ overlayDiceOnBackground error:', error.message);
         return null;
     }
 }
 
-// Vẽ xúc xắc cố định + tô NÂNG LÊN (không mờ)
 function createBowlLift(dice1, dice2, dice3, liftPercent = 0) {
     try {
         const canvas = createCanvas(800, 600);
@@ -169,14 +325,12 @@ function createBowlLift(dice1, dice2, dice3, liftPercent = 0) {
         }
         
         return canvas.toBuffer('image/png');
-        
     } catch (error) {
         console.error('❌ createBowlLift error:', error.message);
         return null;
     }
 }
 
-// Vẽ 3 xúc xắc xếp tam giác GIỐNG ẢNH MẪU
 function createRevealDice(dice) {
     try {
         const canvas = createCanvas(600, 400);
@@ -214,14 +368,12 @@ function createRevealDice(dice) {
         });
         
         return canvas.toBuffer('image/png');
-        
     } catch (error) {
         console.error('❌ createRevealDice error:', error.message);
         return null;
     }
 }
 
-// Vẽ xúc xắc GIỐNG HÌNH
 function drawRealisticDice(ctx, number, x, y, size = 70) {
     const half = size / 2;
     const radius = size * 0.12;
@@ -264,15 +416,12 @@ function drawRealisticDice(ctx, number, x, y, size = 70) {
     });
 }
 
-// Vẽ 1 viên xúc xắc đơn
 function drawDiceSafe(number) {
     try {
         const canvas = createCanvas(100, 100);
         const ctx = canvas.getContext('2d');
-        
         ctx.clearRect(0, 0, 100, 100);
         drawRealisticDice(ctx, number, 50, 50, 90);
-        
         return canvas;
     } catch (error) {
         console.error('❌ drawDiceSafe error:', error.message);
@@ -280,90 +429,22 @@ function drawDiceSafe(number) {
     }
 }
 
-// Tạo ảnh 3 xúc xắc nằm ngang cho kết quả cuối
 function createDiceImageSafe(dice1, dice2, dice3) {
     try {
         const canvas = createCanvas(360, 130);
         const ctx = canvas.getContext('2d');
-        
         ctx.clearRect(0, 0, 360, 130);
         
         [dice1, dice2, dice3].forEach((num, i) => {
             const x = 60 + i * 120;
-            
             ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
             ctx.fillRect(x - 47, 18, 104, 104);
-            
             drawRealisticDice(ctx, num, x, 65, 100);
         });
         
         return canvas.toBuffer('image/png');
-        
     } catch (error) {
         console.error('❌ createDiceImageSafe error:', error.message);
-        return null;
-    }
-}
-
-// Tạo biểu đồ lịch sử
-function createHistoryChart(historyArray) {
-    try {
-        const last20 = historyArray.slice(-20);
-        const canvas = createCanvas(800, 300);
-        const ctx = canvas.getContext('2d');
-        
-        ctx.fillStyle = '#23272A';
-        ctx.fillRect(0, 0, 800, 300);
-        
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 20px Arial';
-        ctx.fillText('LỊCH SỬ 20 PHIÊN GẦN NHẤT', 250, 30);
-        
-        if (last20.length === 0) {
-            ctx.fillStyle = '#99AAB5';
-            ctx.font = '16px Arial';
-            ctx.fillText('Chưa có dữ liệu', 350, 150);
-            return canvas.toBuffer('image/png');
-        }
-        
-        const barWidth = 35;
-        const spacing = 5;
-        const maxHeight = 200;
-        
-        last20.forEach((h, i) => {
-            const x = 20 + i * (barWidth + spacing);
-            const total = h.total || 0;
-            const barHeight = (total / 18) * maxHeight;
-            const y = 270 - barHeight;
-            
-            ctx.fillStyle = h.tai ? '#3498db' : '#e74c3c';
-            ctx.fillRect(x, y, barWidth, barHeight);
-            
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x, y, barWidth, barHeight);
-            
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 14px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(total.toString(), x + barWidth / 2, y - 5);
-        });
-        
-        ctx.fillStyle = '#3498db';
-        ctx.fillRect(20, 280, 20, 15);
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '12px Arial';
-        ctx.textAlign = 'left';
-        ctx.fillText('Tài', 45, 292);
-        
-        ctx.fillStyle = '#e74c3c';
-        ctx.fillRect(100, 280, 20, 15);
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillText('Xỉu', 125, 292);
-        
-        return canvas.toBuffer('image/png');
-    } catch (error) {
-        console.error('❌ createHistoryChart error:', error.message);
         return null;
     }
 }
@@ -375,5 +456,5 @@ module.exports = {
     createDiceImageSafe,
     overlayDiceOnBackground,
     createHistoryChart,
-    createProfileCard  // 
+    createProfileCard
 };
