@@ -459,9 +459,9 @@ async function handleBetModal(interaction) {
         });
     }
     
-    if (amount > 100000000000) {
+    if (amount > 100000000000000) {
         return interaction.reply({ 
-            content: '❌ Số tiền quá lớn! Tối đa **100,000,000,000** Mcoin', 
+            content: '❌ Số tiền quá lớn! Tối đa **100,000,000,000,000** Mcoin', 
             flags: 64
         });
     }
@@ -520,3 +520,4 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🌐 Server is running on port ${PORT}`);
 });
+
