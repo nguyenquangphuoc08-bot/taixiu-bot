@@ -2,12 +2,9 @@
 
 const http = require('http');
 const { Client, GatewayIntentBits } = require('discord.js');
-const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID, MAINTENANCE_CHANNEL_ID } = require('./config');
+const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
 const { database, saveDB, getUser } = require('./utils/database');
 const { autoBackup } = require('./services/backup');
-
-// ✅ Import bảo trì
-const { initMaintenanceScheduler, isMaintenanceMode, getMaintenanceTimeLeft, cleanExpiredGiftcodes } = require('./services/maintenance');
 
 // Import commands
 const { handleTaiXiu, handleSoiCau, getBettingSession, setBettingSession } = require('./commands/game');
@@ -116,25 +113,25 @@ process.on('unhandledRejection', async (reason) => {
     setTimeout(() => process.exit(1), 3000);
 });
 
-// ===== HEARTBEAT - BACKUP ĐỊNH KỲ 10 PHÚT =====
+// ===== HEARTBEAT - BACKUP ĐỊNH KỲ 12 TIẾNG =====
 let lastHeartbeatBackup = Date.now();
 
 setInterval(async () => {
     const now = Date.now();
     const elapsed = now - lastHeartbeatBackup;
     
-    // Backup mỗi 10 phút
-    if (elapsed >= 10 * 60 * 1000) {
-        console.log('⏰ Heartbeat: 10 phút - backup an toàn...');
+    // ✅ Backup mỗi 12 tiếng
+    if (elapsed >= 12 * 60 * 60 * 1000) {
+        console.log('⏰ Backup tự động 12 tiếng...');
         
         try {
             if (client.isReady()) {
                 await autoBackup(client, BACKUP_CHANNEL_ID);
                 lastHeartbeatBackup = now;
-                console.log('✅ Heartbeat backup OK');
+                console.log('✅ Backup 12 tiếng thành công!');
             }
         } catch (error) {
-            console.error('❌ Heartbeat backup lỗi:', error);
+            console.error('❌ Backup lỗi:', error);
         }
     }
     
@@ -147,23 +144,15 @@ setInterval(async () => {
         await emergencyBackup();
     }
     
-}, 60 * 1000); // Check mỗi 1 phút
+}, 60 * 60 * 1000); // ✅ Check mỗi 1 giờ (thay vì mỗi phút)
 
 // ✅ FIX: Dùng 'clientReady' thay vì 'ready'
 client.once('clientReady', () => {
     console.log(`✅ Bot đã online: ${client.user.tag}`);
     client.user.setActivity('🎲 Tài Xỉu | .help', { type: 'PLAYING' });
     
-    // ✅ KHỞI ĐỘNG BẢO TRÌ TỰ ĐỘNG (truyền MAINTENANCE_CHANNEL_ID)
-    initMaintenanceScheduler(client, MAINTENANCE_CHANNEL_ID);
-    
-    // Dọn dẹp giftcode hết hạn khi khởi động
-    cleanExpiredGiftcodes();
-    
-    // Dọn dẹp giftcode hết hạn mỗi giờ
-    setInterval(cleanExpiredGiftcodes, 60 * 60 * 1000);
-    
     console.log('✅ Hệ thống backup khẩn cấp đã kích hoạt!');
+    console.log('✅ Backup tự động: 12 tiếng/lần');
     console.log('✅ Tất cả hệ thống đã sẵn sàng!');
 });
 
@@ -173,12 +162,6 @@ client.on('messageCreate', async (message) => {
     
     const args = message.content.trim().split(/\s+/);
     const command = args[0].toLowerCase();
-    
-    // ✅ KIỂM TRA BẢO TRÌ (trừ lệnh admin)
-    if (isMaintenanceMode() && command !== '.dbinfo' && command !== '.backup' && message.author.id !== ADMIN_ID) {
-        const timeLeft = getMaintenanceTimeLeft();
-        return message.reply(`🔧 **Hệ thống đang bảo trì!**\n⏰ Còn khoảng **${timeLeft} phút**\n🎁 Sau bảo trì sẽ có giftcode 10M!`);
-    }
     
     try {
         // === COMMANDS NGƯỜI CHƠI ===
@@ -280,9 +263,6 @@ Ví dụ: \`.code ABC12345\`
 Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
 Ví dụ: \`1k\`, \`5m\`, \`10b\`, \`100000000\`
 Giới hạn: **1,000** - **100,000,000,000** Mcoin
-
-**🔧 Hệ thống tự động:**
-🕛 **Bảo trì:** Mỗi ngày 00:00 (1 tiếng) - Tặng code 10M
                 `;
                 
                 return await message.reply(helpText);
@@ -313,9 +293,6 @@ Ví dụ: \`.code ABC12345\`
 Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
 Ví dụ: \`1k\`, \`5m\`, \`10b\`, \`100000000\`
 Giới hạn: **1,000** - **100,000,000,000** Mcoin
-
-**🔧 Hệ thống tự động:**
-🕛 **Bảo trì:** Mỗi ngày 00:00 (1 tiếng) - Tặng code 10M
 
 **🔧 Admin - Giftcode:**
 \`.giftcode\` - Tạo code random (5M-1000M, 2h)
