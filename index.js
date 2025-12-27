@@ -697,7 +697,14 @@ async function loginBot() {
     
     try {
         console.log('📡 Connecting to Discord Gateway...');
-        await client.login(TOKEN);
+        
+        // ✅ THÊM TIMEOUT 30 GIÂY
+        const loginPromise = client.login(TOKEN);
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Login timeout after 30 seconds')), 30000);
+        });
+        
+        await Promise.race([loginPromise, timeoutPromise]);
         
         console.log('');
         console.log('✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅');
@@ -705,7 +712,7 @@ async function loginBot() {
         console.log('✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅');
         console.log('');
         
-        loginAttempts = 0; // Reset counter
+        loginAttempts = 0;
         
     } catch (error) {
         console.log('');
@@ -717,50 +724,42 @@ async function loginBot() {
         console.error('   - Name:', error.name);
         console.error('   - Message:', error.message);
         console.error('   - Code:', error.code);
-        console.error('   - HTTP Status:', error.httpStatus);
+        console.error('   - Stack:', error.stack?.split('\n').slice(0, 3).join('\n'));
         console.log('');
         
-        // Token invalid → Stop immediately
+        // Token invalid
         if (error.code === 'TokenInvalid' || error.message.includes('token')) {
-            console.error('🚨 INVALID TOKEN DETECTED!');
-            console.error('📍 Action required:');
-            console.error('   1. Go to https://discord.com/developers/applications');
-            console.error('   2. Select your bot');
-            console.error('   3. Go to Bot tab');
-            console.error('   4. Click "Reset Token"');
-            console.error('   5. Copy new token');
-            console.error('   6. Update DISCORD_TOKEN on Render');
-            console.log('');
+            console.error('🚨 INVALID TOKEN!');
+            console.error('📍 Go to: https://discord.com/developers/applications');
+            console.error('📍 Reset token and update DISCORD_TOKEN on Render');
             process.exit(1);
         }
         
-        // Too many attempts → Stop
+        // Timeout → Likely network/websocket issue
+        if (error.message.includes('timeout')) {
+            console.error('🚨 CONNECTION TIMEOUT!');
+            console.error('📍 Possible issues:');
+            console.error('   - Render network blocking Discord Gateway');
+            console.error('   - Discord API is down');
+            console.error('   - WebSocket connection blocked');
+        }
+        
+        // Max attempts
         if (loginAttempts >= MAX_LOGIN_ATTEMPTS) {
             console.error(`🚨 FAILED AFTER ${MAX_LOGIN_ATTEMPTS} ATTEMPTS!`);
-            console.error('📍 Possible issues:');
-            console.error('   - Token is invalid');
-            console.error('   - Discord API is down');
-            console.error('   - Network connection issues');
-            console.error('   - Bot was deleted from Discord Portal');
-            console.log('');
+            console.error('📍 Bot will exit and Render will restart it');
             process.exit(1);
         }
         
         // Retry
-        const retryDelay = 10;
+        const retryDelay = 15;
         console.log(`🔄 Retrying in ${retryDelay} seconds...`);
         console.log('===========================================');
-        console.log('');
         
         setTimeout(() => {
             loginBot();
         }, retryDelay * 1000);
     }
 }
-
-// Start login
-console.log('');
-console.log('🚀 STARTING BOT LOGIN PROCESS...');
-console.log('');
 
 loginBot();
