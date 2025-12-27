@@ -660,20 +660,107 @@ setInterval(() => {
     
 }, 5 * 60 * 1000); // Ping mỗi 5 phút
 
+// ===== KIỂM TRA TOKEN TRƯỚC KHI LOGIN =====
+console.log('===========================================');
+console.log('🔍 KIỂM TRA TOKEN VÀ MÔI TRƯỜNG');
+console.log('===========================================');
+console.log('✅ Token exists:', !!TOKEN);
+console.log('📏 Token length:', TOKEN ? TOKEN.length : 0);
+console.log('🔤 Token preview:', TOKEN ? TOKEN.substring(0, 30) + '...' : 'MISSING');
+console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
+console.log('===========================================');
+
+// Kiểm tra token hợp lệ
+if (!TOKEN) {
+    console.error('❌ CRITICAL: DISCORD_TOKEN is missing!');
+    process.exit(1);
+}
+
+if (TOKEN.length < 50) {
+    console.error('❌ CRITICAL: DISCORD_TOKEN too short (invalid)!');
+    console.error('📍 Please check your token on Render Environment Variables');
+    process.exit(1);
+}
+
 // Login bot với retry logic
+let loginAttempts = 0;
+const MAX_LOGIN_ATTEMPTS = 3;
+
 async function loginBot() {
+    loginAttempts++;
+    
+    console.log('');
+    console.log('===========================================');
+    console.log(`🔄 LOGIN ATTEMPT #${loginAttempts}/${MAX_LOGIN_ATTEMPTS}`);
+    console.log('⏰ Time:', new Date().toISOString());
+    console.log('===========================================');
+    
     try {
+        console.log('📡 Connecting to Discord Gateway...');
         await client.login(TOKEN);
-        console.log('✅ Bot login thành công!');
+        
+        console.log('');
+        console.log('✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅');
+        console.log('✅         LOGIN SUCCESSFUL!        ✅');
+        console.log('✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅');
+        console.log('');
+        
+        loginAttempts = 0; // Reset counter
+        
     } catch (error) {
-        console.error('❌ Login thất bại:', error);
-        console.log('🔄 Thử login lại sau 10 giây...');
+        console.log('');
+        console.log('❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌');
+        console.log('❌         LOGIN FAILED!          ❌');
+        console.log('❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌');
+        console.log('');
+        console.error('📋 Error Details:');
+        console.error('   - Name:', error.name);
+        console.error('   - Message:', error.message);
+        console.error('   - Code:', error.code);
+        console.error('   - HTTP Status:', error.httpStatus);
+        console.log('');
+        
+        // Token invalid → Stop immediately
+        if (error.code === 'TokenInvalid' || error.message.includes('token')) {
+            console.error('🚨 INVALID TOKEN DETECTED!');
+            console.error('📍 Action required:');
+            console.error('   1. Go to https://discord.com/developers/applications');
+            console.error('   2. Select your bot');
+            console.error('   3. Go to Bot tab');
+            console.error('   4. Click "Reset Token"');
+            console.error('   5. Copy new token');
+            console.error('   6. Update DISCORD_TOKEN on Render');
+            console.log('');
+            process.exit(1);
+        }
+        
+        // Too many attempts → Stop
+        if (loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+            console.error(`🚨 FAILED AFTER ${MAX_LOGIN_ATTEMPTS} ATTEMPTS!`);
+            console.error('📍 Possible issues:');
+            console.error('   - Token is invalid');
+            console.error('   - Discord API is down');
+            console.error('   - Network connection issues');
+            console.error('   - Bot was deleted from Discord Portal');
+            console.log('');
+            process.exit(1);
+        }
+        
+        // Retry
+        const retryDelay = 10;
+        console.log(`🔄 Retrying in ${retryDelay} seconds...`);
+        console.log('===========================================');
+        console.log('');
         
         setTimeout(() => {
             loginBot();
-        }, 10000);
+        }, retryDelay * 1000);
     }
 }
 
-loginBot();
+// Start login
+console.log('');
+console.log('🚀 STARTING BOT LOGIN PROCESS...');
+console.log('');
 
+loginBot();
