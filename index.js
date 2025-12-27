@@ -1,7 +1,7 @@
 // index.js - FILE CHÍNH (BẢO TRÌ THÔNG BÁO KÊNH CỐ ĐỊNH)
 
 const http = require('http');
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, ActivityType } = require('discord.js'); // ✅ THÊM ActivityType
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
 const { database, saveDB, getUser } = require('./utils/database');
 const { autoBackup } = require('./services/backup');
@@ -47,13 +47,16 @@ const client = new Client({
     ws: {
         properties: {
             browser: 'Discord Android'
-        }
+        },
+        large_threshold: 50 // ✅ THÊM: Giảm tải
     },
-    // ✅ THÊM: Retry options
+    // ✅ SỬA: Tăng retry lên 5
     rest: {
         timeout: 60000,
-        retries: 3
-    }
+        retries: 5 // ✅ ĐÃ SỬA từ 3 → 5
+    },
+    // ✅ THÊM: Auto sharding
+    shards: 'auto'
 });
 
 // ✅ THÊM: Log khi WS connect/disconnect
@@ -159,10 +162,18 @@ setInterval(async () => {
     
 }, 6 * 60 * 60 * 1000); // ✅ 6 TIẾNG = 6 * 60 phút * 60 giây * 1000 ms
 
-// ✅ Bot ready
+// ✅ Bot ready - ĐÃ SỬA STATUS
 client.once('ready', () => {
     console.log(`✅ Bot đã online: ${client.user.tag}`);
-    client.user.setActivity('🎲 Tài Xỉu | .help', { type: 'PLAYING' });
+    
+    // ✅ SỬA: Dùng setPresence với status online
+    client.user.setPresence({
+        activities: [{
+            name: '🎲 Tài Xỉu | .help',
+            type: ActivityType.Playing
+        }],
+        status: 'online' // ✅ QUAN TRỌNG: Set status online
+    });
     
     console.log('✅ Hệ thống backup khẩn cấp đã kích hoạt!');
     console.log('✅ Backup tự động: 6 tiếng/lần');
@@ -634,7 +645,7 @@ const server = http.createServer((req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
     console.log(`🌐 HTTP Server chạy trên port ${PORT}`);
 });
@@ -717,10 +728,10 @@ async function loginBot() {
     try {
         console.log('📡 Connecting to Discord Gateway...');
         
-        // ✅ THÊM TIMEOUT 30 GIÂY
+        // ✅ ĐÃ SỬA: Tăng timeout từ 30s → 60s
         const loginPromise = client.login(TOKEN);
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Login timeout after 30 seconds')), 30000);
+            setTimeout(() => reject(new Error('Login timeout after 60 seconds')), 60000);
         });
         
         await Promise.race([loginPromise, timeoutPromise]);
@@ -782,6 +793,3 @@ async function loginBot() {
 }
 
 loginBot();
-
-
-
