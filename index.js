@@ -39,10 +39,32 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
-    ]
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.DirectMessages
+    ],
+    partials: [
+        Partials.Channel,
+        Partials.Message
+    ],
+    // ✅ THÊM: WS options để tránh timeout
+    ws: {
+        properties: {
+            browser: 'Discord Android'
+        }
+    },
+    // ✅ THÊM: Retry options
+    rest: {
+        timeout: 60000,
+        retries: 3
+    }
 });
 
+// ✅ THÊM: Log khi WS connect/disconnect
+client.ws.on('debug', (info) => {
+    if (info.includes('Session') || info.includes('Identify')) {
+        console.log('🔌 WS Debug:', info);
+    }
+});
 // ===== AUTO BACKUP KHI BOT TẮT =====
 
 async function emergencyBackup() {
@@ -763,3 +785,4 @@ async function loginBot() {
 }
 
 loginBot();
+
