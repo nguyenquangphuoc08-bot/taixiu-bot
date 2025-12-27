@@ -46,6 +46,7 @@ const client = new Client({
         Partials.Channel,
         Partials.Message
     ],
+    
     // ✅ THÊM: WS options để tránh timeout
     ws: {
         properties: {
@@ -785,4 +786,5 @@ async function loginBot() {
 }
 
 loginBot();
+
 
