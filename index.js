@@ -113,52 +113,130 @@ process.on('unhandledRejection', async (reason) => {
     setTimeout(() => process.exit(1), 3000);
 });
 
-// ===== HEARTBEAT - BACKUP ĐỊNH KỲ 12 TIẾNG =====
-let lastHeartbeatBackup = Date.now();
-
+// ===== BACKUP ĐỊNH KỲ 6 TIẾNG =====
 setInterval(async () => {
-    const now = Date.now();
-    const elapsed = now - lastHeartbeatBackup;
+    console.log('⏰ Đến giờ backup tự động 6 tiếng...');
     
-    // ✅ Backup mỗi 12 tiếng
-    if (elapsed >= 12 * 60 * 60 * 1000) {
-        console.log('⏰ Backup tự động 12 tiếng...');
-        
-        try {
-            if (client.isReady()) {
-                await autoBackup(client, BACKUP_CHANNEL_ID);
-                lastHeartbeatBackup = now;
-                console.log('✅ Backup 12 tiếng thành công!');
-            }
-        } catch (error) {
-            console.error('❌ Backup lỗi:', error);
+    try {
+        if (client.isReady()) {
+            await autoBackup(client, BACKUP_CHANNEL_ID);
+            console.log('✅ Backup 6 tiếng thành công!');
+        } else {
+            console.warn('⚠️ Client chưa ready, bỏ qua backup');
         }
+    } catch (error) {
+        console.error('❌ Lỗi backup định kỳ:', error);
     }
     
     // Kiểm tra memory
     const memUsage = process.memoryUsage();
     const memMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    console.log(`📊 Memory đang dùng: ${memMB}MB`);
     
     if (memMB > 450) {
         console.warn(`⚠️ Memory cao (${memMB}MB) - Backup phòng ngừa`);
         await emergencyBackup();
     }
     
-}, 60 * 60 * 1000); // ✅ Check mỗi 1 giờ (thay vì mỗi phút)
+}, 6 * 60 * 60 * 1000); // ✅ 6 TIẾNG = 6 * 60 phút * 60 giây * 1000 ms
 
-// ✅ FIX: Dùng 'clientReady' thay vì 'ready'
-client.once('clientReady', () => {
+// ✅ Bot ready
+client.once('ready', () => {
     console.log(`✅ Bot đã online: ${client.user.tag}`);
     client.user.setActivity('🎲 Tài Xỉu | .help', { type: 'PLAYING' });
     
     console.log('✅ Hệ thống backup khẩn cấp đã kích hoạt!');
-    console.log('✅ Backup tự động: 12 tiếng/lần');
+    console.log('✅ Backup tự động: 6 tiếng/lần');
     console.log('✅ Tất cả hệ thống đã sẵn sàng!');
 });
+
+// ===== XỬ LÝ DISCORD DISCONNECT & RECONNECT =====
+
+client.on('shardDisconnect', (event, shardId) => {
+    console.warn(`⚠️ Shard ${shardId} bị disconnect!`, event);
+});
+
+client.on('shardReconnecting', (shardId) => {
+    console.log(`🔄 Shard ${shardId} đang reconnect...`);
+});
+
+client.on('shardResume', (shardId, replayedEvents) => {
+    console.log(`✅ Shard ${shardId} đã reconnect! Events: ${replayedEvents}`);
+});
+
+client.on('error', (error) => {
+    console.error('❌ Discord client error:', error);
+});
+
+client.on('warn', (info) => {
+    console.warn('⚠️ Discord warning:', info);
+});
+
+// Kiểm tra kết nối Discord mỗi 30 giây
+let connectionCheckFailCount = 0;
+
+setInterval(async () => {
+    try {
+        if (!client.isReady()) {
+            connectionCheckFailCount++;
+            console.error(`❌ Bot OFFLINE! Lần thứ ${connectionCheckFailCount} phát hiện mất kết nối`);
+            
+            // Nếu mất kết nối 3 lần liên tiếp (1.5 phút) thì restart
+            if (connectionCheckFailCount >= 3) {
+                console.error('🚨 Bot mất kết nối quá lâu! Đang RESTART...');
+                
+                // Backup trước khi restart
+                await emergencyBackup();
+                
+                // Destroy client cũ và login lại
+                client.destroy();
+                
+                setTimeout(async () => {
+                    try {
+                        await client.login(TOKEN);
+                        console.log('✅ Reconnect thành công!');
+                        connectionCheckFailCount = 0;
+                    } catch (err) {
+                        console.error('❌ Reconnect thất bại:', err);
+                        process.exit(1); // Render sẽ tự động restart
+                    }
+                }, 5000);
+            }
+        } else {
+            // Reset counter nếu bot online
+            if (connectionCheckFailCount > 0) {
+                console.log('✅ Bot đã online trở lại!');
+                connectionCheckFailCount = 0;
+            }
+        }
+    } catch (error) {
+        console.error('❌ Lỗi khi check connection:', error);
+    }
+}, 30 * 1000); // Check mỗi 30 giây
+
+// Heartbeat: Ping Discord API mỗi 5 phút để giữ kết nối
+setInterval(async () => {
+    try {
+        if (client.isReady()) {
+            const ping = client.ws.ping;
+            console.log(`💓 Heartbeat: Ping = ${ping}ms`);
+            
+            // Nếu ping quá cao (>1000ms) thì cảnh báo
+            if (ping > 1000) {
+                console.warn(`⚠️ Ping cao bất thường: ${ping}ms`);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Heartbeat error:', error);
+    }
+}, 5 * 60 * 1000); // Mỗi 5 phút
 
 // Xử lý tin nhắn (commands)
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
+    
+    // ✅ LOG ĐỂ DEBUG
+    console.log(`📨 Nhận tin nhắn từ ${message.author.tag}: ${message.content}`);
     
     const args = message.content.trim().split(/\s+/);
     const command = args[0].toLowerCase();
@@ -231,6 +309,13 @@ client.on('messageCreate', async (message) => {
         }
         else if (command === '.givetitle') {
             await handleGiveTitle(message, args);
+        }
+        
+        // === ADMIN RESTART COMMAND ===
+        else if (command === '.restart' && message.author.id === ADMIN_ID) {
+            await message.reply('🔄 Đang restart bot...');
+            await emergencyBackup();
+            process.exit(0); // Render sẽ tự động restart
         }
         
         // === HELP COMMAND ===
@@ -312,6 +397,7 @@ Giới hạn: **1,000** - **100,000,000,000** Mcoin
 \`.backup\` - Backup database
 \`.backupnow\` - Backup thủ công
 \`.restore\` - Hướng dẫn restore
+\`.restart\` - Restart bot (khẩn cấp)
             `;
             
             await message.reply(adminHelpText);
@@ -507,17 +593,59 @@ async function handleBetModal(interaction) {
     }
 }
 
-// Login bot
-client.login(TOKEN);
-
-// Tạo HTTP server để giữ Render hoạt động
+// ===== HTTP SERVER ĐỂ RENDER KHÔNG TẮT BOT =====
 const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is running!');
+    // Endpoint health check
+    if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: 'online',
+            uptime: process.uptime(),
+            botReady: client.isReady(),
+            memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+            timestamp: new Date().toISOString()
+        }));
+    } else {
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end(`
+🤖 Discord Bot đang chạy!
+⏰ Uptime: ${Math.floor(process.uptime() / 60)} phút
+📊 Status: ${client.isReady() ? '✅ Online' : '❌ Offline'}
+        `);
+    }
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`🌐 Server is running on port ${PORT}`);
+    console.log(`🌐 HTTP Server chạy trên port ${PORT}`);
 });
 
+// ===== PING ĐỊNH KỲ ĐỂ RENDER KHÔNG TẮT =====
+// Tự ping chính mình mỗi 5 phút
+setInterval(() => {
+    const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    
+    http.get(url + '/health', (res) => {
+        console.log(`✅ Self-ping thành công - Status: ${res.statusCode}`);
+    }).on('error', (err) => {
+        console.error('❌ Self-ping lỗi:', err.message);
+    });
+    
+}, 5 * 60 * 1000); // Ping mỗi 5 phút
+
+// Login bot với retry logic
+async function loginBot() {
+    try {
+        await client.login(TOKEN);
+        console.log('✅ Bot login thành công!');
+    } catch (error) {
+        console.error('❌ Login thất bại:', error);
+        console.log('🔄 Thử login lại sau 10 giây...');
+        
+        setTimeout(() => {
+            loginBot();
+        }, 10000);
+    }
+}
+
+loginBot();
