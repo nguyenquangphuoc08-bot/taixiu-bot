@@ -623,10 +623,37 @@ server.listen(PORT, () => {
 // ===== PING ĐỊNH KỲ ĐỂ RENDER KHÔNG TẮT =====
 // Tự ping chính mình mỗi 5 phút
 setInterval(() => {
-    const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    let url = process.env.RENDER_EXTERNAL_URL;
     
-    http.get(url + '/health', (res) => {
+    // ✅ FIX: Kiểm tra URL có protocol chưa
+    if (!url) {
+        console.log('⚠️ RENDER_EXTERNAL_URL chưa set, bỏ qua self-ping');
+        return;
+    }
+    
+    // ✅ Đảm bảo URL có https://
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+    }
+    
+    // ✅ Bỏ trailing slash nếu có
+    url = url.replace(/\/$/, '');
+    
+    const pingUrl = url + '/health';
+    
+    console.log(`🔄 Self-ping đến: ${pingUrl}`);
+    
+    const https = require('https');
+    const protocol = url.startsWith('https') ? https : require('http');
+    
+    protocol.get(pingUrl, (res) => {
         console.log(`✅ Self-ping thành công - Status: ${res.statusCode}`);
+        
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+            console.log('📊 Health check:', data);
+        });
     }).on('error', (err) => {
         console.error('❌ Self-ping lỗi:', err.message);
     });
@@ -649,3 +676,4 @@ async function loginBot() {
 }
 
 loginBot();
+
