@@ -261,23 +261,23 @@ setInterval(async () => {
     }
 }, 5 * 60 * 1000); // Mỗi 5 phút
 
-\`.setbg\` - Đặt ảnh nền profile (upload ảnh + gõ lệnh)
-\`.setbg reset\` - Xóa ảnh nền, về mặc định
-\`.sc\` / \`.soicau\` - Xem biểu đồ lịch sử
-\`.tang @user [số]\` - Tặng tiền
-\`.dd\` / \`.diemdanh\` - Điểm danh (8h/lần)
-\`.daily\` - Xem nhiệm vụ hằng ngày
-\`.claimall\` - Nhận thưởng nhiệm vụ
-\`.mshop\` - Cửa hàng VIP & danh hiệu
+.setbg - Đặt ảnh nền profile (upload ảnh + gõ lệnh)
+.setbg reset - Xóa ảnh nền, về mặc định
+.sc / .soicau - Xem biểu đồ lịch sử
+.tang @user [số] - Tặng tiền
+.dd / .diemdanh - Điểm danh (8h/lần)
+.daily - Xem nhiệm vụ hằng ngày
+.claimall - Nhận thưởng nhiệm vụ
+.mshop - Cửa hàng VIP & danh hiệu
 
 **🎁 Giftcode:**
-\`.code\` - Xem danh sách code đang hoạt động
-\`.code <MÃ>\` - Nhập giftcode
-Ví dụ: \`.code ABC12345\`
+.code - Xem danh sách code đang hoạt động
+.code <MÃ> - Nhập giftcode
+Ví dụ: .code ABC12345
 
 **🎲 Đặt cược:**
 Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
-Ví dụ: \`1k\`, \`5m\`, \`10b\`, \`100000000\`
+Ví dụ: 1k, 5m, 10b, 100000000
 Giới hạn: **1,000** - **100,000,000,000** Mcoin
                 `;
                 
@@ -441,87 +441,79 @@ client.on('messageCreate', async (message) => {
             const isAdmin = message.author.id === ADMIN_ID;
             
             if (!isAdmin) {
-                const helpText = `
-📜 **DANH SÁCH LỆNH**
+const adminHelpText = `📜 DANH SÁCH LỆNH
 
-**👤 Người chơi:**
-\`.tx\` - Bắt đầu phiên cược mới
-\`.mcoin\` - Xem profile card (ảnh đẹp!)
-\`.setbg\` - Đặt ảnh nền profile (upload ảnh + gõ lệnh)
-\`.setbg reset\` - Xóa ảnh nền, về mặc định
-\`.sc\` / \`.soicau\` - Xem biểu đồ lịch sử
-\`.tang @user [số]\` - Tặng tiền
-\`.dd\` / \`.diemdanh\` - Điểm danh (8h/lần)
-\`.daily\` - Xem nhiệm vụ hằng ngày
-\`.claimall\` - Nhận thưởng nhiệm vụ
-\`.mshop\` - Cửa hàng VIP & danh hiệu
+👤 Người chơi:
+• .tx - Bắt đầu phiên cược mới
+• .mcoin - Xem profile card
+• .setbg - Đặt ảnh nền profile
+• .sc hoặc .soicau - Xem biểu đồ lịch sử
+• .tang @user [số] - Tặng tiền
+• .dd hoặc .diemdanh - Điểm danh
+• .daily - Nhiệm vụ hằng ngày
+• .claimall - Nhận thưởng
+• .mshop - Cửa hàng
 
-**🎁 Giftcode:**
-\`.code\` - Xem danh sách code đang hoạt động
-\`.code <MÃ>\` - Nhập giftcode
-Ví dụ: \`.code ABC12345\`
+🎁 Giftcode:
+• .code - Xem code
+• .code <MÃ> - Nhập code
 
-**🎲 Đặt cược:**
+🎲 Đặt cược:
 Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
-Ví dụ: \`1k\`, \`5m\`, \`10b\`, \`100000000\`
-Giới hạn: **1,000** - **100,000,000,000** Mcoin
+Ví dụ: 1k, 5m, 10b
 
-**🧪 Test:**
-\`.ping\` - Kiểm tra bot online
-                `;
+🔧 Admin - Giftcode:
+• .giftcode - Tạo code random
+• .giftcode [số tiền] [giờ] - Tạo code tùy chỉnh
+• .sendcode - Phát code công khai
+• .delcode <MÃ> - Xóa code
+• .delallcode - Xóa tất cả code
+
+🔧 Admin - VIP & Title:
+• .givevip @user [1-3] - Cấp VIP
+• .removevip @user - Xóa VIP
+• .givetitle @user [tên] - Cấp danh hiệu
+
+🔧 Admin - Database:
+• .dbinfo - Thông tin database
+• .backup - Backup database
+• .backupnow - Backup thủ công
+• .restore - Hướng dẫn restore
+• .restart - Restart bot
+
+🧪 Test:
+• .ping - Kiểm tra bot online`;
                 
                 await message.reply(helpText);
                 console.log('✅ Đã gửi help (user thường)');
                 return;
             }
             
-            const adminHelpText = `
-📜 **DANH SÁCH LỆNH**
+ const helpText = `📜 DANH SÁCH LỆNH
 
-**👤 Người chơi:**
-\`.tx\` - Bắt đầu phiên cược mới
-\`.mcoin\` - Xem profile card (ảnh đẹp!)
-\`.setbg\` - Đặt ảnh nền profile (upload ảnh + gõ lệnh)
-\`.setbg reset\` - Xóa ảnh nền, về mặc định
-\`.sc\` / \`.soicau\` - Xem biểu đồ lịch sử
-\`.tang @user [số]\` - Tặng tiền
-\`.dd\` / \`.diemdanh\` - Điểm danh (8h/lần)
-\`.daily\` - Xem nhiệm vụ hằng ngày
-\`.claimall\` - Nhận thưởng nhiệm vụ
-\`.mshop\` - Cửa hàng VIP & danh hiệu
+👤 Người chơi:
+• .tx - Bắt đầu phiên cược mới
+• .mcoin - Xem profile card
+• .setbg - Đặt ảnh nền profile (upload ảnh + gõ lệnh)
+• .setbg reset - Xóa ảnh nền
+• .sc hoặc .soicau - Xem biểu đồ lịch sử
+• .tang @user [số] - Tặng tiền
+• .dd hoặc .diemdanh - Điểm danh (8h/lần)
+• .daily - Xem nhiệm vụ hằng ngày
+• .claimall - Nhận thưởng nhiệm vụ
+• .mshop - Cửa hàng VIP & danh hiệu
 
-**🎁 Giftcode:**
-\`.code\` - Xem danh sách code đang hoạt động
-\`.code <MÃ>\` - Nhập giftcode
-Ví dụ: \`.code ABC12345\`
+🎁 Giftcode:
+• .code - Xem danh sách code đang hoạt động
+• .code <MÃ> - Nhập giftcode
 
-**🎲 Đặt cược:**
+🎲 Đặt cược:
 Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
-Ví dụ: \`1k\`, \`5m\`, \`10b\`, \`100000000\`
-Giới hạn: **1,000** - **100,000,000,000** Mcoin
+Ví dụ: 1k, 5m, 10b
+Giới hạn: 1,000 - 100,000,000,000 Mcoin
 
-**🔧 Admin - Giftcode:**
-\`.giftcode\` - Tạo code random (5M-1000M, 2h)
-\`.giftcode [số tiền] [giờ]\` - Tạo code tùy chỉnh
-\`.sendcode\` - Phát code công khai
-\`.delcode <MÃ>\` - Xóa code cụ thể
-\`.delallcode\` - Xóa tất cả code
-
-**🔧 Admin - VIP & Title:**
-\`.givevip @user [1-3]\` - Cấp VIP
-\`.removevip @user\` - Xóa VIP
-\`.givetitle @user [tên]\` - Cấp danh hiệu tùy chỉnh
-
-**🔧 Admin - Database:**
-\`.dbinfo\` - Thông tin database
-\`.backup\` - Backup database
-\`.backupnow\` - Backup thủ công
-\`.restore\` - Hướng dẫn restore
-\`.restart\` - Restart bot (khẩn cấp)
-
-**🧪 Test:**
-\`.ping\` - Kiểm tra bot online
-            `;
+🧪 Test:
+• .ping - Kiểm tra bot online`;
             
             await message.reply(adminHelpText);
             console.log('✅ Đã gửi help (admin)');
@@ -905,4 +897,5 @@ async function loginBot() {
 }
 
 loginBot();
+
 
