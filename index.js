@@ -1,7 +1,7 @@
 // index.js - FILE CHÍNH (BẢO TRÌ THÔNG BÁO KÊNH CỐ ĐỊNH)
 
 const http = require('http');
-const { Client, GatewayIntentBits, ActivityType } = require('discord.js'); // ✅ THÊM ActivityType
+const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
 const { database, saveDB, getUser } = require('./utils/database');
 const { autoBackup } = require('./services/backup');
@@ -42,31 +42,27 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.DirectMessages
     ],
-    
-    // ✅ THÊM: WS options để tránh timeout
     ws: {
         properties: {
             browser: 'Discord Android'
         },
-        large_threshold: 50 // ✅ THÊM: Giảm tải
+        large_threshold: 50
     },
-    // ✅ SỬA: Tăng retry lên 5
     rest: {
         timeout: 60000,
-        retries: 5 // ✅ ĐÃ SỬA từ 3 → 5
+        retries: 5
     },
-    // ✅ THÊM: Auto sharding
     shards: 'auto'
 });
 
-// ✅ THÊM: Log khi WS connect/disconnect
+// ✅ Log WS events
 client.ws.on('debug', (info) => {
     if (info.includes('Session') || info.includes('Identify')) {
         console.log('🔌 WS Debug:', info);
     }
 });
-// ===== AUTO BACKUP KHI BOT TẮT =====
 
+// ===== AUTO BACKUP KHI BOT TẮT =====
 async function emergencyBackup() {
     try {
         console.log('🚨 PHÁT HIỆN BOT SẮP TẮT - BACKUP KHẨN CẤP...');
@@ -159,20 +155,18 @@ setInterval(async () => {
         console.warn(`⚠️ Memory cao (${memMB}MB) - Backup phòng ngừa`);
         await emergencyBackup();
     }
-    
-}, 6 * 60 * 60 * 1000); // ✅ 6 TIẾNG = 6 * 60 phút * 60 giây * 1000 ms
+}, 6 * 60 * 60 * 1000);
 
-// ✅ Bot ready - ĐÃ SỬA STATUS
+// ✅ Bot ready
 client.once('ready', () => {
     console.log(`✅ Bot đã online: ${client.user.tag}`);
     
-    // ✅ SỬA: Dùng setPresence với status online
     client.user.setPresence({
         activities: [{
             name: '🎲 Tài Xỉu | .help',
             type: ActivityType.Playing
         }],
-        status: 'online' // ✅ QUAN TRỌNG: Set status online
+        status: 'online'
     });
     
     console.log('✅ Hệ thống backup khẩn cấp đã kích hoạt!');
@@ -181,7 +175,6 @@ client.once('ready', () => {
 });
 
 // ===== XỬ LÝ DISCORD DISCONNECT & RECONNECT =====
-
 client.on('shardDisconnect', (event, shardId) => {
     console.warn(`⚠️ Shard ${shardId} bị disconnect!`, event);
 });
@@ -211,14 +204,9 @@ setInterval(async () => {
             connectionCheckFailCount++;
             console.error(`❌ Bot OFFLINE! Lần thứ ${connectionCheckFailCount} phát hiện mất kết nối`);
             
-            // Nếu mất kết nối 3 lần liên tiếp (1.5 phút) thì restart
             if (connectionCheckFailCount >= 3) {
                 console.error('🚨 Bot mất kết nối quá lâu! Đang RESTART...');
-                
-                // Backup trước khi restart
                 await emergencyBackup();
-                
-                // Destroy client cũ và login lại
                 client.destroy();
                 
                 setTimeout(async () => {
@@ -228,12 +216,11 @@ setInterval(async () => {
                         connectionCheckFailCount = 0;
                     } catch (err) {
                         console.error('❌ Reconnect thất bại:', err);
-                        process.exit(1); // Render sẽ tự động restart
+                        process.exit(1);
                     }
                 }, 5000);
             }
         } else {
-            // Reset counter nếu bot online
             if (connectionCheckFailCount > 0) {
                 console.log('✅ Bot đã online trở lại!');
                 connectionCheckFailCount = 0;
@@ -242,16 +229,15 @@ setInterval(async () => {
     } catch (error) {
         console.error('❌ Lỗi khi check connection:', error);
     }
-}, 30 * 1000); // Check mỗi 30 giây
+}, 30 * 1000);
 
-// Heartbeat: Ping Discord API mỗi 5 phút để giữ kết nối
+// Heartbeat: Ping Discord API mỗi 5 phút
 setInterval(async () => {
     try {
         if (client.isReady()) {
             const ping = client.ws.ping;
             console.log(`💓 Heartbeat: Ping = ${ping}ms`);
             
-            // Nếu ping quá cao (>1000ms) thì cảnh báo
             if (ping > 1000) {
                 console.warn(`⚠️ Ping cao bất thường: ${ping}ms`);
             }
@@ -259,34 +245,10 @@ setInterval(async () => {
     } catch (error) {
         console.error('❌ Heartbeat error:', error);
     }
-}, 5 * 60 * 1000); // Mỗi 5 phút
+}, 5 * 60 * 1000);
 
-.setbg - Đặt ảnh nền profile (upload ảnh + gõ lệnh)
-.setbg reset - Xóa ảnh nền, về mặc định
-.sc / .soicau - Xem biểu đồ lịch sử
-.tang @user [số] - Tặng tiền
-.dd / .diemdanh - Điểm danh (8h/lần)
-.daily - Xem nhiệm vụ hằng ngày
-.claimall - Nhận thưởng nhiệm vụ
-.mshop - Cửa hàng VIP & danh hiệu
-
-**🎁 Giftcode:**
-.code - Xem danh sách code đang hoạt động
-.code <MÃ> - Nhập giftcode
-Ví dụ: .code ABC12345
-
-**🎲 Đặt cược:**
-Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
-Ví dụ: 1k, 5m, 10b, 100000000
-Giới hạn: **1,000** - **100,000,000,000** Mcoin
-                `;
-                
-                return await message.reply(helpText);
-            }
-            
-            Xử lý tin nhắn (commands)
+// ===== XỬ LÝ TIN NHẮN (COMMANDS) =====
 client.on('messageCreate', async (message) => {
-    // ✅ LOG ĐẦY ĐỦ THÔNG TIN
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('📨 TIN NHẮN MỚI:');
     console.log('   👤 Người gửi:', message.author.tag);
@@ -441,7 +403,38 @@ client.on('messageCreate', async (message) => {
             const isAdmin = message.author.id === ADMIN_ID;
             
             if (!isAdmin) {
-const adminHelpText = `📜 DANH SÁCH LỆNH
+                const helpText = `📜 DANH SÁCH LỆNH
+
+👤 Người chơi:
+• .tx - Bắt đầu phiên cược mới
+• .mcoin - Xem profile card
+• .setbg - Đặt ảnh nền profile (upload ảnh + gõ lệnh)
+• .setbg reset - Xóa ảnh nền
+• .sc hoặc .soicau - Xem biểu đồ lịch sử
+• .tang @user [số] - Tặng tiền
+• .dd hoặc .diemdanh - Điểm danh (8h/lần)
+• .daily - Xem nhiệm vụ hằng ngày
+• .claimall - Nhận thưởng nhiệm vụ
+• .mshop - Cửa hàng VIP & danh hiệu
+
+🎁 Giftcode:
+• .code - Xem danh sách code đang hoạt động
+• .code <MÃ> - Nhập giftcode
+
+🎲 Đặt cược:
+Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
+Ví dụ: 1k, 5m, 10b
+Giới hạn: 1,000 - 100,000,000,000 Mcoin
+
+🧪 Test:
+• .ping - Kiểm tra bot online`;
+                
+                await message.reply(helpText);
+                console.log('✅ Đã gửi help (user thường)');
+                return;
+            }
+            
+            const adminHelpText = `📜 DANH SÁCH LỆNH
 
 👤 Người chơi:
 • .tx - Bắt đầu phiên cược mới
@@ -483,37 +476,6 @@ Ví dụ: 1k, 5m, 10b
 
 🧪 Test:
 • .ping - Kiểm tra bot online`;
-                
-                await message.reply(helpText);
-                console.log('✅ Đã gửi help (user thường)');
-                return;
-            }
-            
- const helpText = `📜 DANH SÁCH LỆNH
-
-👤 Người chơi:
-• .tx - Bắt đầu phiên cược mới
-• .mcoin - Xem profile card
-• .setbg - Đặt ảnh nền profile (upload ảnh + gõ lệnh)
-• .setbg reset - Xóa ảnh nền
-• .sc hoặc .soicau - Xem biểu đồ lịch sử
-• .tang @user [số] - Tặng tiền
-• .dd hoặc .diemdanh - Điểm danh (8h/lần)
-• .daily - Xem nhiệm vụ hằng ngày
-• .claimall - Nhận thưởng nhiệm vụ
-• .mshop - Cửa hàng VIP & danh hiệu
-
-🎁 Giftcode:
-• .code - Xem danh sách code đang hoạt động
-• .code <MÃ> - Nhập giftcode
-
-🎲 Đặt cược:
-Bấm nút Tài/Xỉu/Chẵn/Lẻ → Nhập số tiền
-Ví dụ: 1k, 5m, 10b
-Giới hạn: 1,000 - 100,000,000,000 Mcoin
-
-🧪 Test:
-• .ping - Kiểm tra bot online`;
             
             await message.reply(adminHelpText);
             console.log('✅ Đã gửi help (admin)');
@@ -548,38 +510,29 @@ Giới hạn: 1,000 - 100,000,000,000 Mcoin
     }
 });
 
-// ✅ XỬ LÝ INTERACTIONS (buttons & modals)
+// ===== XỬ LÝ INTERACTIONS (buttons & modals) =====
 client.on('interactionCreate', async (interaction) => {
     try {
-        // === XỬ LÝ BUTTON ===
         if (interaction.isButton()) {
             const { customId } = interaction;
             
-            // Button đặt cược Tài Xỉu
             if (['bet_tai', 'bet_xiu', 'bet_chan', 'bet_le'].includes(customId)) {
                 await handleBetButton(interaction);
             }
-            // Button Shop VIP
             else if (customId === 'shop_vip') {
                 await showVipPackages(interaction);
             }
-            // Button Shop Danh hiệu
             else if (customId === 'shop_titles') {
                 await showTitles(interaction);
             }
         }
-            
-        // === XỬ LÝ MODAL ===
         else if (interaction.isModalSubmit()) {
             const { customId } = interaction;
             
-            // Modal đặt cược
             if (customId.startsWith('bet_amount_')) {
                 await handleBetModal(interaction);
             }
         }
-        
-        // === XỬ LÝ SELECT MENU (shop) ===
         else if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'buy_vip') {
                 const vipId = interaction.values[0];
@@ -590,7 +543,6 @@ client.on('interactionCreate', async (interaction) => {
                 await buyTitle(interaction, titleId);
             }
         }
-        
     } catch (error) {
         console.error('❌ Interaction error:', error);
         if (!interaction.replied && !interaction.deferred) {
@@ -602,7 +554,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// ✅ HANDLER: Xử lý button đặt cược
+// ===== HANDLER: Xử lý button đặt cược =====
 async function handleBetButton(interaction) {
     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
     
@@ -618,7 +570,6 @@ async function handleBetButton(interaction) {
     const userId = interaction.user.id;
     const user = getUser(userId);
     
-    // Kiểm tra đã đặt cược chưa
     if (bettingSession.bets[userId]) {
         return interaction.reply({ 
             content: '⚠️ Bạn đã đặt cược rồi!', 
@@ -626,7 +577,6 @@ async function handleBetButton(interaction) {
         });
     }
     
-    // Hiển thị modal nhập số tiền
     const modal = new ModalBuilder()
         .setCustomId(`bet_amount_${interaction.customId}`)
         .setTitle('💰 Nhập số tiền cược');
@@ -644,7 +594,7 @@ async function handleBetButton(interaction) {
     await interaction.showModal(modal);
 }
 
-// ✅ HANDLER: Xử lý modal đặt cược
+// ===== HANDLER: Xử lý modal đặt cược =====
 async function handleBetModal(interaction) {
     const customId = interaction.customId;
     let amountStr = interaction.fields.getTextInputValue('amount').toLowerCase().trim();
@@ -659,7 +609,6 @@ async function handleBetModal(interaction) {
         });
     }
     
-    // Parse số tiền (hỗ trợ 1k, 5m, 10b)
     let amount = 0;
     if (amountStr.endsWith('k')) {
         amount = parseFloat(amountStr) * 1000;
@@ -671,32 +620,29 @@ async function handleBetModal(interaction) {
         amount = parseInt(amountStr);
     }
     
-    // Validate
     if (isNaN(amount) || amount < 1000) {
         return interaction.reply({ 
-            content: '❌ Số tiền không hợp lệ! Tối thiểu **1,000** Mcoin\nVí dụ: `1k`, `5m`, `10b`', 
+            content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
             flags: 64
         });
     }
     
     if (amount > 100000000000000) {
         return interaction.reply({ 
-            content: '❌ Số tiền quá lớn! Tối đa **100,000,000,000,000** Mcoin', 
+            content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
             flags: 64
         });
     }
     
     if (user.balance < amount) {
         return interaction.reply({ 
-            content: `❌ Bạn không đủ tiền!\n💰 Số dư: **${user.balance.toLocaleString('en-US')}** Mcoin`, 
+            content: `❌ Bạn không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
             flags: 64
         });
     }
     
-    // Trừ tiền
     user.balance -= amount;
     
-    // Lưu cược
     const betType = customId.replace('bet_amount_bet_', '');
     bettingSession.bets[userId] = { amount, type: betType };
     
@@ -710,11 +656,10 @@ async function handleBetModal(interaction) {
     };
     
     await interaction.reply({ 
-        content: `✅ Đặt cược **${amount.toLocaleString('en-US')} Mcoin** vào **${typeEmoji[betType]}** thành công!\n💰 Số dư còn: **${user.balance.toLocaleString('en-US')} Mcoin**`, 
+        content: `✅ Đặt cược ${amount.toLocaleString('en-US')} Mcoin vào ${typeEmoji[betType]} thành công!\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
         flags: 64
     });
     
-    // Cập nhật số người chơi trong embed
     try {
         const message = await interaction.channel.messages.fetch(bettingSession.messageId);
         const embed = message.embeds[0];
@@ -727,9 +672,8 @@ async function handleBetModal(interaction) {
     }
 }
 
-// ===== HTTP SERVER ĐỂ RENDER KHÔNG TẮT BOT =====
+// ===== HTTP SERVER =====
 const server = http.createServer((req, res) => {
-    // Endpoint health check
     if (req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
@@ -754,25 +698,20 @@ server.listen(PORT, () => {
     console.log(`🌐 HTTP Server chạy trên port ${PORT}`);
 });
 
-// ===== PING ĐỊNH KỲ ĐỂ RENDER KHÔNG TẮT =====
-// Tự ping chính mình mỗi 5 phút
+// ===== SELF-PING =====
 setInterval(() => {
     let url = process.env.RENDER_EXTERNAL_URL;
     
-    // ✅ FIX: Kiểm tra URL có protocol chưa
     if (!url) {
         console.log('⚠️ RENDER_EXTERNAL_URL chưa set, bỏ qua self-ping');
         return;
     }
     
-    // ✅ Đảm bảo URL có https://
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
         url = 'https://' + url;
     }
     
-    // ✅ Bỏ trailing slash nếu có
     url = url.replace(/\/$/, '');
-    
     const pingUrl = url + '/health';
     
     console.log(`🔄 Self-ping đến: ${pingUrl}`);
@@ -791,10 +730,9 @@ setInterval(() => {
     }).on('error', (err) => {
         console.error('❌ Self-ping lỗi:', err.message);
     });
-    
-}, 5 * 60 * 1000); // Ping mỗi 5 phút
+}, 5 * 60 * 1000);
 
-// ===== KIỂM TRA TOKEN TRƯỚC KHI LOGIN =====
+// ===== LOGIN BOT =====
 console.log('===========================================');
 console.log('🔍 KIỂM TRA TOKEN VÀ MÔI TRƯỜNG');
 console.log('===========================================');
@@ -804,7 +742,6 @@ console.log('🔤 Token preview:', TOKEN ? TOKEN.substring(0, 30) + '...' : 'MIS
 console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
 console.log('===========================================');
 
-// Kiểm tra token hợp lệ
 if (!TOKEN) {
     console.error('❌ CRITICAL: DISCORD_TOKEN is missing!');
     process.exit(1);
@@ -816,7 +753,6 @@ if (TOKEN.length < 50) {
     process.exit(1);
 }
 
-// Login bot với retry logic
 let loginAttempts = 0;
 const MAX_LOGIN_ATTEMPTS = 3;
 
@@ -832,7 +768,6 @@ async function loginBot() {
     try {
         console.log('📡 Connecting to Discord Gateway...');
         
-        // ✅ ĐÃ SỬA: Tăng timeout từ 30s → 60s
         const loginPromise = client.login(TOKEN);
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error('Login timeout after 60 seconds')), 60000);
@@ -861,7 +796,6 @@ async function loginBot() {
         console.error('   - Stack:', error.stack?.split('\n').slice(0, 3).join('\n'));
         console.log('');
         
-        // Token invalid
         if (error.code === 'TokenInvalid' || error.message.includes('token')) {
             console.error('🚨 INVALID TOKEN!');
             console.error('📍 Go to: https://discord.com/developers/applications');
@@ -869,7 +803,6 @@ async function loginBot() {
             process.exit(1);
         }
         
-        // Timeout → Likely network/websocket issue
         if (error.message.includes('timeout')) {
             console.error('🚨 CONNECTION TIMEOUT!');
             console.error('📍 Possible issues:');
@@ -878,14 +811,12 @@ async function loginBot() {
             console.error('   - WebSocket connection blocked');
         }
         
-        // Max attempts
         if (loginAttempts >= MAX_LOGIN_ATTEMPTS) {
             console.error(`🚨 FAILED AFTER ${MAX_LOGIN_ATTEMPTS} ATTEMPTS!`);
             console.error('📍 Bot will exit and Render will restart it');
             process.exit(1);
         }
         
-        // Retry
         const retryDelay = 15;
         console.log(`🔄 Retrying in ${retryDelay} seconds...`);
         console.log('===========================================');
@@ -897,5 +828,3 @@ async function loginBot() {
 }
 
 loginBot();
-
-
