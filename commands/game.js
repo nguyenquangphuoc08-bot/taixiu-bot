@@ -1,4 +1,4 @@
-// commands/game.js - THÊM SỐ PHIÊN + FIX UI
+// commands/game.js - SILENT MODE (KHÔNG LOG GÌ CẢ)
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
@@ -8,19 +8,29 @@ const { updateQuest } = require('../services/quest');
 
 let bettingSession = null;
 
-// ===== KHỞI TẠO SỐ PHIÊN =====
+// ===== KHỞI TẠO =====
 if (!database.phienCounter) {
     database.phienCounter = 0;
     saveDB();
 }
 
-// Lệnh: .tx
+// ===== UTILITY =====
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function cleanupSession() {
+    bettingSession = null;
+    database.activeBettingSession = null;
+    saveDB();
+}
+
+// ===== LỆNH: .tx =====
 async function handleTaiXiu(message, client) {
     if (bettingSession) {
         return message.reply('⏳ Đang có phiên cược, vui lòng đợi!');
     }
     
-    // Tăng số phiên
     database.phienCounter++;
     const phienNumber = database.phienCounter;
     saveDB();
@@ -89,19 +99,16 @@ async function handleTaiXiu(message, client) {
     const sentMessage = await message.reply({ embeds: [embed], components: [row] });
     bettingSession.messageId = sentMessage.id;
     
+    // ===== COUNTDOWN =====
     let timeLeft = 30;
     const countdown = setInterval(async () => {
         timeLeft -= 1;
         
         if (timeLeft > 0) {
             let emoji = '⏰';
-            if (timeLeft <= 5) {
-                emoji = '🔥';
-            } else if (timeLeft <= 10) {
-                emoji = '⚡';
-            } else if (timeLeft <= 15) {
-                emoji = '⏳';
-            }
+            if (timeLeft <= 5) emoji = '🔥';
+            else if (timeLeft <= 10) emoji = '⚡';
+            else if (timeLeft <= 15) emoji = '⏳';
             
             embed.spliceFields(0, 1, { 
                 name: `${emoji} Thời gian còn lại`, 
@@ -123,19 +130,16 @@ async function handleTaiXiu(message, client) {
                     embeds: [],
                     components: []
                 }).catch(() => {});
-                bettingSession = null;
-                database.activeBettingSession = null;
-                saveDB();
+                cleanupSession();
                 return;
             }
             
-            console.log(`✅ Bắt đầu animation phiên #${phienNumber}...`);
             await animateResult(sentMessage, client);
         }
     }, 1000);
 }
 
-// ===== ANIMATION TÔ BIẾN DẦN =====
+// ===== ANIMATION TÔ NÂNG DẦN =====
 async function animateResult(sentMessage, client) {
     try {
         const { dice1, dice2, dice3, total } = rollDice();
@@ -143,9 +147,7 @@ async function animateResult(sentMessage, client) {
         const isJackpot = checkJackpot(dice1, dice2, dice3);
         const phienNumber = bettingSession.phienNumber;
         
-        console.log(`🎲 Phiên #${phienNumber}: ${dice1}-${dice2}-${dice3} = ${total}`);
-        
-        // Frame 1: Tô đè hoàn toàn (0%)
+        // ===== FRAME 1: Tô đè hoàn toàn (0%) =====
         const frame1 = createBowlLift(dice1, dice2, dice3, 0);
         if (frame1) {
             const embed2 = new EmbedBuilder()
@@ -163,7 +165,7 @@ async function animateResult(sentMessage, client) {
         }
         await sleep(500);
         
-        // Frame 2-5: Animation tô nâng dần
+        // ===== FRAME 2-5: Animation tô nâng dần =====
         for (let i = 25; i <= 100; i += 25) {
             const frame = createBowlLift(dice1, dice2, dice3, i);
             if (frame) {
@@ -174,7 +176,7 @@ async function animateResult(sentMessage, client) {
             await sleep(400);
         }
         
-        // Hiển thị kết quả
+        // ===== FRAME 6: Kết quả lộ hoàn toàn =====
         const frame5 = createBowlLift(dice1, dice2, dice3, 100);
         if (frame5) {
             const embed3 = new EmbedBuilder()
@@ -263,7 +265,7 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
         
         saveDB();
         
-        // ===== KẾT QUẢ CUỐI =====
+        // ===== EMBED KẾT QUẢ CUỐI =====
         const diceBuffer = createDiceImageSafe(dice1, dice2, dice3);
         
         const resultEmbed = new EmbedBuilder()
@@ -346,38 +348,25 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
                 files: files,
                 components: []
             });
-            console.log(`✅ Phiên #${phienNumber} hoàn tất!`);
             
         } catch (editError) {
-            console.error('❌ Edit error:', editError.message);
             try {
                 await sentMessage.channel.send({
                     content: `**🎊 PHIÊN #${phienNumber} ĐÃ KẾT THÚC**`,
                     embeds: [resultEmbed],
                     files: files
                 });
-            } catch (sendError) {
-                console.error('❌ Send error:', sendError.message);
-            }
+            } catch (sendError) {}
         }
         
-        bettingSession = null;
-        database.activeBettingSession = null;
-        saveDB();
+        cleanupSession();
         
     } catch (error) {
-        console.error('❌ Lỗi animation:', error);
-        bettingSession = null;
-        database.activeBettingSession = null;
-        saveDB();
+        cleanupSession();
     }
 }
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// Lệnh: .sc hoặc .soicau
+// ===== LỆNH: .sc hoặc .soicau =====
 async function handleSoiCau(message) {
     const chartBuffer = createHistoryChart(database.history);
     
@@ -398,6 +387,7 @@ async function handleSoiCau(message) {
     await message.reply({ embeds: [embed], files: [attachment] });
 }
 
+// ===== GETTERS/SETTERS =====
 function getBettingSession() {
     return bettingSession;
 }
@@ -406,6 +396,7 @@ function setBettingSession(session) {
     bettingSession = session;
 }
 
+// ===== EXPORTS =====
 module.exports = {
     handleTaiXiu,
     handleSoiCau,
