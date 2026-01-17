@@ -30,6 +30,9 @@ const {
 } = require('./commands/admin');
 const { handleMShop, buyVipPackage, buyTitle, showVipPackages, showTitles } = require('./commands/shop');
 
+// ✅ Import buttonHandler
+const { handleButtonClick } = require('./handlers/buttonHandler');
+
 // ✅ Validation token
 if (!TOKEN) {
     console.error('❌ CRITICAL ERROR: DISCORD_TOKEN is not set!');
@@ -315,7 +318,7 @@ client.on('messageCreate', async (message) => {
 - .code - Xem danh sách code
 - .code <MÃ> - Nhập code
 
-🎲 Đặt cược: Bấm nút → Nhập số tiền
+🎲 Đặt cược: Bấm nút → Chọn cửa → Nhập tiền
 (VD: 1k, 5m, 10b)`;
                 
                 await message.reply(helpText);
@@ -362,12 +365,16 @@ client.on('messageCreate', async (message) => {
 // ===== INTERACTIONS =====
 client.on('interactionCreate', async (interaction) => {
     try {
+        // ===== XỬ LÝ BUTTON =====
         if (interaction.isButton()) {
             const { customId } = interaction;
             
-            if (['bet_tai', 'bet_xiu', 'bet_chan', 'bet_le'].includes(customId)) {
-                await handleBetButton(interaction);
+            // ✅ Xử lý nút mở menu cược
+            if (customId === 'open_bet_menu') {
+                const bettingSession = getBettingSession();
+                await handleButtonClick(interaction, bettingSession);
             }
+            // Shop buttons (giữ nguyên)
             else if (customId === 'shop_vip') {
                 await showVipPackages(interaction);
             }
@@ -375,19 +382,38 @@ client.on('interactionCreate', async (interaction) => {
                 await showTitles(interaction);
             }
         }
-        else if (interaction.isModalSubmit()) {
-            if (interaction.customId.startsWith('bet_amount_')) {
-                await handleBetModal(interaction);
-            }
-        }
+        
+        // ===== XỬ LÝ SELECT MENU =====
         else if (interaction.isStringSelectMenu()) {
-            if (interaction.customId === 'buy_vip') {
+            // ✅ Menu chọn loại cược
+            if (interaction.customId === 'bet_type_select') {
+                const bettingSession = getBettingSession();
+                await handleButtonClick(interaction, bettingSession);
+            }
+            // Shop menus (giữ nguyên)
+            else if (interaction.customId === 'buy_vip') {
                 const vipId = interaction.values[0];
                 await buyVipPackage(interaction, vipId);
             }
             else if (interaction.customId === 'buy_title') {
                 const titleId = interaction.values[0];
                 await buyTitle(interaction, titleId);
+            }
+        }
+        
+        // ===== XỬ LÝ MODAL =====
+        else if (interaction.isModalSubmit()) {
+            // ✅ Modal cược Tài/Xỉu/Chẵn/Lẻ
+            if (interaction.customId.startsWith('bet_modal_')) {
+                await handleBetModal(interaction);
+            }
+            // ✅ Modal cược số
+            else if (interaction.customId === 'modal_bet_number') {
+                await handleBetNumberModal(interaction);
+            }
+            // ✅ Modal cược tổng
+            else if (interaction.customId === 'modal_bet_total') {
+                await handleBetTotalModal(interaction);
             }
         }
     } catch (error) {
@@ -401,49 +427,156 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// ===== BET HANDLERS =====
-async function handleBetButton(interaction) {
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+// ===== XỬ LÝ MODAL CƯỢC SỐ =====
+async function handleBetNumberModal(interaction) {
+    const numberStr = interaction.fields.getTextInputValue('number_value').trim();
+    let amountStr = interaction.fields.getTextInputValue('bet_amount').toLowerCase().trim();
     
+    const number = parseInt(numberStr);
+    const userId = interaction.user.id;
+    const user = getUser(userId);
     const bettingSession = getBettingSession();
     
     if (!bettingSession) {
         return interaction.reply({ 
-            content: '❌ Không có phiên cược!', 
+            content: '❌ Phiên đã kết thúc!', 
             flags: 64
         });
     }
     
-    const userId = interaction.user.id;
-    const user = getUser(userId);
-    
-    if (bettingSession.bets[userId]) {
+    // Validate số
+    if (isNaN(number) || number < 1 || number > 6) {
         return interaction.reply({ 
-            content: '⚠️ Bạn đã đặt cược rồi!', 
+            content: '❌ Số phải từ 1 đến 6!', 
             flags: 64
         });
     }
     
-    const modal = new ModalBuilder()
-        .setCustomId(`bet_amount_${interaction.customId}`)
-        .setTitle('💰 Nhập số tiền cược');
+    // Parse số tiền
+    let amount = 0;
+    if (amountStr.endsWith('k')) {
+        amount = parseFloat(amountStr) * 1000;
+    } else if (amountStr.endsWith('m')) {
+        amount = parseFloat(amountStr) * 1000000;
+    } else if (amountStr.endsWith('b')) {
+        amount = parseFloat(amountStr) * 1000000000;
+    } else {
+        amount = parseInt(amountStr);
+    }
     
-    const amountInput = new TextInputBuilder()
-        .setCustomId('amount')
-        .setLabel(`Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`)
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder(`Nhập số tiền (tối đa: ${user.balance.toLocaleString('en-US')})`)
-        .setRequired(true);
+    if (isNaN(amount) || amount < 1000) {
+        return interaction.reply({ 
+            content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
+            flags: 64
+        });
+    }
     
-    const row = new ActionRowBuilder().addComponents(amountInput);
-    modal.addComponents(row);
+    if (amount > 100000000000000) {
+        return interaction.reply({ 
+            content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
+            flags: 64
+        });
+    }
     
-    await interaction.showModal(modal);
+    if (user.balance < amount) {
+        return interaction.reply({ 
+            content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
+            flags: 64
+        });
+    }
+    
+    user.balance -= amount;
+    bettingSession.bets[userId] = { 
+        amount, 
+        type: 'number',
+        value: number 
+    };
+    
+    saveDB();
+    
+    await interaction.reply({ 
+        content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào số **${number}** thành công!\n🎯 Thắng nhận: **${(amount * 3).toLocaleString('en-US')}** Mcoin (x3)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
+        flags: 64
+    });
 }
 
+// ===== XỬ LÝ MODAL CƯỢC TỔNG =====
+async function handleBetTotalModal(interaction) {
+    const totalStr = interaction.fields.getTextInputValue('total_value').trim();
+    let amountStr = interaction.fields.getTextInputValue('bet_amount').toLowerCase().trim();
+    
+    const totalValue = parseInt(totalStr);
+    const userId = interaction.user.id;
+    const user = getUser(userId);
+    const bettingSession = getBettingSession();
+    
+    if (!bettingSession) {
+        return interaction.reply({ 
+            content: '❌ Phiên đã kết thúc!', 
+            flags: 64
+        });
+    }
+    
+    // Validate tổng
+    if (isNaN(totalValue) || totalValue < 3 || totalValue > 18) {
+        return interaction.reply({ 
+            content: '❌ Tổng phải từ 3 đến 18!', 
+            flags: 64
+        });
+    }
+    
+    // Parse số tiền
+    let amount = 0;
+    if (amountStr.endsWith('k')) {
+        amount = parseFloat(amountStr) * 1000;
+    } else if (amountStr.endsWith('m')) {
+        amount = parseFloat(amountStr) * 1000000;
+    } else if (amountStr.endsWith('b')) {
+        amount = parseFloat(amountStr) * 1000000000;
+    } else {
+        amount = parseInt(amountStr);
+    }
+    
+    if (isNaN(amount) || amount < 1000) {
+        return interaction.reply({ 
+            content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
+            flags: 64
+        });
+    }
+    
+    if (amount > 100000000000000) {
+        return interaction.reply({ 
+            content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
+            flags: 64
+        });
+    }
+    
+    if (user.balance < amount) {
+        return interaction.reply({ 
+            content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
+            flags: 64
+        });
+    }
+    
+    user.balance -= amount;
+    bettingSession.bets[userId] = { 
+        amount, 
+        type: 'total',
+        value: totalValue 
+    };
+    
+    saveDB();
+    
+    await interaction.reply({ 
+        content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào tổng **${totalValue}** thành công!\n📊 Thắng nhận: **${(amount * 5).toLocaleString('en-US')}** Mcoin (x5)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
+        flags: 64
+    });
+}
+
+// ===== XỬ LÝ MODAL TÀI/XỈU/CHẴN/LẺ =====
 async function handleBetModal(interaction) {
     const customId = interaction.customId;
-    let amountStr = interaction.fields.getTextInputValue('amount').toLowerCase().trim();
+    let amountStr = interaction.fields.getTextInputValue('bet_amount').toLowerCase().trim();
     const userId = interaction.user.id;
     const user = getUser(userId);
     const bettingSession = getBettingSession();
@@ -489,7 +622,7 @@ async function handleBetModal(interaction) {
     
     user.balance -= amount;
     
-    const betType = customId.replace('bet_amount_bet_', '');
+    const betType = customId.replace('bet_modal_', '');
     bettingSession.bets[userId] = { amount, type: betType };
     
     saveDB();
@@ -505,15 +638,6 @@ async function handleBetModal(interaction) {
         content: `✅ Đặt cược ${amount.toLocaleString('en-US')} Mcoin vào ${typeEmoji[betType]} thành công!\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
         flags: 64
     });
-    
-    try {
-        const message = await interaction.channel.messages.fetch(bettingSession.messageId);
-        const embed = message.embeds[0];
-        const playerCount = Object.keys(bettingSession.bets).length;
-        
-        embed.fields[1].value = `${playerCount}`;
-        await message.edit({ embeds: [embed] });
-    } catch (err) {}
 }
 
 // ===== HTTP SERVER =====
