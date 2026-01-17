@@ -51,13 +51,17 @@ function getUser(userId) {
             le: 0,
             jackpotWins: 0,
             
+            // ✅ THÊM MỚI: Cược số và tổng
+            numberWins: 0,   // Số lần thắng cược số
+            totalWins: 0,    // Số lần thắng cược tổng
+            
             // VIP system
             vipLevel: 0,
             vipTitle: null,
             vipBonus: null,
             ownedTitles: [],
             
-            // ✅ THÊM: Custom background
+            // ✅ Custom background
             customBg: null,
             
             // Quest system
@@ -85,8 +89,12 @@ function getUser(userId) {
     if (!user.vipBonus) user.vipBonus = null;
     if (!user.ownedTitles) user.ownedTitles = [];
     
-    // ✅ THÊM: Migration cho customBg
+    // ✅ Migration cho customBg
     if (user.customBg === undefined) user.customBg = null;
+    
+    // ✅ THÊM: Migration cho cược số và tổng
+    if (user.numberWins === undefined) user.numberWins = 0;
+    if (user.totalWins === undefined) user.totalWins = 0;
     
     if (!user.dailyQuests) {
         user.dailyQuests = {
