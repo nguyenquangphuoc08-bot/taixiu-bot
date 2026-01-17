@@ -59,10 +59,12 @@ async function handleTaiXiu(message, client) {
 **Cửa cược:**
 🔵 **Tài** (11-18) | 🔴 **Xỉu** (3-10)
 🟣 **Chẵn** | 🟡 **Lẻ**
+🎯 **Cược Số** (1-6) | 📊 **Cược Tổng** (3-18)
 
 **Tỷ lệ:**
-✅ Thắng nhận **1.9x** tiền cược
-❌ Thua mất tiền cược
+✅ Tài/Xỉu/Chẵn/Lẻ: **x1.9**
+🎯 Cược Số đúng: **x3**
+📊 Cược Tổng đúng: **x5**
 🎰 **Nổ hũ x20** khi 3 xúc xắc trùng nhau!
 ⚠️ **Chỉ người THẮNG cược mới nhận hũ!**
 
@@ -76,23 +78,12 @@ async function handleTaiXiu(message, client) {
         .setFooter({ text: 'Bấm nút để đặt cược!' })
         .setTimestamp();
     
+    // ✅ CHỈ 1 NÚT DUY NHẤT
     const row = new ActionRowBuilder()
         .addComponents(
             new ButtonBuilder()
-                .setCustomId('bet_tai')
-                .setLabel('🔵 Tài')
-                .setStyle(ButtonStyle.Primary),
-            new ButtonBuilder()
-                .setCustomId('bet_xiu')
-                .setLabel('🔴 Xỉu')
-                .setStyle(ButtonStyle.Danger),
-            new ButtonBuilder()
-                .setCustomId('bet_chan')
-                .setLabel('🟣 Chẵn')
-                .setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder()
-                .setCustomId('bet_le')
-                .setLabel('🟡 Lẻ')
+                .setCustomId('open_bet_menu')
+                .setLabel('⚡ Chọn cửa và đặt cược tại đây!')
                 .setStyle(ButtonStyle.Success)
         );
     
@@ -216,10 +207,12 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
         for (const [userId, bet] of Object.entries(bettingSession.bets)) {
             const user = getUser(userId);
             let win = false;
+            let winMultiplier = 1.9; // Mặc định cho Tài/Xỉu/Chẵn/Lẻ
             
             updateQuest(userId, 1);
             updateQuest(userId, 3, bet.amount);
             
+            // ===== LOGIC CŨ: Tài/Xỉu/Chẵn/Lẻ =====
             if (bet.type === 'tai' && result.tai) {
                 win = true;
                 user.tai++;
@@ -235,12 +228,30 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
                 win = true;
                 user.le++;
             }
+            // ✅ THÊM MỚI: Cược Số (1-6)
+            else if (bet.type === 'number') {
+                // Kiểm tra có ít nhất 1 con xúc xắc trùng với số đã cược
+                if (dice1 === bet.value || dice2 === bet.value || dice3 === bet.value) {
+                    win = true;
+                    winMultiplier = 3; // x3 tiền cược
+                    user.numberWins = (user.numberWins || 0) + 1;
+                }
+            }
+            // ✅ THÊM MỚI: Cược Tổng (3-18)
+            else if (bet.type === 'total') {
+                // Kiểm tra tổng có đúng không
+                if (total === bet.value) {
+                    win = true;
+                    winMultiplier = 5; // x5 tiền cược
+                    user.totalWins = (user.totalWins || 0) + 1;
+                }
+            }
             
             const jackpotAdd = Math.floor(bet.amount * 2 / 3);
             database.jackpot = (database.jackpot || 0) + jackpotAdd;
             
             if (win) {
-                const winAmount = Math.floor(bet.amount * 1.9);
+                const winAmount = Math.floor(bet.amount * winMultiplier);
                 user.balance += winAmount;
                 
                 updateQuest(userId, 2);
@@ -253,7 +264,15 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
                     jackpotWinners.push(`<@${userId}>: +${jackpotAmount.toLocaleString('en-US')} 🎰💎`);
                 }
                 
-                winners.push(`<@${userId}>: +${winAmount.toLocaleString('en-US')} 💰`);
+                // ✅ Hiển thị loại cược
+                let betDisplay = '';
+                if (bet.type === 'number') {
+                    betDisplay = ` (Số ${bet.value})`;
+                } else if (bet.type === 'total') {
+                    betDisplay = ` (Tổng ${bet.value})`;
+                }
+                
+                winners.push(`<@${userId}>: +${winAmount.toLocaleString('en-US')} 💰${betDisplay}`);
             } else {
                 losers.push(`<@${userId}>: -${bet.amount.toLocaleString('en-US')} 💸`);
             }
