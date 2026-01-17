@@ -70,7 +70,7 @@ async function handleTaiXiu(message, client) {
 
 💎 **HŨ HIỆN TẠI: ${jackpotDisplay} Mcoin**
 📊 Mỗi cược cộng 2/3 vào hũ
-🔥 **Hũ đạt 1 tỷ = 100% NỔ!**
+🔥 **Hũ đạt 1 tỷ = 100% NỔ (ÉP 3 XÚC XẮC TRÙNG)!**
 🎲 **Dưới 1 tỷ = Nổ ngẫu nhiên theo %**
         `)
         .addFields(
@@ -135,34 +135,46 @@ async function handleTaiXiu(message, client) {
 // ===== ANIMATION TÔ NÂNG DẦN =====
 async function animateResult(sentMessage, client) {
     try {
-        const { dice1, dice2, dice3, total } = rollDice();
-        const result = checkResult(total);
+        const currentJackpot = database.jackpot || 0;
+        let dice1, dice2, dice3, total;
+        let isJackpot = false;
         
         // ✅ LOGIC NỔ HŨ MỚI
-        let isJackpot = false;
-        const currentJackpot = database.jackpot || 0;
-        
-        // Kiểm tra 3 xúc xắc giống nhau (điều kiện cơ bản)
-        const isTriple = checkJackpot(dice1, dice2, dice3);
-        
-        if (isTriple) {
-            // Nếu hũ >= 1 tỷ → 100% nổ
-            if (currentJackpot >= 1000000000) {
-                isJackpot = true;
-            } 
-            // Nếu hũ < 1 tỷ → Nổ ngẫu nhiên (xác suất tăng theo hũ)
-            else {
-                // Xác suất = (Hũ hiện tại / 1 tỷ) * 100%
-                // VD: Hũ 500M = 50% nổ, Hũ 800M = 80% nổ
+        // Nếu hũ >= 1 tỷ → ÉP 3 XÚC XẮC GIỐNG NHAU (100% nổ)
+        if (currentJackpot >= 1000000000) {
+            const forcedNumber = Math.floor(Math.random() * 6) + 1; // Random 1-6
+            dice1 = dice2 = dice3 = forcedNumber;
+            total = dice1 + dice2 + dice3;
+            isJackpot = true; // Đảm bảo 100% nổ
+            
+            console.log(`🎰 HŨ ĐẦY! ÉP 3 XÚC XẮC: ${dice1}-${dice2}-${dice3}`);
+        } 
+        // Nếu hũ < 1 tỷ → Random bình thường
+        else {
+            const rollResult = rollDice();
+            dice1 = rollResult.dice1;
+            dice2 = rollResult.dice2;
+            dice3 = rollResult.dice3;
+            total = rollResult.total;
+            
+            // Kiểm tra có 3 xúc xắc giống nhau không
+            const isTriple = checkJackpot(dice1, dice2, dice3);
+            
+            if (isTriple) {
+                // Xác suất nổ = (Hũ hiện tại / 1 tỷ) * 100%
                 const jackpotChance = (currentJackpot / 1000000000) * 100;
                 const randomChance = Math.random() * 100;
                 
                 if (randomChance <= jackpotChance) {
                     isJackpot = true;
+                    console.log(`🎰 NỔ HŨ NGẪU NHIÊN! Xác suất: ${jackpotChance.toFixed(1)}%`);
+                } else {
+                    console.log(`❌ Không nổ. Xác suất: ${jackpotChance.toFixed(1)}%, Roll: ${randomChance.toFixed(1)}%`);
                 }
             }
         }
         
+        const result = checkResult(total);
         const phienNumber = bettingSession.phienNumber;
         
         // ===== FRAME 1: Tô đè hoàn toàn (0%) =====
@@ -373,15 +385,36 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
                 inline: false
             }
         );
+        
+        // ✅ HŨ BẮT MẮT HƠN với thanh tiến độ
+        const jackpotCurrent = database.jackpot || 0;
+        const jackpotMax = 1000000000; // 1 tỷ
+        const jackpotPercent = Math.min((jackpotCurrent / jackpotMax) * 100, 100);
+        
+        // Tạo thanh tiến độ
+        const barLength = 20;
+        const filledLength = Math.floor((jackpotPercent / 100) * barLength);
+        const emptyLength = barLength - filledLength;
+        const progressBar = '█'.repeat(filledLength) + '░'.repeat(emptyLength);
+        
+        // Màu sắc dựa theo %
+        let jackpotColor = '🟢'; // Xanh lá: 0-33%
+        if (jackpotPercent >= 33 && jackpotPercent < 66) jackpotColor = '🟡'; // Vàng: 33-66%
+        if (jackpotPercent >= 66 && jackpotPercent < 100) jackpotColor = '🟠'; // Cam: 66-100%
+        if (jackpotPercent >= 100) jackpotColor = '🔴'; // Đỏ: 100%
+        
+        const jackpotDisplay = `
+💎 **HŨ TÀI XỈU**
+${jackpotColor} \`${progressBar}\` **${jackpotPercent.toFixed(1)}%**
+💰 **${jackpotCurrent.toLocaleString('en-US')}** / ${jackpotMax.toLocaleString('en-US')} Mcoin
+${jackpotPercent >= 100 ? '🎰 **HŨ ĐÃ ĐẦY! 100% ÉP 3 XÚC XẮC TRÙNG!**' : `🎲 Xác suất nổ ngẫu nhiên: **${jackpotPercent.toFixed(1)}%**`}
+        `.trim();
+        
+        resultEmbed.addFields(
             {
-                name: '💎 Hũ hiện tại',
-                value: `**${(database.jackpot || 0).toLocaleString('en-US')}** Mcoin`,
-                inline: true
-            },
-            {
-                name: '👥 Tổng người chơi',
-                value: `**${Object.keys(bettingSession.bets).length}** người`,
-                inline: true
+                name: '━━━━━━━━━━━━━━━━━━━━',
+                value: jackpotDisplay,
+                inline: false
             },
             {
                 name: '🎯 Phiên số',
@@ -407,9 +440,14 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
                 files: files
             });
             
-        } catch (sen
+        } catch (error) {
+            console.error('❌ Send result error:', error.message);
+        }
+        
+        cleanupSession();
         
     } catch (error) {
+        console.error('❌ Animation error:', error.message);
         cleanupSession();
     }
 }
