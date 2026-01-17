@@ -70,6 +70,8 @@ async function handleTaiXiu(message, client) {
 
 💎 **HŨ HIỆN TẠI: ${jackpotDisplay} Mcoin**
 📊 Mỗi cược cộng 2/3 vào hũ
+🔥 **Hũ đạt 1 tỷ = 100% NỔ!**
+🎲 **Dưới 1 tỷ = Nổ ngẫu nhiên theo %**
         `)
         .addFields(
             { name: '⏰ Thời gian còn lại', value: '30 giây', inline: true },
@@ -135,7 +137,32 @@ async function animateResult(sentMessage, client) {
     try {
         const { dice1, dice2, dice3, total } = rollDice();
         const result = checkResult(total);
-        const isJackpot = checkJackpot(dice1, dice2, dice3);
+        
+        // ✅ LOGIC NỔ HŨ MỚI
+        let isJackpot = false;
+        const currentJackpot = database.jackpot || 0;
+        
+        // Kiểm tra 3 xúc xắc giống nhau (điều kiện cơ bản)
+        const isTriple = checkJackpot(dice1, dice2, dice3);
+        
+        if (isTriple) {
+            // Nếu hũ >= 1 tỷ → 100% nổ
+            if (currentJackpot >= 1000000000) {
+                isJackpot = true;
+            } 
+            // Nếu hũ < 1 tỷ → Nổ ngẫu nhiên (xác suất tăng theo hũ)
+            else {
+                // Xác suất = (Hũ hiện tại / 1 tỷ) * 100%
+                // VD: Hũ 500M = 50% nổ, Hũ 800M = 80% nổ
+                const jackpotChance = (currentJackpot / 1000000000) * 100;
+                const randomChance = Math.random() * 100;
+                
+                if (randomChance <= jackpotChance) {
+                    isJackpot = true;
+                }
+            }
+        }
+        
         const phienNumber = bettingSession.phienNumber;
         
         // ===== FRAME 1: Tô đè hoàn toàn (0%) =====
@@ -200,8 +227,7 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
         });
         if (database.history.length > 50) database.history.shift();
         
-        let winners = [];
-        let losers = [];
+        let participants = []; // Danh sách tham gia
         let jackpotWinners = [];
         
         for (const [userId, bet] of Object.entries(bettingSession.bets)) {
@@ -264,17 +290,27 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
                     jackpotWinners.push(`<@${userId}>: +${jackpotAmount.toLocaleString('en-US')} 🎰💎`);
                 }
                 
-                // ✅ Hiển thị loại cược
-                let betDisplay = '';
-                if (bet.type === 'number') {
-                    betDisplay = ` (Số ${bet.value})`;
-                } else if (bet.type === 'total') {
-                    betDisplay = ` (Tổng ${bet.value})`;
-                }
+                // ✅ Hiển thị loại cược và kết quả THẮNG
+                let betTypeDisplay = '';
+                if (bet.type === 'tai') betTypeDisplay = 'Tài';
+                else if (bet.type === 'xiu') betTypeDisplay = 'Xỉu';
+                else if (bet.type === 'chan') betTypeDisplay = 'Chẵn';
+                else if (bet.type === 'le') betTypeDisplay = 'Lẻ';
+                else if (bet.type === 'number') betTypeDisplay = `Cược số ${bet.value}`;
+                else if (bet.type === 'total') betTypeDisplay = `Cược tổng ${bet.value}`;
                 
-                winners.push(`<@${userId}>: +${winAmount.toLocaleString('en-US')} 💰${betDisplay}`);
+                participants.push(`<@${userId}> | ${betTypeDisplay}: ${bet.amount.toLocaleString('en-US')} | ✅ (+${winAmount.toLocaleString('en-US')} Mcoin)`);
             } else {
-                losers.push(`<@${userId}>: -${bet.amount.toLocaleString('en-US')} 💸`);
+                // ✅ Hiển thị loại cược và kết quả THUA
+                let betTypeDisplay = '';
+                if (bet.type === 'tai') betTypeDisplay = 'Tài';
+                else if (bet.type === 'xiu') betTypeDisplay = 'Xỉu';
+                else if (bet.type === 'chan') betTypeDisplay = 'Chẵn';
+                else if (bet.type === 'le') betTypeDisplay = 'Lẻ';
+                else if (bet.type === 'number') betTypeDisplay = `Cược số ${bet.value}`;
+                else if (bet.type === 'total') betTypeDisplay = `Cược tổng ${bet.value}`;
+                
+                participants.push(`<@${userId}> | ${betTypeDisplay}: ${bet.amount.toLocaleString('en-US')} | ❌`);
             }
         }
         
@@ -329,17 +365,14 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
             });
         }
         
+        // ✅ HIỂN thị DANH SÁCH THAM GIA
         resultEmbed.addFields(
             { 
-                name: '✅ NGƯỜI THẮNG', 
-                value: winners.length > 0 ? winners.join('\n') : '_Không có ai thắng_',
+                name: '📋 DANH SÁCH THAM GIA', 
+                value: participants.length > 0 ? participants.join('\n') : '_Không có ai tham gia_',
                 inline: false
-            },
-            { 
-                name: '❌ NGƯỜI THUA', 
-                value: losers.length > 0 ? losers.join('\n') : '_Không có ai thua_',
-                inline: false
-            },
+            }
+        );
             {
                 name: '💎 Hũ hiện tại',
                 value: `**${(database.jackpot || 0).toLocaleString('en-US')}** Mcoin`,
@@ -360,25 +393,21 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
         resultEmbed.setFooter({ text: isJackpot ? 'NỔ HŨ, LÊN ĐỈNH NÀO! 🎰' : 'Hẹn gặp lại lần sau nhé ^_^' });
         resultEmbed.setTimestamp();
         
+        // ✅ GỬI TIN NHẮN MỚI thay vì edit
         try {
+            // Disable nút ở message cũ
             await sentMessage.edit({ 
-                content: isJackpot ? '**🎰💥 TRÚNG ĐẠI JACKPOT!!! 💥🎰**' : `**🎊 PHIÊN #${phienNumber} ĐÃ KẾT THÚC**`, 
-                embeds: [resultEmbed],
-                files: files,
                 components: []
+            }).catch(() => {});
+            
+            // Gửi message mới với kết quả
+            await sentMessage.channel.send({
+                content: isJackpot ? '**🎰💥 TRÚNG ĐẠI JACKPOT!!! 💥🎰**' : `**🎊 KẾT QUẢ TÀI XỈU #${phienNumber}**`,
+                embeds: [resultEmbed],
+                files: files
             });
             
-        } catch (editError) {
-            try {
-                await sentMessage.channel.send({
-                    content: `**🎊 PHIÊN #${phienNumber} ĐÃ KẾT THÚC**`,
-                    embeds: [resultEmbed],
-                    files: files
-                });
-            } catch (sendError) {}
-        }
-        
-        cleanupSession();
+        } catch (sen
         
     } catch (error) {
         cleanupSession();
