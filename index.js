@@ -1,4 +1,4 @@
-// index.js - FULL CODE HOÀN CHỈNH (CÓ LỆNH .donate)
+// index.js - FULL CODE HOÀN CHỈNH (ĐÃ FIX + THÊM DEBUG)
 
 // Tắt warnings
 process.removeAllListeners('warning');
@@ -27,11 +27,11 @@ const {
     handleCode,
     handleDeleteCode,
     handleDeleteAllCodes,
-    handleDonate // ✅ THÊM DONATE
+    handleDonate
 } = require('./commands/admin');
 const { handleMShop, buyVipPackage, buyTitle, showVipPackages, showTitles } = require('./commands/shop');
 
-// ✅ Import buttonHandler
+// Import buttonHandler
 const { handleButtonClick } = require('./handlers/buttonHandler');
 
 // ✅ Validation token
@@ -58,7 +58,8 @@ const client = new Client({
         timeout: 60000,
         retries: 5
     },
-    shards: 'auto'
+    shards: 'auto',
+    makeCache: () => new Map()
 });
 
 // ===== AUTO BACKUP KHI BOT TẮT =====
@@ -89,22 +90,25 @@ async function emergencyBackup() {
 }
 
 process.on('SIGTERM', async () => {
+    console.log('🔴 Nhận tín hiệu SIGTERM');
     await emergencyBackup();
     setTimeout(() => process.exit(0), 3000);
 });
 
 process.on('SIGINT', async () => {
+    console.log('🔴 Nhận tín hiệu SIGINT');
     await emergencyBackup();
     setTimeout(() => process.exit(0), 3000);
 });
 
 process.on('SIGHUP', async () => {
+    console.log('🔴 Nhận tín hiệu SIGHUP');
     await emergencyBackup();
     setTimeout(() => process.exit(0), 3000);
 });
 
 process.on('uncaughtException', async (error) => {
-    console.error('❌ UNCAUGHT EXCEPTION:', error.message);
+    console.error('❌ UNCAUGHT EXCEPTION:', error);
     await emergencyBackup();
     setTimeout(() => process.exit(1), 3000);
 });
@@ -135,9 +139,31 @@ setInterval(async () => {
     }
 }, 6 * 60 * 60 * 1000);
 
+// ===== DEBUG LOGS (THÊM MỚI) =====
+client.on('debug', (info) => {
+    // Bỏ qua spam logs
+    if (info.includes('Hit a 429') || info.includes('Remaining')) return;
+    if (info.includes('Heartbeat')) return;
+    console.log('🐛 DEBUG:', info);
+});
+
+client.on('warn', (info) => {
+    console.warn('⚠️ WARN:', info);
+});
+
+client.on('rateLimit', (info) => {
+    console.warn('⏱️ RATE LIMIT:', info);
+});
+
 // ✅ Bot ready
 client.once('ready', () => {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`✅ Bot online: ${client.user.tag}`);
+    console.log(`🆔 Bot ID: ${client.user.id}`);
+    console.log(`🎮 Servers: ${client.guilds.cache.size}`);
+    console.log(`👥 Users: ${client.users.cache.size}`);
+    console.log(`🏓 Ping: ${client.ws.ping}ms`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     client.user.setPresence({
         activities: [{
@@ -152,7 +178,7 @@ client.once('ready', () => {
 
 // ===== DISCORD ERROR HANDLERS =====
 client.on('shardDisconnect', (event, shardId) => {
-    console.warn(`⚠️ Shard ${shardId} disconnect`);
+    console.warn(`⚠️ Shard ${shardId} disconnect - Code: ${event.code}`);
 });
 
 client.on('shardReconnecting', (shardId) => {
@@ -165,6 +191,7 @@ client.on('shardResume', (shardId) => {
 
 client.on('error', (error) => {
     console.error('❌ Client error:', error.message);
+    console.error('Stack:', error.stack);
 });
 
 // Kiểm tra kết nối mỗi 30s
@@ -175,6 +202,8 @@ setInterval(async () => {
         if (!client.isReady()) {
             connectionCheckFailCount++;
             console.error(`❌ Bot OFFLINE! Lần ${connectionCheckFailCount}`);
+            console.error(`📊 WS Status: ${client.ws.status}`);
+            console.error(`🏓 Ping: ${client.ws.ping}ms`);
             
             if (connectionCheckFailCount >= 3) {
                 console.error('🚨 Mất kết nối quá lâu! RESTART...');
@@ -208,7 +237,7 @@ setInterval(async () => {
     try {
         if (client.isReady()) {
             const ping = client.ws.ping;
-            console.log(`💓 Ping: ${ping}ms`);
+            console.log(`💓 Heartbeat | Ping: ${ping}ms | Status: ${client.ws.status}`);
             
             if (ping > 1000) {
                 console.warn(`⚠️ Ping cao: ${ping}ms`);
@@ -228,7 +257,7 @@ client.on('messageCreate', async (message) => {
     
     try {
         if (command === '.ping') {
-            await message.reply('🏓 Pong! Bot đang hoạt động!');
+            await message.reply(`🏓 Pong! Bot đang hoạt động!\n⏱️ Ping: ${client.ws.ping}ms`);
         }
         else if (command === '.tx') {
             await handleTaiXiu(message, client);
@@ -293,7 +322,6 @@ client.on('messageCreate', async (message) => {
         else if (command === '.givetitle') {
             await handleGiveTitle(message, args);
         }
-        // ✅ THÊM LỆNH .donate
         else if (command === '.donate') {
             await handleDonate(message, args);
         }
@@ -363,6 +391,7 @@ client.on('messageCreate', async (message) => {
         
     } catch (error) {
         console.error('❌ Command error:', error.message);
+        console.error('Stack:', error.stack);
         
         try {
             await message.reply('❌ Có lỗi xảy ra!');
@@ -377,12 +406,10 @@ client.on('interactionCreate', async (interaction) => {
         if (interaction.isButton()) {
             const { customId } = interaction;
             
-            // ✅ Xử lý nút mở menu cược
             if (customId === 'open_bet_menu') {
                 const bettingSession = getBettingSession();
                 await handleButtonClick(interaction, bettingSession);
             }
-            // Shop buttons (giữ nguyên)
             else if (customId === 'shop_vip') {
                 await showVipPackages(interaction);
             }
@@ -393,12 +420,10 @@ client.on('interactionCreate', async (interaction) => {
         
         // ===== XỬ LÝ SELECT MENU =====
         else if (interaction.isStringSelectMenu()) {
-            // ✅ Menu chọn loại cược
             if (interaction.customId === 'bet_type_select') {
                 const bettingSession = getBettingSession();
                 await handleButtonClick(interaction, bettingSession);
             }
-            // Shop menus (giữ nguyên)
             else if (interaction.customId === 'buy_vip') {
                 const vipId = interaction.values[0];
                 await buyVipPackage(interaction, vipId);
@@ -411,21 +436,19 @@ client.on('interactionCreate', async (interaction) => {
         
         // ===== XỬ LÝ MODAL =====
         else if (interaction.isModalSubmit()) {
-            // ✅ Modal cược Tài/Xỉu/Chẵn/Lẻ
             if (interaction.customId.startsWith('bet_modal_')) {
                 await handleBetModal(interaction);
             }
-            // ✅ Modal cược số
             else if (interaction.customId === 'modal_bet_number') {
                 await handleBetNumberModal(interaction);
             }
-            // ✅ Modal cược tổng
             else if (interaction.customId === 'modal_bet_total') {
                 await handleBetTotalModal(interaction);
             }
         }
     } catch (error) {
         console.error('❌ Interaction error:', error.message);
+        console.error('Stack:', error.stack);
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ 
                 content: '❌ Có lỗi xảy ra!', 
@@ -452,7 +475,6 @@ async function handleBetNumberModal(interaction) {
         });
     }
     
-    // Validate số
     if (isNaN(number) || number < 1 || number > 6) {
         return interaction.reply({ 
             content: '❌ Số phải từ 1 đến 6!', 
@@ -460,7 +482,6 @@ async function handleBetNumberModal(interaction) {
         });
     }
     
-    // Parse số tiền
     let amount = 0;
     if (amountStr.endsWith('k')) {
         amount = parseFloat(amountStr) * 1000;
@@ -525,7 +546,6 @@ async function handleBetTotalModal(interaction) {
         });
     }
     
-    // Validate tổng
     if (isNaN(totalValue) || totalValue < 3 || totalValue > 18) {
         return interaction.reply({ 
             content: '❌ Tổng phải từ 3 đến 18!', 
@@ -533,7 +553,6 @@ async function handleBetTotalModal(interaction) {
         });
     }
     
-    // Parse số tiền
     let amount = 0;
     if (amountStr.endsWith('k')) {
         amount = parseFloat(amountStr) * 1000;
@@ -653,15 +672,17 @@ const server = http.createServer((req, res) => {
     if (req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
-            status: 'online',
+            status: client.isReady() ? 'online' : 'offline',
             uptime: process.uptime(),
             botReady: client.isReady(),
+            wsStatus: client.ws.status,
+            ping: client.ws.ping,
             memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
             timestamp: new Date().toISOString()
         }));
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end(`🤖 Bot online\n⏰ Uptime: ${Math.floor(process.uptime() / 60)}m\n📊 ${client.isReady() ? '✅ Online' : '❌ Offline'}`);
+        res.end(`🤖 Bot ${client.isReady() ? 'online' : 'offline'}\n⏰ Uptime: ${Math.floor(process.uptime() / 60)}m\n🏓 Ping: ${client.ws.ping}ms`);
     }
 });
 
@@ -691,14 +712,20 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // ===== LOGIN =====
+console.log('🔑 Đang login...');
+console.log(`📝 Token length: ${TOKEN.length}`);
+
 if (TOKEN.length < 50) {
     console.error('❌ Invalid token!');
     process.exit(1);
 }
 
 client.login(TOKEN).then(() => {
-    console.log('✅ Login thành công!');
+    console.log('✅ Login request sent!');
 }).catch((error) => {
-    console.error('❌ Login thất bại:', error.message);
+    console.error('❌ Login thất bại!');
+    console.error('Error:', error.message);
+    console.error('Code:', error.code);
+    console.error('Stack:', error.stack);
     process.exit(1);
 });
