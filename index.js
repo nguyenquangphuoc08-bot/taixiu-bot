@@ -1,4 +1,4 @@
-// index.js - CLEAN VERSION (NO SPAM LOGS)
+// index.js - FULL CODE HOÀN CHỈNH (CÓ LỆNH .donate)
 
 // Tắt warnings
 process.removeAllListeners('warning');
@@ -26,7 +26,8 @@ const {
     handleCreateGiftcode,
     handleCode,
     handleDeleteCode,
-    handleDeleteAllCodes
+    handleDeleteAllCodes,
+    handleDonate // ✅ THÊM DONATE
 } = require('./commands/admin');
 const { handleMShop, buyVipPackage, buyTitle, showVipPackages, showTitles } = require('./commands/shop');
 
@@ -292,6 +293,10 @@ client.on('messageCreate', async (message) => {
         else if (command === '.givetitle') {
             await handleGiveTitle(message, args);
         }
+        // ✅ THÊM LỆNH .donate
+        else if (command === '.donate') {
+            await handleDonate(message, args);
+        }
         else if (command === '.restart' && message.author.id === ADMIN_ID) {
             await message.reply('🔄 Đang restart...');
             await emergencyBackup();
@@ -341,6 +346,9 @@ client.on('messageCreate', async (message) => {
 - .givevip @user [1-3] - Cấp VIP
 - .removevip @user - Xóa VIP
 - .givetitle @user [tên] - Cấp danh hiệu
+
+💰 Admin - Tiền:
+- .donate @user [số tiền] - Tặng tiền (VD: .donate @ai 100m)
 
 🔧 Admin - Database:
 - .dbinfo, .backup, .backupnow, .restore, .restart`;
