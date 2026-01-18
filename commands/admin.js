@@ -1,3 +1,5 @@
+// commands/admin.js - FULL CODE HOÀN CHỈNH (CÓ .donate)
+
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, DB_PATH, getUser } = require('../utils/database');
 const giftcode = require('../giftcode'); // ✅ Import module giftcode
@@ -313,6 +315,107 @@ Admin đã cấp danh hiệu **"${titleName}"** cho <@${targetUser.id}>!
 }
 
 // ========================================
+// 💰 DONATE COMMAND (ADMIN TẶNG TIỀN)
+// ========================================
+
+/**
+ * Lệnh: .donate (Admin tặng tiền cho user)
+ * Sử dụng: .donate @user [số tiền]
+ * Ví dụ: .donate @User123 100000000
+ *        .donate @User123 100m
+ *        .donate @User123 5b
+ */
+async function handleDonate(message, args) {
+    if (message.author.id !== ADMIN_ID) {
+        return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
+    }
+    
+    // Kiểm tra mention user
+    const targetUser = message.mentions.users.first();
+    
+    if (!targetUser) {
+        return message.reply('❌ **Sử dụng:** `.donate @user [số tiền]`\n\n**Ví dụ:**\n`.donate @User 100000000`\n`.donate @User 100m` → 100 triệu\n`.donate @User 5b` → 5 tỷ');
+    }
+    
+    // Kiểm tra số tiền
+    let amountStr = args[2]?.toLowerCase().trim();
+    
+    if (!amountStr) {
+        return message.reply('❌ Vui lòng nhập số tiền!\n\n**Ví dụ:**\n`.donate @User 100m`\n`.donate @User 5b`');
+    }
+    
+    // Parse số tiền (hỗ trợ k, m, b)
+    let amount = 0;
+    
+    if (amountStr.endsWith('k')) {
+        amount = parseFloat(amountStr) * 1000;
+    } else if (amountStr.endsWith('m')) {
+        amount = parseFloat(amountStr) * 1000000;
+    } else if (amountStr.endsWith('b')) {
+        amount = parseFloat(amountStr) * 1000000000;
+    } else {
+        amount = parseInt(amountStr);
+    }
+    
+    // Validate số tiền
+    if (isNaN(amount) || amount <= 0) {
+        return message.reply('❌ Số tiền không hợp lệ!\n\n**Hỗ trợ format:**\n`100k` = 100,000\n`50m` = 50,000,000\n`5b` = 5,000,000,000\n`100000000` = 100 triệu');
+    }
+    
+    // Giới hạn tối đa (tùy chọn - có thể bỏ nếu muốn không giới hạn)
+    const MAX_DONATE = 999999999999999; // ~999 nghìn tỷ
+    
+    if (amount > MAX_DONATE) {
+        return message.reply(`❌ Số tiền quá lớn! Tối đa: **${MAX_DONATE.toLocaleString('en-US')}** Mcoin`);
+    }
+    
+    // Tặng tiền cho user
+    const user = getUser(targetUser.id);
+    const oldBalance = user.balance;
+    user.balance += amount;
+    saveDB();
+    
+    // Gửi thông báo thành công
+    const embed = new EmbedBuilder()
+        .setTitle('💰 ADMIN TẶNG TIỀN THÀNH CÔNG!')
+        .setColor('#2ecc71')
+        .setDescription(`
+Admin <@${message.author.id}> đã tặng **${amount.toLocaleString('en-US')} Mcoin** cho <@${targetUser.id}>!
+
+**📊 Thống kê:**
+💵 Số tiền tặng: **${amount.toLocaleString('en-US')}** Mcoin
+💰 Số dư cũ: ${oldBalance.toLocaleString('en-US')} Mcoin
+✨ Số dư mới: **${user.balance.toLocaleString('en-US')}** Mcoin
+➕ Tăng: +${amount.toLocaleString('en-US')} Mcoin
+        `)
+        .setFooter({ text: `Tặng bởi Admin ${message.author.tag}` })
+        .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    
+    // Gửi DM cho người nhận (nếu có thể)
+    try {
+        const dmEmbed = new EmbedBuilder()
+            .setTitle('🎁 BẠN NHẬN ĐƯỢC TIỀN TỪ ADMIN!')
+            .setColor('#f39c12')
+            .setDescription(`
+Admin đã tặng bạn **${amount.toLocaleString('en-US')} Mcoin**!
+
+💰 **Số dư mới:** ${user.balance.toLocaleString('en-US')} Mcoin
+
+Chúc bạn chơi vui vẻ! 🎉
+            `)
+            .setTimestamp();
+        
+        await targetUser.send({ embeds: [dmEmbed] });
+    } catch (e) {
+        // Không gửi được DM (user tắt DM hoặc chưa chat với bot)
+    }
+    
+    console.log(`✅ Admin ${message.author.tag} donate ${amount.toLocaleString('en-US')} Mcoin cho ${targetUser.tag}`);
+}
+
+// ========================================
 // 📤 SENDCODE - PHÁT CODE CÔNG KHAI
 // ========================================
 
@@ -511,103 +614,4 @@ async function handleRestoreFile(message) {
     const attachment = message.attachments.first();
     
     if (!attachment.name.endsWith('.json')) {
-        return message.reply('❌ File phải có định dạng `.json`!');
-    }
-    
-    const processingMsg = await message.reply('⏳ Đang xử lý restore...');
-    
-    try {
-        const backupData = await new Promise((resolve, reject) => {
-            https.get(attachment.url, (res) => {
-                let data = '';
-                
-                if (res.statusCode !== 200) {
-                    reject(new Error(`HTTP Error: ${res.statusCode}`));
-                    return;
-                }
-                
-                res.setEncoding('utf8');
-                res.on('data', chunk => data += chunk);
-                res.on('end', () => {
-                    try {
-                        resolve(JSON.parse(data));
-                    } catch (e) {
-                        reject(new Error('File JSON không hợp lệ'));
-                    }
-                });
-            }).on('error', (e) => {
-                reject(new Error(`Không thể tải file: ${e.message}`));
-            });
-        });
-        
-        if (!backupData.users || typeof backupData.users !== 'object') {
-            return processingMsg.edit('❌ File backup thiếu cấu trúc `users`!');
-        }
-        
-        if (!Array.isArray(backupData.history)) {
-            return processingMsg.edit('❌ File backup thiếu cấu trúc `history`!');
-        }
-        
-        const oldBackup = JSON.stringify(database, null, 2);
-        const backupDir = './database';
-        if (!fs.existsSync(backupDir)) {
-            fs.mkdirSync(backupDir, { recursive: true });
-        }
-        fs.writeFileSync('./database/backup_before_restore.json', oldBackup);
-        
-        Object.assign(database, backupData);
-        
-        if (typeof database.jackpot !== 'number') database.jackpot = 0;
-        if (!database.lastCheckin) database.lastCheckin = {};
-        
-        saveDB();
-        
-        const embed = new EmbedBuilder()
-            .setTitle('✅ RESTORE THÀNH CÔNG!')
-            .setColor('#2ecc71')
-            .setDescription(`
-Database đã được khôi phục!
-
-**Thống kê:**
-👥 Người chơi: **${Object.keys(database.users).length}**
-📊 Lịch sử: **${database.history.length}** phiên
-🎰 Hũ: **${database.jackpot.toLocaleString('en-US')}** Mcoin
-
-🔒 **Data cũ backup tại:** \`./database/backup_before_restore.json\`
-            `)
-            .setTimestamp();
-        
-        await processingMsg.edit({ content: null, embeds: [embed] });
-        
-        console.log('✅ Database restored by', message.author.tag);
-        
-    } catch (error) {
-        console.error('❌ Lỗi restore:', error);
-        return processingMsg.edit(`❌ **Lỗi:**\n\`\`\`${error.message}\`\`\``);
-    }
-}
-
-// ========================================
-// EXPORTS
-// ========================================
-
-module.exports = {
-    // Giftcode
-    handleCreateGiftcode,
-    handleCode,
-    handleDeleteCode,
-    handleDeleteAllCodes,
-    handleSendCode,
-    
-    // VIP & Title
-    handleGiveVip,
-    handleRemoveVip,
-    handleGiveTitle,
-    
-    // Database
-    handleDbInfo,
-    handleBackup,
-    handleBackupNow,
-    handleRestore,
-    handleRestoreFile
-};
+        return message.reply('❌ File phải có định
