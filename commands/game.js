@@ -1,4 +1,4 @@
-// commands/game.js - SILENT MODE (KHÔNG LOG GÌ CẢ)
+// commands/game.js - FULL CODE HOÀN CHỈNH
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
@@ -70,7 +70,8 @@ async function handleTaiXiu(message, client) {
 
 💎 **HŨ HIỆN TẠI: ${jackpotDisplay} Mcoin**
 📊 Mỗi cược cộng 2/3 vào hũ
-🔥 **Hũ đạt 1 tỷ = 100% NỔ**
+🔥 **Hũ đạt 1 tỷ = 100% NỔ (ÉP 3 XÚC XẮC TRÙNG)!**
+🎲 **Dưới 1 tỷ = Nổ ngẫu nhiên theo %**
         `)
         .addFields(
             { name: '⏰ Thời gian còn lại', value: '30 giây', inline: true },
@@ -488,4 +489,3 @@ module.exports = {
     getBettingSession,
     setBettingSession
 };
-
