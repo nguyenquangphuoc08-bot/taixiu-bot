@@ -70,8 +70,7 @@ async function handleTaiXiu(message, client) {
 
 💎 **HŨ HIỆN TẠI: ${jackpotDisplay} Mcoin**
 📊 Mỗi cược cộng 2/3 vào hũ
-🔥 **Hũ đạt 1 tỷ = 100% NỔ (ÉP 3 XÚC XẮC TRÙNG)!**
-🎲 **Dưới 1 tỷ = Nổ ngẫu nhiên theo %**
+🔥 **Hũ đạt 100% NỔ!**
         `)
         .addFields(
             { name: '⏰ Thời gian còn lại', value: '30 giây', inline: true },
@@ -489,4 +488,5 @@ module.exports = {
     getBettingSession,
     setBettingSession
 };
+
 
