@@ -2,16 +2,11 @@
   "name": "taixiu-bot",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "postinstall": "npm rebuild canvas"
-  },
+  "scripts": { "start": "node index.js" },
   "dependencies": {
     "discord.js": "^14.17.3",
-    "canvas": "2.11.0",
+    "@napi-rs/canvas": "^0.1.52",
     "dotenv": "^16.3.1"
   },
-  "engines": {
-    "node": "18.x"
-  }
+  "engines": { "node": "18.x" }
 }
