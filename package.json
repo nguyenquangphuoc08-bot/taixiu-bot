@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": { 
-    "start": "pm2-runtime index.js" 
+  "start": "node index.js" 
   },
   "dependencies": {
     "discord.js": "^14.17.3",
