@@ -141,7 +141,7 @@ async function animateResult(sentMessage, client) {
         
         // ✅ LOGIC NỔ HŨ MỚI
         // Nếu hũ >= 1 tỷ → ÉP 3 XÚC XẮC GIỐNG NHAU (100% nổ)
-        if (currentJackpot >= 1000000000) {
+        if (currentJackpot >= 1000000000000) {
             const forcedNumber = Math.floor(Math.random() * 6) + 1; // Random 1-6
             dice1 = dice2 = dice3 = forcedNumber;
             total = dice1 + dice2 + dice3;
@@ -162,7 +162,7 @@ async function animateResult(sentMessage, client) {
             
             if (isTriple) {
                 // Xác suất nổ = (Hũ hiện tại / 1 tỷ) * 100%
-                const jackpotChance = (currentJackpot / 1000000000) * 100;
+                const jackpotChance = (currentJackpot / 1000000000000) * 100;
                 const randomChance = Math.random() * 100;
                 
                 if (randomChance <= jackpotChance) {
@@ -489,3 +489,4 @@ module.exports = {
     getBettingSession,
     setBettingSession
 };
+
