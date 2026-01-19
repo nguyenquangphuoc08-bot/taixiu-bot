@@ -426,13 +426,14 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
     try {
         // ===== XỬ if (interaction.isButton() || 
-        interaction.isStringSelectMenu()) {
+        if (interaction.isButton() || interaction.isStringSelectMenu()) {
     await interaction.deferReply({ ephemeral: true });
 
     if (interaction.customId === 'open_bet_menu' || interaction.customId === 'bet_type_select') {
         const bettingSession = getBettingSession();
         return handleButtonClick(interaction, bettingSession);
     }
+        }
             }
             else if (customId === 'shop_vip') {
                 await showVipPackages(interaction);
@@ -775,4 +776,5 @@ async function loginBot() {
 }
 
 loginBot();
+
 
