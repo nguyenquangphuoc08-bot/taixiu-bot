@@ -1,4 +1,4 @@
-// index.js - FULL CODE HOÀN CHỈNH (ĐÃ SỬA LỖI TẮT BOT)
+// index.js - FULL CODE HOÀN CHỈNH (ĐÃ SỬA BACKUP + HELP ĐẸP + FIX SLOW RESPONSE)
 
 // Tắt warnings
 process.removeAllListeners('warning');
@@ -7,7 +7,7 @@ const http = require('http');
 const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
 const { database, saveDB, getUser } = require('./utils/database');
-const { autoBackup } = require('./services/backup');
+const { autoBackup, backupOnStartup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
 // Import commands
 const { handleTaiXiu, handleSoiCau, getBettingSession, setBettingSession } = require('./commands/game');
@@ -73,43 +73,44 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT = 3;
 
 // ===== AUTO BACKUP KHI BOT TẮT =====
+let isShuttingDown = false;
+
 async function emergencyBackup() {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    
     try {
-        if (!client.isReady()) return;
+        if (!client.isReady()) {
+            console.log('⚠️ Bot chưa ready, skip backup');
+            return;
+        }
         
-        const channel = await client.channels.fetch(BACKUP_CHANNEL_ID).catch(() => null);
-        if (!channel) return;
+        // ✅ Dùng hàm từ services/backup.js
+        await backupOnShutdown(client, BACKUP_CHANNEL_ID);
+        saveDB(); // Lưu DB cuối cùng
         
-        const backupData = JSON.stringify(database, null, 2);
-        const buffer = Buffer.from(backupData, 'utf-8');
-        const timestamp = new Date().toLocaleString('vi-VN');
-        const fileName = `emergency_${Date.now()}.json`;
-        
-        await channel.send({
-            content: `🚨 **BACKUP KHẨN CẤP** - Bot đang tắt\n⏰ ${timestamp}`,
-            files: [{
-                attachment: buffer,
-                name: fileName
-            }]
-        });
-        
-        console.log('✅ Backup khẩn cấp thành công!');
     } catch (error) {
         console.error('❌ Lỗi backup khẩn cấp:', error.message);
     }
 }
 
-// ✅ SỬA LẠI: KHÔNG TẮT BOT KHI NHẬN SIGTERM
-process.on('SIGTERM', () => {
-    console.log('🔴 Nhận tín hiệu SIGTERM - ĐANG BỎ QUA (Render test signal)');
-    // KHÔNG tắt bot, chỉ log
+// ✅ BẮT SIGTERM VÀ BACKUP TRƯỚC KHI TẮT
+process.on('SIGTERM', async () => {
+    console.log('🔴 Nhận tín hiệu SIGTERM - Đang backup và tắt...');
+    await emergencyBackup();
+    setTimeout(() => {
+        client.destroy();
+        process.exit(0);
+    }, 3000); // Đợi 3s để backup xong
 });
 
 process.on('SIGINT', async () => {
     console.log('🔴 Nhận tín hiệu SIGINT - Đang tắt bot...');
     await emergencyBackup();
-    client.destroy();
-    setTimeout(() => process.exit(0), 2000);
+    setTimeout(() => {
+        client.destroy();
+        process.exit(0);
+    }, 3000);
 });
 
 process.on('SIGHUP', () => {
@@ -120,7 +121,7 @@ process.on('SIGHUP', () => {
 process.on('uncaughtException', async (error) => {
     console.error('❌ UNCAUGHT EXCEPTION:', error);
     await emergencyBackup();
-    setTimeout(() => process.exit(1), 2000);
+    setTimeout(() => process.exit(1), 3000);
 });
 
 process.on('unhandledRejection', async (reason) => {
@@ -192,7 +193,7 @@ client.once('ready', async () => {
         status: 'online'
     });
     
-    // ✅ Gửi message test vào channel đầu tiên
+    // ✅ GỬI TEST MESSAGE
     try {
         const guild = client.guilds.cache.first();
         if (guild) {
@@ -207,6 +208,20 @@ client.once('ready', async () => {
         }
     } catch (error) {
         console.error('❌ Không thể gửi test message:', error.message);
+    }
+    
+    // ✅ BACKUP KHI KHỞI ĐỘNG
+    try {
+        await backupOnStartup(client, BACKUP_CHANNEL_ID);
+    } catch (error) {
+        console.error('❌ Lỗi backup khởi động:', error.message);
+    }
+    
+    // ✅ KHÔI PHỤC PHIÊN CƯỢC BỊ GIÁN ĐOẠN
+    try {
+        await restoreInterruptedSession(client);
+    } catch (error) {
+        console.error('❌ Lỗi restore session:', error.message);
     }
     
     console.log('✅ Tất cả hệ thống đã sẵn sàng!');
@@ -241,29 +256,31 @@ client.on('error', (error) => {
     }
 });
 
-// Heartbeat mỗi 5 phút
+// Heartbeat mỗi 5 phút (giảm spam log)
 setInterval(async () => {
     try {
         if (client.isReady()) {
             const ping = client.ws.ping;
-            console.log(`💓 Heartbeat | Ping: ${ping}ms | Status: ${client.ws.status} | Guilds: ${client.guilds.cache.size}`);
+            
+            // ✅ CHỈ LOG NẾU PING QUÁ CAO
+            if (ping > 500) {
+                console.log(`💓 Heartbeat | Ping: ${ping}ms ⚠️ | Guilds: ${client.guilds.cache.size}`);
+            }
             
             if (ping > 1000) {
-                console.warn(`⚠️ Ping cao: ${ping}ms`);
+                console.warn(`🚨 PING RẤT CAO: ${ping}ms`);
             }
-        } else {
-            console.warn('⚠️ Bot not ready!');
         }
     } catch (error) {
         console.error('❌ Heartbeat error:', error.message);
     }
 }, 5 * 60 * 1000);
 
-// ===== XỬ LÝ TIN NHẮN =====
+// ===== XỬ LÝ TIN NHẮN (ĐÃ THÊM TIMEOUT DETECTION) =====
 client.on('messageCreate', async (message) => {
-    // ✅ LOG DEBUG - Kiểm tra bot có nhận message không
-    if (!message.author.bot) {
-        console.log(`📨 Message từ ${message.author.tag}: "${message.content}"`);
+    // ✅ CHỈ LOG COMMAND, KHÔNG LOG MESSAGE THƯỜNG
+    if (!message.author.bot && message.content.startsWith('.')) {
+        console.log(`📨 [${new Date().toLocaleTimeString()}] ${message.author.tag}: "${message.content}"`);
     }
     
     if (message.author.bot) return;
@@ -271,169 +288,212 @@ client.on('messageCreate', async (message) => {
     const args = message.content.trim().split(/\s+/);
     const command = args[0].toLowerCase();
     
-    // ✅ LOG COMMAND
     if (command.startsWith('.')) {
-        console.log(`🎮 Command detected: ${command}`);
-    }
-    
-    try {
-        if (command === '.ping') {
-            console.log('💬 Responding to .ping...');
-            await message.reply(`🏓 Pong! Bot đang hoạt động!\n⏱️ Ping: ${client.ws.ping}ms\n⏰ Uptime: ${Math.floor(process.uptime() / 60)}m`);
-        }
-        else if (command === '.tx') {
-            await handleTaiXiu(message, client);
-        }
-        else if (command === '.sc' || command === '.soicau') {
-            await handleSoiCau(message);
-        }
-        else if (command === '.mcoin') {
-            await handleMcoin(message);
-        }
-        else if (command === '.setbg') {
-            await handleSetBg(message, args);
-        }
-        else if (command === '.tang') {
-            await handleTang(message, args);
-        }
-        else if (command === '.diemdanh' || command === '.dd') {
-            await handleDiemDanh(message);
-        }
-        else if (command === '.daily') {
-            await handleDaily(message);
-        }
-        else if (command === '.claimall') {
-            await handleClaimAll(message);
-        }
-        else if (command === '.mshop') {
-            await handleMShop(message);
-        }
-        else if (command === '.giftcode' || command === '.gc') {
-            await handleCreateGiftcode(message, args);
-        }
-        else if (command === '.code') {
-            await handleCode(message, args);
-        }
-        else if (command === '.delcode' || command === '.xoacode') {
-            await handleDeleteCode(message, args);
-        }
-        else if (command === '.delallcode' || command === '.xoatatca') {
-            await handleDeleteAllCodes(message);
-        }
-        else if (command === '.dbinfo') {
-            await handleDbInfo(message);
-        }
-        else if (command === '.backup') {
-            await handleBackup(message);
-        }
-        else if (command === '.backupnow') {
-            await handleBackupNow(message);
-        }
-        else if (command === '.restore') {
-            await handleRestore(message);
-        }
-        else if (command === '.sendcode') {
-            await handleSendCode(message, GIFTCODE_CHANNEL_ID);
-        }
-        else if (command === '.givevip') {
-            await handleGiveVip(message, args);
-        }
-        else if (command === '.removevip') {
-            await handleRemoveVip(message, args);
-        }
-        else if (command === '.givetitle') {
-            await handleGiveTitle(message, args);
-        }
-        else if (command === '.donate') {
-            await handleDonate(message, args);
-        }
-        else if (command === '.restart' && message.author.id === ADMIN_ID) {
-            await message.reply('🔄 Đang restart...');
-            await emergencyBackup();
-            process.exit(0);
-        }
-        else if (command === '.help') {
-            const isAdmin = message.author.id === ADMIN_ID;
-            
-            if (!isAdmin) {
-                const helpText = `📜 **DANH SÁCH LỆNH**
-
-👤 **Người chơi:**
-\`\`\`
-.tx          - Bắt đầu phiên cược
-.mcoin       - Xem profile
-.setbg       - Đặt ảnh nền (upload + gõ lệnh)
-.sc          - Xem lịch sử
-.tang @user [số] - Tặng tiền
-.dd          - Điểm danh (8h/lần)
-.daily       - Nhiệm vụ hằng ngày
-.claimall    - Nhận thưởng
-.mshop       - Cửa hàng VIP
-\`\`\`
-
-🎁 **Giftcode:**
-\`\`\`
-.code        - Xem danh sách code
-.code <MÃ>   - Nhập code
-\`\`\`
-
-🎲 **Đặt cược:** Bấm nút → Chọn cửa → Nhập tiền
-(VD: 1k, 5m, 10b)`;
-                
-                await message.reply(helpText);
-            } else {
-                const adminHelpText = `📜 **DANH SÁCH LỆNH**
-
-👤 **Người chơi:**
-\`\`\`
-.tx, .mcoin, .setbg, .sc, .tang, .dd, .daily, .claimall, .mshop
-\`\`\`
-
-🎁 **Giftcode:**
-\`\`\`
-.code - Xem/Nhập code
-\`\`\`
-
-🔧 **Admin - Giftcode:**
-\`\`\`
-.giftcode [tiền] [giờ] - Tạo code
-.sendcode              - Phát code
-.delcode <MÃ>          - Xóa code
-.delallcode            - Xóa tất cả
-\`\`\`
-
-🔧 **Admin - VIP:**
-\`\`\`
-.givevip @user [1-3]   - Cấp VIP
-.removevip @user       - Xóa VIP
-.givetitle @user [tên] - Cấp danh hiệu
-\`\`\`
-
-💰 **Admin - Tiền:**
-\`\`\`
-.donate @user [số tiền] - Tặng tiền (VD: .donate @ai 100m)
-\`\`\`
-
-🔧 **Admin - Database:**
-\`\`\`
-.dbinfo, .backup, .backupnow, .restore, .restart
-\`\`\``;
-                
-                await message.reply(adminHelpText);
-            }
-        }
+        console.log(`🎮 [${new Date().toLocaleTimeString()}] Command: ${command}`);
         
-        if (message.attachments.size > 0 && message.content.toLowerCase().includes('restore confirm')) {
-            await handleRestoreFile(message);
-        }
-        
-    } catch (error) {
-        console.error('❌ Command error:', error.message);
-        console.error('Stack:', error.stack);
+        // ✅ THÊM TIMEOUT CHO MỌI COMMAND
+        const commandTimeout = setTimeout(() => {
+            console.error(`⏱️ TIMEOUT: Command ${command} chưa xong sau 5s!`);
+            message.reply('⚠️ Lệnh đang xử lý chậm, vui lòng đợi...').catch(() => {});
+        }, 5000); // Cảnh báo sau 5 giây
         
         try {
-            await message.reply('❌ Có lỗi xảy ra! Vui lòng thử lại.');
-        } catch {}
+            const startTime = Date.now();
+            
+            if (command === '.ping') {
+                await message.reply(`🏓 Pong! Bot đang hoạt động!\n⏱️ Ping: ${client.ws.ping}ms\n⏰ Uptime: ${Math.floor(process.uptime() / 60)}m`);
+            }
+            else if (command === '.tx') {
+                await handleTaiXiu(message, client);
+            }
+            else if (command === '.sc' || command === '.soicau') {
+                await handleSoiCau(message);
+            }
+            else if (command === '.mcoin') {
+                await handleMcoin(message);
+            }
+            else if (command === '.setbg') {
+                await handleSetBg(message, args);
+            }
+            else if (command === '.tang') {
+                await handleTang(message, args);
+            }
+            else if (command === '.diemdanh' || command === '.dd') {
+                await handleDiemDanh(message);
+            }
+            else if (command === '.daily') {
+                await handleDaily(message);
+            }
+            else if (command === '.claimall') {
+                await handleClaimAll(message);
+            }
+            else if (command === '.mshop') {
+                await handleMShop(message);
+            }
+            else if (command === '.giftcode' || command === '.gc') {
+                await handleCreateGiftcode(message, args);
+            }
+            else if (command === '.code') {
+                await handleCode(message, args);
+            }
+            else if (command === '.delcode' || command === '.xoacode') {
+                await handleDeleteCode(message, args);
+            }
+            else if (command === '.delallcode' || command === '.xoatatca') {
+                await handleDeleteAllCodes(message);
+            }
+            else if (command === '.dbinfo') {
+                await handleDbInfo(message);
+            }
+            else if (command === '.backup') {
+                await handleBackup(message);
+            }
+            else if (command === '.backupnow') {
+                await handleBackupNow(message);
+            }
+            else if (command === '.restore') {
+                await handleRestore(message);
+            }
+            else if (command === '.sendcode') {
+                await handleSendCode(message, GIFTCODE_CHANNEL_ID);
+            }
+            else if (command === '.givevip') {
+                await handleGiveVip(message, args);
+            }
+            else if (command === '.removevip') {
+                await handleRemoveVip(message, args);
+            }
+            else if (command === '.givetitle') {
+                await handleGiveTitle(message, args);
+            }
+            else if (command === '.donate') {
+                await handleDonate(message, args);
+            }
+            else if (command === '.restart' && message.author.id === ADMIN_ID) {
+                await message.reply('🔄 Đang restart...');
+                await emergencyBackup();
+                process.exit(0);
+            }
+            else if (command === '.help') {
+                const isAdmin = message.author.id === ADMIN_ID;
+                
+                if (!isAdmin) {
+                    // ✅ HELP USER - Dạng embed đẹp
+                    const embed = {
+                        color: 0x00ff00,
+                        title: '📋 HƯỚNG DẪN SỬ DỤNG BOT',
+                        description: '**Chào mừng bạn đến với hệ thống Tài Xỉu!**',
+                        fields: [
+                            {
+                                name: '🎲 Game',
+                                value: '```\n.tx       → Bắt đầu phiên cược Tài Xỉu\n.sc       → Xem lịch sử kết quả\n```',
+                                inline: false
+                            },
+                            {
+                                name: '👤 Tài Khoản',
+                                value: '```\n.mcoin    → Xem profile & số dư\n.setbg    → Đặt ảnh nền (upload + gõ lệnh)\n.dd       → Điểm danh (8h/lần)\n```',
+                                inline: false
+                            },
+                            {
+                                name: '🎁 Nhiệm Vụ & Quà',
+                                value: '```\n.daily    → Nhiệm vụ hằng ngày\n.claimall → Nhận hết thưởng\n```',
+                                inline: false
+                            },
+                            {
+                                name: '💸 Giao Dịch',
+                                value: '```\n.tang @user [số] → Tặng tiền cho người khác\n.mshop           → Cửa hàng VIP & danh hiệu\n```',
+                                inline: false
+                            },
+                            {
+                                name: '🎁 Giftcode',
+                                value: '```\n.code          → Xem danh sách code có sẵn\n.code <MÃ>     → Nhập code để nhận quà\n```',
+                                inline: false
+                            },
+                            {
+                                name: '📌 Cách Đặt Cược',
+                                value: '```\n1. Gõ .tx để mở phiên cược\n2. Bấm nút "Đặt Cược"\n3. Chọn cửa (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n4. Nhập số tiền (VD: 1k, 5m, 10b)\n```',
+                                inline: false
+                            },
+                            {
+                                name: '💡 Lưu Ý',
+                                value: '• Tối thiểu cược: **1,000 Mcoin**\n• Tài: 11-18 điểm | Xỉu: 3-10 điểm\n• Chẵn/Lẻ: Tổng chẵn/lẻ\n• Cược số (1-6): x3 tiền\n• Cược tổng (3-18): x5 tiền',
+                                inline: false
+                            }
+                        ],
+                        footer: {
+                            text: '🎮 Chúc bạn may mắn!'
+                        },
+                        timestamp: new Date()
+                    };
+                    
+                    await message.reply({ embeds: [embed] });
+                } else {
+                    // ✅ HELP ADMIN - Dạng embed đầy đủ
+                    const embed = {
+                        color: 0xff0000,
+                        title: '⚙️ BẢNG LỆNH ADMIN',
+                        description: '**Quyền hạn quản trị viên**',
+                        fields: [
+                            {
+                                name: '👥 Lệnh Người Chơi (Dùng được)',
+                                value: '```\n.tx, .mcoin, .setbg, .sc, .tang, .dd\n.daily, .claimall, .mshop, .code\n```',
+                                inline: false
+                            },
+                            {
+                                name: '🎁 Quản Lý Giftcode',
+                                value: '```fix\n.giftcode [tiền] [giờ]  → Tạo code mới\n.sendcode               → Gửi code vào channel\n.delcode <MÃ>           → Xóa 1 code\n.delallcode             → Xóa tất cả code\n```',
+                                inline: false
+                            },
+                            {
+                                name: '👑 Quản Lý VIP',
+                                value: '```yaml\n.givevip @user [1-3]   → Cấp VIP (1,2,3)\n.removevip @user       → Xóa VIP\n.givetitle @user [tên] → Cấp danh hiệu\n```',
+                                inline: false
+                            },
+                            {
+                                name: '💰 Quản Lý Tiền',
+                                value: '```css\n.donate @user [số] → Tặng tiền\n(VD: .donate @ai 100m)\n```',
+                                inline: false
+                            },
+                            {
+                                name: '🔧 Quản Lý Database',
+                                value: '```arduino\n.dbinfo     → Xem thông tin DB\n.backup     → Xem hướng dẫn backup\n.backupnow  → Backup ngay lập tức\n.restore    → Khôi phục DB\n.restart    → Khởi động lại bot\n```',
+                                inline: false
+                            },
+                            {
+                                name: '📊 Thông Tin Hệ Thống',
+                                value: `\`\`\`\n📶 Ping: ${client.ws.ping}ms\n⏰ Uptime: ${Math.floor(process.uptime() / 60)}m\n💾 Memory: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB\n\`\`\``,
+                                inline: false
+                            }
+                        ],
+                        footer: {
+                            text: '🔒 Chỉ Admin mới thấy bảng này'
+                        },
+                        timestamp: new Date()
+                    };
+                    
+                    await message.reply({ embeds: [embed] });
+                }
+            }
+            
+            // ✅ LOG THỜI GIAN XỬ LÝ
+            const duration = Date.now() - startTime;
+            console.log(`✅ [${new Date().toLocaleTimeString()}] ${command} hoàn thành sau ${duration}ms`);
+            
+            clearTimeout(commandTimeout);
+            
+        } catch (error) {
+            clearTimeout(commandTimeout);
+            console.error(`❌ [${new Date().toLocaleTimeString()}] Command error:`, error.message);
+            console.error('Stack:', error.stack);
+            
+            try {
+                await message.reply('❌ Có lỗi xảy ra! Vui lòng thử lại.');
+            } catch {}
+        }
+    }
+    
+    if (message.attachments.size > 0 && message.content.toLowerCase().includes('restore confirm')) {
+        await handleRestoreFile(message);
     }
 });
 
@@ -633,7 +693,8 @@ async function handleBetTotalModal(interaction) {
     saveDB();
     
     await interaction.reply({ 
-        content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào tổng **${totalValue}** thành công!\n📊 Thắng nhận: **${(amount * 5).toLocaleString('en-US')}** Mcoin (x5)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
+        content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào tổng
+ **${totalValue}** thành công!\n📊 Thắng nhận: **${(amount * 5).toLocaleString('en-US')}** Mcoin (x5)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
         flags: 64
     });
 }
