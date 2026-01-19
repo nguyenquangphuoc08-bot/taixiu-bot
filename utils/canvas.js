@@ -1,6 +1,6 @@
 // utils/canvas.js - CẬP NHẬT HÀM createHistoryChart()
 
-const { createCanvas, loadImage } = require('canvas');
+const { createCanvas, loadImage } = require("@napi-rs/canvas");
 
 // === HÀM MỚI: VẼ BIỂU ĐỒ GIỐNG ẢNH ===
 function createHistoryChart(historyArray) {
@@ -525,3 +525,4 @@ module.exports = {
     createHistoryChart,
     createProfileCard
 };
+
