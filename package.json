@@ -2,7 +2,7 @@
   "name": "taixiu-bot",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": { "start": "node index.js" },
+  "scripts": { "start": "pm2-runtime index.js" }
   "dependencies": {
     "discord.js": "^14.17.3",
     "@napi-rs/canvas": "^0.1.52",
