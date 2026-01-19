@@ -425,13 +425,14 @@ client.on('messageCreate', async (message) => {
 // ===== INTERACTIONS =====
 client.on('interactionCreate', async (interaction) => {
     try {
-        // ===== XỬ LÝ BUTTON =====
-        if (interaction.isButton()) {
-            const { customId } = interaction;
-            
-            if (customId === 'open_bet_menu') {
-                const bettingSession = getBettingSession();
-                await handleButtonClick(interaction, bettingSession);
+        // ===== XỬ if (interaction.isButton() || 
+        interaction.isStringSelectMenu()) {
+    await interaction.deferReply({ ephemeral: true });
+
+    if (interaction.customId === 'open_bet_menu' || interaction.customId === 'bet_type_select') {
+        const bettingSession = getBettingSession();
+        return handleButtonClick(interaction, bettingSession);
+    }
             }
             else if (customId === 'shop_vip') {
                 await showVipPackages(interaction);
@@ -774,3 +775,4 @@ async function loginBot() {
 }
 
 loginBot();
+
