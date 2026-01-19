@@ -1,4 +1,4 @@
-// index.js - ĐÃ SỬA (XÓA TIMEOUT + GIẢM LOG)
+// index.js - FULL CODE HOÀN CHỈNH (ĐÃ SỬA LỖI CÚ PHÁP)
 
 // Tắt warnings
 process.removeAllListeners('warning');
@@ -145,14 +145,18 @@ setInterval(async () => {
     }
 }, 6 * 60 * 60 * 1000);
 
-// ===== DEBUG LOGS (GIẢM SPAM CHO RENDER) =====
+// ===== DEBUG LOGS =====
 client.on('debug', (info) => {
-    // ✅ CHỈ LOG LỖI QUAN TRỌNG
+    if (info.includes('Heartbeat')) return;
     if (info.includes('Hit a 429')) {
-        console.warn('⚠️ RATE LIMITED');
+        console.warn('⚠️ RATE LIMITED:', info);
         return;
     }
-    // BỎ QUA HẾT CÁC LOG KHÁC
+    if (info.includes('Remaining')) return;
+    
+    if (info.includes('Identifying') || info.includes('Ready') || info.includes('READY')) {
+        console.log('🐛 DEBUG:', info);
+    }
 });
 
 client.on('warn', (info) => {
@@ -184,14 +188,28 @@ client.once('ready', async () => {
         status: 'online'
     });
     
-    // ✅ BACKUP KHI KHỞI ĐỘNG
+    try {
+        const guild = client.guilds.cache.first();
+        if (guild) {
+            const channel = guild.channels.cache.find(ch => 
+                ch.isTextBased() && 
+                ch.permissionsFor(client.user).has(['SendMessages', 'ViewChannel'])
+            );
+            if (channel) {
+                await channel.send('✅ **Bot đã online!** Gõ `.ping` để test!');
+                console.log(`✅ Đã gửi message test vào #${channel.name}`);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Không thể gửi test message:', error.message);
+    }
+    
     try {
         await backupOnStartup(client, BACKUP_CHANNEL_ID);
     } catch (error) {
         console.error('❌ Lỗi backup khởi động:', error.message);
     }
     
-    // ✅ KHÔI PHỤC PHIÊN CƯỢC BỊ GIÁN ĐOẠN
     try {
         await restoreInterruptedSession(client);
     } catch (error) {
@@ -224,17 +242,52 @@ client.on('shardResume', (shardId) => {
 
 client.on('error', (error) => {
     console.error('❌ Client error:', error.message);
+    if (error.stack) {
+        console.error('Stack:', error.stack.split('\n').slice(0, 3).join('\n'));
+    }
 });
 
-// ===== XỬ LÝ TIN NHẮN (ĐÃ XÓA TIMEOUT) =====
+// Heartbeat mỗi 5 phút
+setInterval(async () => {
+    try {
+        if (client.isReady()) {
+            const ping = client.ws.ping;
+            
+            if (ping > 500) {
+                console.log(`💓 Heartbeat | Ping: ${ping}ms ⚠️ | Guilds: ${client.guilds.cache.size}`);
+            }
+            
+            if (ping > 1000) {
+                console.warn(`🚨 PING RẤT CAO: ${ping}ms`);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Heartbeat error:', error.message);
+    }
+}, 5 * 60 * 1000);
+
+// ===== XỬ LÝ TIN NHẮN =====
 client.on('messageCreate', async (message) => {
+    if (!message.author.bot && message.content.startsWith('.')) {
+        console.log(`📨 [${new Date().toLocaleTimeString()}] ${message.author.tag}: "${message.content}"`);
+    }
+    
     if (message.author.bot) return;
     
     const args = message.content.trim().split(/\s+/);
     const command = args[0].toLowerCase();
     
     if (command.startsWith('.')) {
+        console.log(`🎮 [${new Date().toLocaleTimeString()}] Command: ${command}`);
+        
+        const commandTimeout = setTimeout(() => {
+            console.error(`⏱️ TIMEOUT: Command ${command} chưa xong sau 5s!`);
+            message.reply('⚠️ Lệnh đang xử lý chậm, vui lòng đợi...').catch(() => {});
+        }, 5000);
+        
         try {
+            const startTime = Date.now();
+            
             if (command === '.ping') {
                 await message.reply(`🏓 Pong! Bot đang hoạt động!\n⏱️ Ping: ${client.ws.ping}ms\n⏰ Uptime: ${Math.floor(process.uptime() / 60)}m`);
             }
@@ -408,8 +461,15 @@ client.on('messageCreate', async (message) => {
                 }
             }
             
+            const duration = Date.now() - startTime;
+            console.log(`✅ [${new Date().toLocaleTimeString()}] ${command} hoàn thành sau ${duration}ms`);
+            
+            clearTimeout(commandTimeout);
+            
         } catch (error) {
-            console.error(`❌ Command error:`, error.message);
+            clearTimeout(commandTimeout);
+            console.error(`❌ [${new Date().toLocaleTimeString()}] Command error:`, error.message);
+            console.error('Stack:', error.stack);
             
             try {
                 await message.reply('❌ Có lỗi xảy ra! Vui lòng thử lại.');
@@ -422,18 +482,15 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// ===== INTERACTIONS =====
+// ===== INTERACTIONS - ✅ ĐÃ SỬA LỖI =====
 client.on('interactionCreate', async (interaction) => {
     try {
-        // ===== XỬ if (interaction.isButton() || 
-        if (interaction.isButton() || interaction.isStringSelectMenu()) {
-    await interaction.deferReply({ ephemeral: true });
-
-    if (interaction.customId === 'open_bet_menu' || interaction.customId === 'bet_type_select') {
-        const bettingSession = getBettingSession();
-        return handleButtonClick(interaction, bettingSession);
-    }
-        }
+        if (interaction.isButton()) {
+            const { customId } = interaction;
+            
+            if (customId === 'open_bet_menu') {
+                const bettingSession = getBettingSession();
+                await handleButtonClick(interaction, bettingSession);
             }
             else if (customId === 'shop_vip') {
                 await showVipPackages(interaction);
@@ -442,8 +499,6 @@ client.on('interactionCreate', async (interaction) => {
                 await showTitles(interaction);
             }
         }
-        
-        // ===== XỬ LÝ SELECT MENU =====
         else if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'bet_type_select') {
                 const bettingSession = getBettingSession();
@@ -458,8 +513,6 @@ client.on('interactionCreate', async (interaction) => {
                 await buyTitle(interaction, titleId);
             }
         }
-        
-        // ===== XỬ LÝ MODAL =====
         else if (interaction.isModalSubmit()) {
             if (interaction.customId.startsWith('bet_modal_')) {
                 await handleBetModal(interaction);
@@ -473,10 +526,11 @@ client.on('interactionCreate', async (interaction) => {
         }
     } catch (error) {
         console.error('❌ Interaction error:', error.message);
+        console.error('Stack:', error.stack);
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ 
                 content: '❌ Có lỗi xảy ra!', 
-                ephemeral: true
+                flags: 64
             }).catch(() => {});
         }
     }
@@ -495,14 +549,14 @@ async function handleBetNumberModal(interaction) {
     if (!bettingSession) {
         return interaction.reply({ 
             content: '❌ Phiên đã kết thúc!', 
-            ephemeral: true
+            flags: 64
         });
     }
     
     if (isNaN(number) || number < 1 || number > 6) {
         return interaction.reply({ 
             content: '❌ Số phải từ 1 đến 6!', 
-            ephemeral: true
+            flags: 64
         });
     }
     
@@ -520,21 +574,21 @@ async function handleBetNumberModal(interaction) {
     if (isNaN(amount) || amount < 1000) {
         return interaction.reply({ 
             content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
-            ephemeral: true
+            flags: 64
         });
     }
     
     if (amount > 100000000000000) {
         return interaction.reply({ 
             content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
-            ephemeral: true
+            flags: 64
         });
     }
     
     if (user.balance < amount) {
         return interaction.reply({ 
             content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-            ephemeral: true
+            flags: 64
         });
     }
     
@@ -549,7 +603,7 @@ async function handleBetNumberModal(interaction) {
     
     await interaction.reply({ 
         content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào số **${number}** thành công!\n🎯 Thắng nhận: **${(amount * 3).toLocaleString('en-US')}** Mcoin (x3)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-        ephemeral: true
+        flags: 64
     });
 }
 
@@ -566,14 +620,14 @@ async function handleBetTotalModal(interaction) {
     if (!bettingSession) {
         return interaction.reply({ 
             content: '❌ Phiên đã kết thúc!', 
-            ephemeral: true
+            flags: 64
         });
     }
     
     if (isNaN(totalValue) || totalValue < 3 || totalValue > 18) {
         return interaction.reply({ 
             content: '❌ Tổng phải từ 3 đến 18!', 
-            ephemeral: true
+            flags: 64
         });
     }
     
@@ -591,21 +645,21 @@ async function handleBetTotalModal(interaction) {
     if (isNaN(amount) || amount < 1000) {
         return interaction.reply({ 
             content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
-            ephemeral: true
+            flags: 64
         });
     }
     
     if (amount > 100000000000000) {
         return interaction.reply({ 
             content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
-            ephemeral: true
+            flags: 64
         });
     }
     
     if (user.balance < amount) {
         return interaction.reply({ 
             content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-            ephemeral: true
+            flags: 64
         });
     }
     
@@ -620,11 +674,12 @@ async function handleBetTotalModal(interaction) {
     
     await interaction.reply({ 
         content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào tổng **${totalValue}** thành công!\n📊 Thắng nhận: **${(amount * 5).toLocaleString('en-US')}** Mcoin (x5)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-        ephemeral: true
+        flags: 64
     });
 }
 
 // ===== XỬ LÝ MODAL TÀI/XỈU/CHẴN/LẺ =====
+
 async function handleBetModal(interaction) {
     const customId = interaction.customId;
     let amountStr = interaction.fields.getTextInputValue('bet_amount').toLowerCase().trim();
@@ -632,13 +687,15 @@ async function handleBetModal(interaction) {
     const user = getUser(userId);
     const bettingSession = getBettingSession();
     
+
     if (!bettingSession) {
         return interaction.reply({ 
             content: '❌ Phiên đã kết thúc!', 
-            ephemeral: true
+            flags: 64
         });
     }
-    
+
+
     let amount = 0;
     if (amountStr.endsWith('k')) {
         amount = parseFloat(amountStr) * 1000;
@@ -650,61 +707,52 @@ async function handleBetModal(interaction) {
         amount = parseInt(amountStr);
     }
     
+
     if (isNaN(amount) || amount < 1000) {
         return interaction.reply({ 
             content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
-            ephemeral: true
+            flags: 64
+
         });
+
     }
+
     
+
     if (amount > 100000000000000) {
         return interaction.reply({ 
             content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
-            ephemeral: true
+            flags: 64
         });
     }
-    
+
+
     if (user.balance < amount) {
         return interaction.reply({ 
             content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-            ephemeral: true
+            flags: 64
         });
     }
     
-    user.balance -= amount;
-    
-    const betType = customId.replace('bet_modal_', '');
-    bettingSession.bets[userId] = { amount, type: betType };
-    
-    saveDB();
-    
-    const typeEmoji = {
-        'tai': '🔵 Tài',
-        'xiu': '🔴 Xỉu',
-        'chan': '🟣 Chẵn',
-        'le': '🟡 Lẻ'
-    };
-    
-    await interaction.reply({ 
-        content: `✅ Đặt cược ${amount.toLocaleString('en-US')} Mcoin vào ${typeEmoji[betType]} thành công!\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-        ephemeral: true
-    });
-}
-
-// ===== HTTP SERVER =====
+// ===== HTTP SERVER (ĐÃ CẢI THIỆN) =====
 const server = http.createServer((req, res) => {
-    // ✅ KHÔNG LOG REQUEST - GIẢM SPAM
-    
+    console.log(`📡 HTTP Request: ${req.method} ${req.url}`);
+
+
     if (req.url === '/health' || req.url === '/') {
         const status = {
             status: client.isReady() ? 'online' : 'offline',
             uptime: Math.floor(process.uptime()),
             botReady: client.isReady(),
+            wsStatus: client.ws.status,
             ping: client.ws.ping,
             memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            guilds: client.guilds.cache.size,
+            users: client.users.cache.size
         };
-        
+
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(status, null, 2));
     } else {
@@ -713,68 +761,83 @@ const server = http.createServer((req, res) => {
     }
 });
 
+
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 HTTP Server listening on 0.0.0.0:${PORT}`);
+    console.log(`🔗 Health check: http://localhost:${PORT}/health`);
 });
+
 
 server.on('error', (err) => {
     console.error('❌ HTTP Server error:', err);
     process.exit(1);
 });
 
-// ===== SELF-PING (3 PHÚT) - KHÔNG LOG =====
+
+// ===== SELF-PING (3 PHÚT) =====
+
 setInterval(() => {
     const url = process.env.RENDER_EXTERNAL_URL;
     if (!url) return;
+
     
     let pingUrl = url.startsWith('http') ? url : 'https://' + url;
     pingUrl = pingUrl.replace(/\/$/, '') + '/health';
+
     
     const https = require('https');
-    https.get(pingUrl, () => {
-        // ✅ KHÔNG LOG - GIẢM SPAM
-    }).on('error', () => {
-        // ✅ KHÔNG LOG LỖI PING
+    https.get(pingUrl, res => {
+        console.log(`✅ Ping OK - ${res.statusCode}`);
+    }).on('error', err => {
+        console.error('❌ Ping fail:', err.message);
     });
 }, 3 * 60 * 1000);
 
+
 // ===== LOGIN =====
+
 console.log('🔑 Token:', TOKEN ? TOKEN.substring(0, 20) + '...' : 'MISSING');
+
 
 let attempts = 0;
 async function loginBot() {
     attempts++;
     console.log(`\n🔄 LOGIN #${attempts}/5`);
-    
+
+
     try {
         const timeout = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Timeout')), 30000)
         );
+
         
         await Promise.race([client.login(TOKEN), timeout]);
         console.log('✅✅✅ LOGIN SUCCESS ✅✅✅\n');
         attempts = 0;
         
+
     } catch (error) {
         console.log('❌❌❌ LOGIN FAILED ❌❌❌');
         console.error('Error:', error.message);
-        
+  
+
         if (error.code === 'TokenInvalid') {
             console.error('🚨 TOKEN SAI! Reset token trên Discord Portal');
             process.exit(1);
         }
         
+
         if (attempts >= 5) {
             console.error('🚨 Quá 5 lần thử, thoát...');
             process.exit(1);
         }
-        
+
+
         console.log(`🔄 Retry sau ${attempts * 10}s...\n`);
         setTimeout(loginBot, attempts * 10000);
     }
 }
 
+
 loginBot();
-
-
