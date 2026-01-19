@@ -4,8 +4,19 @@ const { getUser } = require('../utils/database');
 
 async function handleButtonClick(interaction, bettingSession) {
     try {
+        // ✅ DEFER NGAY nếu là Button (không phải Modal/Select Menu)
+        if (interaction.isButton() && !interaction.deferred && !interaction.replied) {
+            await interaction.deferUpdate().catch(() => {});
+        }
+
         // ✅ Kiểm tra có phiên cược không
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
+            // Nếu đã defer thì dùng editReply
+            if (interaction.deferred) {
+                return interaction.editReply({ 
+                    content: '❌ Không có phiên cược nào đang diễn ra!' 
+                }).catch(() => {});
+            }
             return interaction.reply({ 
                 content: '❌ Không có phiên cược nào đang diễn ra!', 
                 ephemeral: true 
@@ -14,6 +25,11 @@ async function handleButtonClick(interaction, bettingSession) {
         
         // ✅ Kiểm tra đã cược chưa
         if (bettingSession.bets[interaction.user.id]) {
+            if (interaction.deferred) {
+                return interaction.editReply({ 
+                    content: '❌ Bạn đã đặt cược rồi!' 
+                }).catch(() => {});
+            }
             return interaction.reply({ 
                 content: '❌ Bạn đã đặt cược rồi!', 
                 ephemeral: true 
@@ -66,6 +82,14 @@ async function handleButtonClick(interaction, bettingSession) {
             
             const row = new ActionRowBuilder().addComponents(selectMenu);
             
+            // ✅ Kiểm tra đã defer chưa
+            if (interaction.deferred) {
+                return await interaction.editReply({
+                    content: '⚡ **Chọn cửa và đặt cược tại đây!**',
+                    components: [row]
+                });
+            }
+            
             return await interaction.reply({
                 content: '⚡ **Chọn cửa và đặt cược tại đây!**',
                 components: [row],
@@ -104,8 +128,7 @@ async function handleButtonClick(interaction, bettingSession) {
                 const secondRow = new ActionRowBuilder().addComponents(amountInput);
                 
                 modal.addComponents(firstRow, secondRow);
-                await interaction.showModal(modal);
-                return;
+                return await interaction.showModal(modal);
             }
             
             // ✅ Nếu chọn Cược Tổng
@@ -134,8 +157,7 @@ async function handleButtonClick(interaction, bettingSession) {
                 const secondRow = new ActionRowBuilder().addComponents(amountInput);
                 
                 modal.addComponents(firstRow, secondRow);
-                await interaction.showModal(modal);
-                return;
+                return await interaction.showModal(modal);
             }
             
             // ✅ Nếu chọn Tài/Xỉu/Chẵn/Lẻ
@@ -164,16 +186,26 @@ async function handleButtonClick(interaction, bettingSession) {
             const row = new ActionRowBuilder().addComponents(amountInput);
             modal.addComponents(row);
             
-            await interaction.showModal(modal);
+            return await interaction.showModal(modal);
         }
         
     } catch (error) {
         console.error('❌ Button handler error:', error);
-        if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ 
-                content: '❌ Có lỗi xảy ra khi xử lý button!', 
-                ephemeral: true 
-            }).catch(() => {});
+        
+        // ✅ Xử lý error an toàn hơn
+        try {
+            if (interaction.deferred) {
+                await interaction.editReply({ 
+                    content: '❌ Có lỗi xảy ra khi xử lý!'
+                });
+            } else if (!interaction.replied) {
+                await interaction.reply({ 
+                    content: '❌ Có lỗi xảy ra khi xử lý button!', 
+                    ephemeral: true 
+                });
+            }
+        } catch (e) {
+            console.log('⚠️ Không thể reply/edit - interaction đã hết hạn');
         }
     }
 }
