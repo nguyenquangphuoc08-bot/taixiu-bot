@@ -1,22 +1,13 @@
-// handlers/buttonHandler.js
+// handlers/buttonHandler.js - ĐÃ SỬA (XÓA DEFER, FIX TIMEOUT)
 const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { getUser } = require('../utils/database');
 
 async function handleButtonClick(interaction, bettingSession) {
     try {
-        // ✅ DEFER NGAY nếu là Button (không phải Modal/Select Menu)
-        if (interaction.isButton() && !interaction.deferred && !interaction.replied) {
-            await interaction.deferUpdate().catch(() => {});
-        }
-
+        // ✅ KHÔNG DEFER NỮA - REPLY TRỰC TIẾP
+        
         // ✅ Kiểm tra có phiên cược không
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
-            // Nếu đã defer thì dùng editReply
-            if (interaction.deferred) {
-                return interaction.editReply({ 
-                    content: '❌ Không có phiên cược nào đang diễn ra!' 
-                }).catch(() => {});
-            }
             return interaction.reply({ 
                 content: '❌ Không có phiên cược nào đang diễn ra!', 
                 ephemeral: true 
@@ -25,11 +16,6 @@ async function handleButtonClick(interaction, bettingSession) {
         
         // ✅ Kiểm tra đã cược chưa
         if (bettingSession.bets[interaction.user.id]) {
-            if (interaction.deferred) {
-                return interaction.editReply({ 
-                    content: '❌ Bạn đã đặt cược rồi!' 
-                }).catch(() => {});
-            }
             return interaction.reply({ 
                 content: '❌ Bạn đã đặt cược rồi!', 
                 ephemeral: true 
@@ -82,14 +68,7 @@ async function handleButtonClick(interaction, bettingSession) {
             
             const row = new ActionRowBuilder().addComponents(selectMenu);
             
-            // ✅ Kiểm tra đã defer chưa
-            if (interaction.deferred) {
-                return await interaction.editReply({
-                    content: '⚡ **Chọn cửa và đặt cược tại đây!**',
-                    components: [row]
-                });
-            }
-            
+            // ✅ REPLY TRỰC TIẾP
             return await interaction.reply({
                 content: '⚡ **Chọn cửa và đặt cược tại đây!**',
                 components: [row],
@@ -190,22 +169,17 @@ async function handleButtonClick(interaction, bettingSession) {
         }
         
     } catch (error) {
-        console.error('❌ Button handler error:', error);
+        console.error('❌ Button handler error:', error.message);
         
-        // ✅ Xử lý error an toàn hơn
         try {
-            if (interaction.deferred) {
-                await interaction.editReply({ 
-                    content: '❌ Có lỗi xảy ra khi xử lý!'
-                });
-            } else if (!interaction.replied) {
+            if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({ 
                     content: '❌ Có lỗi xảy ra khi xử lý button!', 
                     ephemeral: true 
                 });
             }
         } catch (e) {
-            console.log('⚠️ Không thể reply/edit - interaction đã hết hạn');
+            // Bỏ qua nếu interaction hết hạn
         }
     }
 }
