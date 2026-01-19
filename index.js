@@ -1,4 +1,4 @@
-// index.js - FULL CODE HOÀN CHỈNH (ĐÃ SỬA BACKUP + HELP ĐẸP + FIX SLOW RESPONSE)
+// index.js - ĐÃ SỬA (XÓA TIMEOUT + GIẢM LOG)
 
 // Tắt warnings
 process.removeAllListeners('warning');
@@ -85,9 +85,8 @@ async function emergencyBackup() {
             return;
         }
         
-        // ✅ Dùng hàm từ services/backup.js
         await backupOnShutdown(client, BACKUP_CHANNEL_ID);
-        saveDB(); // Lưu DB cuối cùng
+        saveDB();
         
     } catch (error) {
         console.error('❌ Lỗi backup khẩn cấp:', error.message);
@@ -101,7 +100,7 @@ process.on('SIGTERM', async () => {
     setTimeout(() => {
         client.destroy();
         process.exit(0);
-    }, 3000); // Đợi 3s để backup xong
+    }, 3000);
 });
 
 process.on('SIGINT', async () => {
@@ -115,7 +114,6 @@ process.on('SIGINT', async () => {
 
 process.on('SIGHUP', () => {
     console.log('🔴 Nhận tín hiệu SIGHUP - ĐANG BỎ QUA');
-    // KHÔNG tắt bot
 });
 
 process.on('uncaughtException', async (error) => {
@@ -126,7 +124,6 @@ process.on('uncaughtException', async (error) => {
 
 process.on('unhandledRejection', async (reason) => {
     console.error('❌ UNHANDLED REJECTION:', reason);
-    // KHÔNG tắt bot vì rejection, chỉ log
 });
 
 // ===== BACKUP ĐỊNH KỲ 6 TIẾNG =====
@@ -148,20 +145,14 @@ setInterval(async () => {
     }
 }, 6 * 60 * 60 * 1000);
 
-// ===== DEBUG LOGS (chặn spam) =====
+// ===== DEBUG LOGS (GIẢM SPAM CHO RENDER) =====
 client.on('debug', (info) => {
-    // Chặn spam logs
-    if (info.includes('Heartbeat')) return;
+    // ✅ CHỈ LOG LỖI QUAN TRỌNG
     if (info.includes('Hit a 429')) {
-        console.warn('⚠️ RATE LIMITED:', info);
+        console.warn('⚠️ RATE LIMITED');
         return;
     }
-    if (info.includes('Remaining')) return;
-    
-    // Log các sự kiện quan trọng
-    if (info.includes('Identifying') || info.includes('Ready') || info.includes('READY')) {
-        console.log('🐛 DEBUG:', info);
-    }
+    // BỎ QUA HẾT CÁC LOG KHÁC
 });
 
 client.on('warn', (info) => {
@@ -193,23 +184,6 @@ client.once('ready', async () => {
         status: 'online'
     });
     
-    // ✅ GỬI TEST MESSAGE
-    try {
-        const guild = client.guilds.cache.first();
-        if (guild) {
-            const channel = guild.channels.cache.find(ch => 
-                ch.isTextBased() && 
-                ch.permissionsFor(client.user).has(['SendMessages', 'ViewChannel'])
-            );
-            if (channel) {
-                await channel.send('✅ **Bot đã online!** Gõ `.ping` để test!');
-                console.log(`✅ Đã gửi message test vào #${channel.name}`);
-            }
-        }
-    } catch (error) {
-        console.error('❌ Không thể gửi test message:', error.message);
-    }
-    
     // ✅ BACKUP KHI KHỞI ĐỘNG
     try {
         await backupOnStartup(client, BACKUP_CHANNEL_ID);
@@ -231,12 +205,11 @@ client.once('ready', async () => {
 client.on('shardDisconnect', (event, shardId) => {
     console.warn(`⚠️ Shard ${shardId} disconnect - Code: ${event.code}`);
     
-    if (event.code === 1000) return; // Normal close
+    if (event.code === 1000) return;
     
     reconnectAttempts++;
     if (reconnectAttempts > MAX_RECONNECT) {
         console.error('🚨 Too many reconnect attempts!');
-        // KHÔNG exit để tránh loop restart
     }
 });
 
@@ -251,55 +224,17 @@ client.on('shardResume', (shardId) => {
 
 client.on('error', (error) => {
     console.error('❌ Client error:', error.message);
-    if (error.stack) {
-        console.error('Stack:', error.stack.split('\n').slice(0, 3).join('\n'));
-    }
 });
 
-// Heartbeat mỗi 5 phút (giảm spam log)
-setInterval(async () => {
-    try {
-        if (client.isReady()) {
-            const ping = client.ws.ping;
-            
-            // ✅ CHỈ LOG NẾU PING QUÁ CAO
-            if (ping > 500) {
-                console.log(`💓 Heartbeat | Ping: ${ping}ms ⚠️ | Guilds: ${client.guilds.cache.size}`);
-            }
-            
-            if (ping > 1000) {
-                console.warn(`🚨 PING RẤT CAO: ${ping}ms`);
-            }
-        }
-    } catch (error) {
-        console.error('❌ Heartbeat error:', error.message);
-    }
-}, 5 * 60 * 1000);
-
-// ===== XỬ LÝ TIN NHẮN (ĐÃ THÊM TIMEOUT DETECTION) =====
+// ===== XỬ LÝ TIN NHẮN (ĐÃ XÓA TIMEOUT) =====
 client.on('messageCreate', async (message) => {
-    // ✅ CHỈ LOG COMMAND, KHÔNG LOG MESSAGE THƯỜNG
-    if (!message.author.bot && message.content.startsWith('.')) {
-        console.log(`📨 [${new Date().toLocaleTimeString()}] ${message.author.tag}: "${message.content}"`);
-    }
-    
     if (message.author.bot) return;
     
     const args = message.content.trim().split(/\s+/);
     const command = args[0].toLowerCase();
     
     if (command.startsWith('.')) {
-        console.log(`🎮 [${new Date().toLocaleTimeString()}] Command: ${command}`);
-        
-        // ✅ THÊM TIMEOUT CHO MỌI COMMAND
-        const commandTimeout = setTimeout(() => {
-            console.error(`⏱️ TIMEOUT: Command ${command} chưa xong sau 5s!`);
-            message.reply('⚠️ Lệnh đang xử lý chậm, vui lòng đợi...').catch(() => {});
-        }, 5000); // Cảnh báo sau 5 giây
-        
         try {
-            const startTime = Date.now();
-            
             if (command === '.ping') {
                 await message.reply(`🏓 Pong! Bot đang hoạt động!\n⏱️ Ping: ${client.ws.ping}ms\n⏰ Uptime: ${Math.floor(process.uptime() / 60)}m`);
             }
@@ -378,7 +313,6 @@ client.on('messageCreate', async (message) => {
                 const isAdmin = message.author.id === ADMIN_ID;
                 
                 if (!isAdmin) {
-                    // ✅ HELP USER - Dạng embed đẹp
                     const embed = {
                         color: 0x00ff00,
                         title: '📋 HƯỚNG DẪN SỬ DỤNG BOT',
@@ -428,7 +362,6 @@ client.on('messageCreate', async (message) => {
                     
                     await message.reply({ embeds: [embed] });
                 } else {
-                    // ✅ HELP ADMIN - Dạng embed đầy đủ
                     const embed = {
                         color: 0xff0000,
                         title: '⚙️ BẢNG LỆNH ADMIN',
@@ -475,16 +408,8 @@ client.on('messageCreate', async (message) => {
                 }
             }
             
-            // ✅ LOG THỜI GIAN XỬ LÝ
-            const duration = Date.now() - startTime;
-            console.log(`✅ [${new Date().toLocaleTimeString()}] ${command} hoàn thành sau ${duration}ms`);
-            
-            clearTimeout(commandTimeout);
-            
         } catch (error) {
-            clearTimeout(commandTimeout);
-            console.error(`❌ [${new Date().toLocaleTimeString()}] Command error:`, error.message);
-            console.error('Stack:', error.stack);
+            console.error(`❌ Command error:`, error.message);
             
             try {
                 await message.reply('❌ Có lỗi xảy ra! Vui lòng thử lại.');
@@ -546,11 +471,10 @@ client.on('interactionCreate', async (interaction) => {
         }
     } catch (error) {
         console.error('❌ Interaction error:', error.message);
-        console.error('Stack:', error.stack);
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ 
                 content: '❌ Có lỗi xảy ra!', 
-                flags: 64
+                ephemeral: true
             }).catch(() => {});
         }
     }
@@ -569,14 +493,14 @@ async function handleBetNumberModal(interaction) {
     if (!bettingSession) {
         return interaction.reply({ 
             content: '❌ Phiên đã kết thúc!', 
-            flags: 64
+            ephemeral: true
         });
     }
     
     if (isNaN(number) || number < 1 || number > 6) {
         return interaction.reply({ 
             content: '❌ Số phải từ 1 đến 6!', 
-            flags: 64
+            ephemeral: true
         });
     }
     
@@ -594,21 +518,21 @@ async function handleBetNumberModal(interaction) {
     if (isNaN(amount) || amount < 1000) {
         return interaction.reply({ 
             content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
-            flags: 64
+            ephemeral: true
         });
     }
     
     if (amount > 100000000000000) {
         return interaction.reply({ 
             content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
-            flags: 64
+            ephemeral: true
         });
     }
     
     if (user.balance < amount) {
         return interaction.reply({ 
             content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-            flags: 64
+            ephemeral: true
         });
     }
     
@@ -623,7 +547,7 @@ async function handleBetNumberModal(interaction) {
     
     await interaction.reply({ 
         content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào số **${number}** thành công!\n🎯 Thắng nhận: **${(amount * 3).toLocaleString('en-US')}** Mcoin (x3)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-        flags: 64
+        ephemeral: true
     });
 }
 
@@ -640,14 +564,14 @@ async function handleBetTotalModal(interaction) {
     if (!bettingSession) {
         return interaction.reply({ 
             content: '❌ Phiên đã kết thúc!', 
-            flags: 64
+            ephemeral: true
         });
     }
     
     if (isNaN(totalValue) || totalValue < 3 || totalValue > 18) {
         return interaction.reply({ 
             content: '❌ Tổng phải từ 3 đến 18!', 
-            flags: 64
+            ephemeral: true
         });
     }
     
@@ -665,21 +589,21 @@ async function handleBetTotalModal(interaction) {
     if (isNaN(amount) || amount < 1000) {
         return interaction.reply({ 
             content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
-            flags: 64
+            ephemeral: true
         });
     }
     
     if (amount > 100000000000000) {
         return interaction.reply({ 
             content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
-            flags: 64
+            ephemeral: true
         });
     }
     
     if (user.balance < amount) {
         return interaction.reply({ 
             content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-            flags: 64
+            ephemeral: true
         });
     }
     
@@ -693,9 +617,8 @@ async function handleBetTotalModal(interaction) {
     saveDB();
     
     await interaction.reply({ 
-        content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào tổng
- **${totalValue}** thành công!\n📊 Thắng nhận: **${(amount * 5).toLocaleString('en-US')}** Mcoin (x5)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-        flags: 64
+        content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào tổng **${totalValue}** thành công!\n📊 Thắng nhận: **${(amount * 5).toLocaleString('en-US')}** Mcoin (x5)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
+        ephemeral: true
     });
 }
 
@@ -710,7 +633,7 @@ async function handleBetModal(interaction) {
     if (!bettingSession) {
         return interaction.reply({ 
             content: '❌ Phiên đã kết thúc!', 
-            flags: 64
+            ephemeral: true
         });
     }
     
@@ -728,21 +651,21 @@ async function handleBetModal(interaction) {
     if (isNaN(amount) || amount < 1000) {
         return interaction.reply({ 
             content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
-            flags: 64
+            ephemeral: true
         });
     }
     
     if (amount > 100000000000000) {
         return interaction.reply({ 
             content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
-            flags: 64
+            ephemeral: true
         });
     }
     
     if (user.balance < amount) {
         return interaction.reply({ 
             content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-            flags: 64
+            ephemeral: true
         });
     }
     
@@ -762,25 +685,22 @@ async function handleBetModal(interaction) {
     
     await interaction.reply({ 
         content: `✅ Đặt cược ${amount.toLocaleString('en-US')} Mcoin vào ${typeEmoji[betType]} thành công!\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-        flags: 64
+        ephemeral: true
     });
 }
 
-// ===== HTTP SERVER (ĐÃ CẢI THIỆN) =====
+// ===== HTTP SERVER =====
 const server = http.createServer((req, res) => {
-    console.log(`📡 HTTP Request: ${req.method} ${req.url}`);
+    // ✅ KHÔNG LOG REQUEST - GIẢM SPAM
     
     if (req.url === '/health' || req.url === '/') {
         const status = {
             status: client.isReady() ? 'online' : 'offline',
             uptime: Math.floor(process.uptime()),
             botReady: client.isReady(),
-            wsStatus: client.ws.status,
             ping: client.ws.ping,
             memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
-            timestamp: new Date().toISOString(),
-            guilds: client.guilds.cache.size,
-            users: client.users.cache.size
+            timestamp: new Date().toISOString()
         };
         
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -794,7 +714,6 @@ const server = http.createServer((req, res) => {
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 HTTP Server listening on 0.0.0.0:${PORT}`);
-    console.log(`🔗 Health check: http://localhost:${PORT}/health`);
 });
 
 server.on('error', (err) => {
@@ -802,7 +721,7 @@ server.on('error', (err) => {
     process.exit(1);
 });
 
-// ===== SELF-PING (3 PHÚT) =====
+// ===== SELF-PING (3 PHÚT) - KHÔNG LOG =====
 setInterval(() => {
     const url = process.env.RENDER_EXTERNAL_URL;
     if (!url) return;
@@ -811,10 +730,10 @@ setInterval(() => {
     pingUrl = pingUrl.replace(/\/$/, '') + '/health';
     
     const https = require('https');
-    https.get(pingUrl, res => {
-        console.log(`✅ Ping OK - ${res.statusCode}`);
-    }).on('error', err => {
-        console.error('❌ Ping fail:', err.message);
+    https.get(pingUrl, () => {
+        // ✅ KHÔNG LOG - GIẢM SPAM
+    }).on('error', () => {
+        // ✅ KHÔNG LOG LỖI PING
     });
 }, 3 * 60 * 1000);
 
