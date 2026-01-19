@@ -1,4 +1,4 @@
-// index.js - FULL CODE HOÀN CHỈNH (CÓ RATE LIMIT PROTECTION)
+// index.js - FULL CODE HOÀN CHỈNH (ĐÃ SỬA LỖI TẮT BOT)
 
 // Tắt warnings
 process.removeAllListeners('warning');
@@ -63,7 +63,7 @@ const client = new Client({
     },
     rest: {
         timeout: 60000,
-        retries: 3 // ✅ Giảm retries để tránh rate limit
+        retries: 3
     },
     shards: 'auto'
 });
@@ -99,25 +99,22 @@ async function emergencyBackup() {
     }
 }
 
-process.on('SIGTERM', async () => {
-    console.log('🔴 Nhận tín hiệu SIGTERM');
-    await emergencyBackup();
-    client.destroy();
-    setTimeout(() => process.exit(0), 2000);
+// ✅ SỬA LẠI: KHÔNG TẮT BOT KHI NHẬN SIGTERM
+process.on('SIGTERM', () => {
+    console.log('🔴 Nhận tín hiệu SIGTERM - ĐANG BỎ QUA (Render test signal)');
+    // KHÔNG tắt bot, chỉ log
 });
 
 process.on('SIGINT', async () => {
-    console.log('🔴 Nhận tín hiệu SIGINT');
+    console.log('🔴 Nhận tín hiệu SIGINT - Đang tắt bot...');
     await emergencyBackup();
     client.destroy();
     setTimeout(() => process.exit(0), 2000);
 });
 
-process.on('SIGHUP', async () => {
-    console.log('🔴 Nhận tín hiệu SIGHUP');
-    await emergencyBackup();
-    client.destroy();
-    setTimeout(() => process.exit(0), 2000);
+process.on('SIGHUP', () => {
+    console.log('🔴 Nhận tín hiệu SIGHUP - ĐANG BỎ QUA');
+    // KHÔNG tắt bot
 });
 
 process.on('uncaughtException', async (error) => {
@@ -128,8 +125,7 @@ process.on('uncaughtException', async (error) => {
 
 process.on('unhandledRejection', async (reason) => {
     console.error('❌ UNHANDLED REJECTION:', reason);
-    await emergencyBackup();
-    setTimeout(() => process.exit(1), 2000);
+    // KHÔNG tắt bot vì rejection, chỉ log
 });
 
 // ===== BACKUP ĐỊNH KỲ 6 TIẾNG =====
@@ -144,7 +140,7 @@ setInterval(async () => {
     }
     
     const memMB = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
-    console.log(`📊 Memory: ${memMB}MB`);
+    console.log(`📊 Memory: ${memMB}MB | Uptime: ${Math.floor(process.uptime() / 60)}m`);
     
     if (memMB > 450) {
         console.warn(`⚠️ Memory cao: ${memMB}MB`);
@@ -161,7 +157,10 @@ client.on('debug', (info) => {
     }
     if (info.includes('Remaining')) return;
     
-    console.log('🐛 DEBUG:', info);
+    // Log các sự kiện quan trọng
+    if (info.includes('Identifying') || info.includes('Ready') || info.includes('READY')) {
+        console.log('🐛 DEBUG:', info);
+    }
 });
 
 client.on('warn', (info) => {
@@ -173,7 +172,7 @@ client.on('rateLimit', (info) => {
 });
 
 // ✅ Bot ready
-client.once('ready', () => {
+client.once('ready', async () => {
     isReady = true;
     reconnectAttempts = 0;
     
@@ -193,6 +192,23 @@ client.once('ready', () => {
         status: 'online'
     });
     
+    // ✅ Gửi message test vào channel đầu tiên
+    try {
+        const guild = client.guilds.cache.first();
+        if (guild) {
+            const channel = guild.channels.cache.find(ch => 
+                ch.isTextBased() && 
+                ch.permissionsFor(client.user).has(['SendMessages', 'ViewChannel'])
+            );
+            if (channel) {
+                await channel.send('✅ **Bot đã online!** Gõ `.ping` để test!');
+                console.log(`✅ Đã gửi message test vào #${channel.name}`);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Không thể gửi test message:', error.message);
+    }
+    
     console.log('✅ Tất cả hệ thống đã sẵn sàng!');
 });
 
@@ -204,8 +220,8 @@ client.on('shardDisconnect', (event, shardId) => {
     
     reconnectAttempts++;
     if (reconnectAttempts > MAX_RECONNECT) {
-        console.error('🚨 Too many reconnect attempts! Exiting to avoid rate limit.');
-        process.exit(0);
+        console.error('🚨 Too many reconnect attempts!');
+        // KHÔNG exit để tránh loop restart
     }
 });
 
@@ -230,7 +246,7 @@ setInterval(async () => {
     try {
         if (client.isReady()) {
             const ping = client.ws.ping;
-            console.log(`💓 Heartbeat | Ping: ${ping}ms | Status: ${client.ws.status}`);
+            console.log(`💓 Heartbeat | Ping: ${ping}ms | Status: ${client.ws.status} | Guilds: ${client.guilds.cache.size}`);
             
             if (ping > 1000) {
                 console.warn(`⚠️ Ping cao: ${ping}ms`);
@@ -245,14 +261,25 @@ setInterval(async () => {
 
 // ===== XỬ LÝ TIN NHẮN =====
 client.on('messageCreate', async (message) => {
+    // ✅ LOG DEBUG - Kiểm tra bot có nhận message không
+    if (!message.author.bot) {
+        console.log(`📨 Message từ ${message.author.tag}: "${message.content}"`);
+    }
+    
     if (message.author.bot) return;
     
     const args = message.content.trim().split(/\s+/);
     const command = args[0].toLowerCase();
     
+    // ✅ LOG COMMAND
+    if (command.startsWith('.')) {
+        console.log(`🎮 Command detected: ${command}`);
+    }
+    
     try {
         if (command === '.ping') {
-            await message.reply(`🏓 Pong! Bot đang hoạt động!\n⏱️ Ping: ${client.ws.ping}ms`);
+            console.log('💬 Responding to .ping...');
+            await message.reply(`🏓 Pong! Bot đang hoạt động!\n⏱️ Ping: ${client.ws.ping}ms\n⏰ Uptime: ${Math.floor(process.uptime() / 60)}m`);
         }
         else if (command === '.tx') {
             await handleTaiXiu(message, client);
@@ -329,52 +356,68 @@ client.on('messageCreate', async (message) => {
             const isAdmin = message.author.id === ADMIN_ID;
             
             if (!isAdmin) {
-                const helpText = `📜 DANH SÁCH LỆNH
+                const helpText = `📜 **DANH SÁCH LỆNH**
 
-👤 Người chơi:
-- .tx - Bắt đầu phiên cược
-- .mcoin - Xem profile
-- .setbg - Đặt ảnh nền (upload + gõ lệnh)
-- .sc - Xem lịch sử
-- .tang @user [số] - Tặng tiền
-- .dd - Điểm danh (8h/lần)
-- .daily - Nhiệm vụ hằng ngày
-- .claimall - Nhận thưởng
-- .mshop - Cửa hàng VIP
+👤 **Người chơi:**
+\`\`\`
+.tx          - Bắt đầu phiên cược
+.mcoin       - Xem profile
+.setbg       - Đặt ảnh nền (upload + gõ lệnh)
+.sc          - Xem lịch sử
+.tang @user [số] - Tặng tiền
+.dd          - Điểm danh (8h/lần)
+.daily       - Nhiệm vụ hằng ngày
+.claimall    - Nhận thưởng
+.mshop       - Cửa hàng VIP
+\`\`\`
 
-🎁 Giftcode:
-- .code - Xem danh sách code
-- .code <MÃ> - Nhập code
+🎁 **Giftcode:**
+\`\`\`
+.code        - Xem danh sách code
+.code <MÃ>   - Nhập code
+\`\`\`
 
-🎲 Đặt cược: Bấm nút → Chọn cửa → Nhập tiền
+🎲 **Đặt cược:** Bấm nút → Chọn cửa → Nhập tiền
 (VD: 1k, 5m, 10b)`;
                 
                 await message.reply(helpText);
             } else {
-                const adminHelpText = `📜 DANH SÁCH LỆNH
+                const adminHelpText = `📜 **DANH SÁCH LỆNH**
 
-👤 Người chơi:
-- .tx, .mcoin, .setbg, .sc, .tang, .dd, .daily, .claimall, .mshop
+👤 **Người chơi:**
+\`\`\`
+.tx, .mcoin, .setbg, .sc, .tang, .dd, .daily, .claimall, .mshop
+\`\`\`
 
-🎁 Giftcode:
-- .code - Xem/Nhập code
+🎁 **Giftcode:**
+\`\`\`
+.code - Xem/Nhập code
+\`\`\`
 
-🔧 Admin - Giftcode:
-- .giftcode [tiền] [giờ] - Tạo code
-- .sendcode - Phát code
-- .delcode <MÃ> - Xóa code
-- .delallcode - Xóa tất cả
+🔧 **Admin - Giftcode:**
+\`\`\`
+.giftcode [tiền] [giờ] - Tạo code
+.sendcode              - Phát code
+.delcode <MÃ>          - Xóa code
+.delallcode            - Xóa tất cả
+\`\`\`
 
-🔧 Admin - VIP:
-- .givevip @user [1-3] - Cấp VIP
-- .removevip @user - Xóa VIP
-- .givetitle @user [tên] - Cấp danh hiệu
+🔧 **Admin - VIP:**
+\`\`\`
+.givevip @user [1-3]   - Cấp VIP
+.removevip @user       - Xóa VIP
+.givetitle @user [tên] - Cấp danh hiệu
+\`\`\`
 
-💰 Admin - Tiền:
-- .donate @user [số tiền] - Tặng tiền (VD: .donate @ai 100m)
+💰 **Admin - Tiền:**
+\`\`\`
+.donate @user [số tiền] - Tặng tiền (VD: .donate @ai 100m)
+\`\`\`
 
-🔧 Admin - Database:
-- .dbinfo, .backup, .backupnow, .restore, .restart`;
+🔧 **Admin - Database:**
+\`\`\`
+.dbinfo, .backup, .backupnow, .restore, .restart
+\`\`\``;
                 
                 await message.reply(adminHelpText);
             }
@@ -389,7 +432,7 @@ client.on('messageCreate', async (message) => {
         console.error('Stack:', error.stack);
         
         try {
-            await message.reply('❌ Có lỗi xảy ra!');
+            await message.reply('❌ Có lỗi xảy ra! Vui lòng thử lại.');
         } catch {}
     }
 });
@@ -662,69 +705,92 @@ async function handleBetModal(interaction) {
     });
 }
 
-// ===== HTTP SERVER =====
+// ===== HTTP SERVER (ĐÃ CẢI THIỆN) =====
 const server = http.createServer((req, res) => {
-    if (req.url === '/health') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
+    console.log(`📡 HTTP Request: ${req.method} ${req.url}`);
+    
+    if (req.url === '/health' || req.url === '/') {
+        const status = {
             status: client.isReady() ? 'online' : 'offline',
-            uptime: process.uptime(),
+            uptime: Math.floor(process.uptime()),
             botReady: client.isReady(),
             wsStatus: client.ws.status,
             ping: client.ws.ping,
             memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
-            timestamp: new Date().toISOString()
-        }));
+            timestamp: new Date().toISOString(),
+            guilds: client.guilds.cache.size,
+            users: client.users.cache.size
+        };
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(status, null, 2));
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end(`🤖 Bot ${client.isReady() ? 'online' : 'offline'}\n⏰ Uptime: ${Math.floor(process.uptime() / 60)}m\n🏓 Ping: ${client.ws.ping}ms`);
+        res.end(`🤖 Bot ${client.isReady() ? 'ONLINE ✅' : 'OFFLINE ❌'}\n⏰ Uptime: ${Math.floor(process.uptime() / 60)}m\n🏓 Ping: ${client.ws.ping}ms`);
     }
 });
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🌐 HTTP Server: port ${PORT}`);
+    console.log(`🌐 HTTP Server listening on 0.0.0.0:${PORT}`);
+    console.log(`🔗 Health check: http://localhost:${PORT}/health`);
 });
 
-// ===== SELF-PING =====
-setInterval(() => {
-    let url = process.env.RENDER_EXTERNAL_URL;
-    if (!url) return;
-    
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url;
-    }
-    
-    url = url.replace(/\/$/, '');
-    const pingUrl = url + '/health';
-    
-    const https = require('https');
-    const protocol = url.startsWith('https') ? https : require('http');
-    
-    protocol.get(pingUrl, (res) => {
-        // Silent ping
-    }).on('error', () => {});
-}, 5 * 60 * 1000);
-
-// ===== LOGIN =====
-console.log('🚀 Starting login...');
-
-client.login(TOKEN).then(() => {
-    console.log('✅ Login request sent!');
-}).catch((error) => {
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.error('❌ LOGIN FAILED!');
-    console.error('Error:', error.message);
-    console.error('Code:', error.code);
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━');
-    
-    if (error.message && error.message.includes('429')) {
-        console.error('🚨 RATE LIMITED! Wait 10-15 minutes, then reset token.');
-    } else if (error.code === 'TokenInvalid') {
-        console.error('🚨 TOKEN INVALID! Reset token in Discord Developer Portal!');
-    } else if (error.code === 'DisallowedIntents') {
-        console.error('🚨 INTENTS NOT ENABLED! Enable all 3 intents in Developer Portal!');
-    }
-    
+server.on('error', (err) => {
+    console.error('❌ HTTP Server error:', err);
     process.exit(1);
 });
+
+// ===== SELF-PING (3 PHÚT) =====
+setInterval(() => {
+    const url = process.env.RENDER_EXTERNAL_URL;
+    if (!url) return;
+    
+    let pingUrl = url.startsWith('http') ? url : 'https://' + url;
+    pingUrl = pingUrl.replace(/\/$/, '') + '/health';
+    
+    const https = require('https');
+    https.get(pingUrl, res => {
+        console.log(`✅ Ping OK - ${res.statusCode}`);
+    }).on('error', err => {
+        console.error('❌ Ping fail:', err.message);
+    });
+}, 3 * 60 * 1000);
+
+// ===== LOGIN =====
+console.log('🔑 Token:', TOKEN ? TOKEN.substring(0, 20) + '...' : 'MISSING');
+
+let attempts = 0;
+async function loginBot() {
+    attempts++;
+    console.log(`\n🔄 LOGIN #${attempts}/5`);
+    
+    try {
+        const timeout = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout')), 30000)
+        );
+        
+        await Promise.race([client.login(TOKEN), timeout]);
+        console.log('✅✅✅ LOGIN SUCCESS ✅✅✅\n');
+        attempts = 0;
+        
+    } catch (error) {
+        console.log('❌❌❌ LOGIN FAILED ❌❌❌');
+        console.error('Error:', error.message);
+        
+        if (error.code === 'TokenInvalid') {
+            console.error('🚨 TOKEN SAI! Reset token trên Discord Portal');
+            process.exit(1);
+        }
+        
+        if (attempts >= 5) {
+            console.error('🚨 Quá 5 lần thử, thoát...');
+            process.exit(1);
+        }
+        
+        console.log(`🔄 Retry sau ${attempts * 10}s...\n`);
+        setTimeout(loginBot, attempts * 10000);
+    }
+}
+
+loginBot();
