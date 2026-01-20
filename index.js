@@ -20,8 +20,14 @@ const { handleButtonClick } = require('./handlers/buttonHandler');
 if (!TOKEN) process.exit(1);
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers],
-    shards: 1
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers
+    ],
+    shardCount: 1,
+    shardId: 0
 });
 
 // ===== READY =====
@@ -102,3 +108,4 @@ http.createServer((req,res)=>{
 
 // ===== LOGIN =====
 client.login(TOKEN);
+
