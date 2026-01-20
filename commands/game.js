@@ -459,8 +459,9 @@ module.exports = {
     handleTaiXiu,
     handleSoiCau,
     getBettingSession,
-    setBettingSession
-    cleanupSession //
+    setBettingSession,
+    cleanupSession, //
 };
+
 
 
