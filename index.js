@@ -176,9 +176,9 @@ client.on('interactionCreate', async (interaction) => {
     return await handleButtonClick(interaction, getBettingSession());
 
         if (interaction.isModalSubmit()) {
-            if (interaction.customId.startsWith('bet_modal_')) return handleBetModal(interaction);
-            if (interaction.customId === 'modal_bet_number') return handleBetNumberModal(interaction);
-            if (interaction.customId === 'modal_bet_total') return handleBetTotalModal(interaction);
+    if (interaction.customId.startsWith('bet_modal_')) return await handleBetModal(interaction);
+    if (interaction.customId === 'modal_bet_number') return await handleBetNumberModal(interaction);
+    if (interaction.customId === 'modal_bet_total') return await handleBetTotalModal(interaction);
         }
     } catch {
         if (!interaction.replied && !interaction.deferred)
@@ -197,6 +197,7 @@ http.createServer((req,res)=>{
 
 // ===== LOGIN =====
 client.login(TOKEN);
+
 
 
 
