@@ -11,13 +11,13 @@ const { getUser } = require('../utils/database');
 async function handleButtonClick(interaction, bettingSession) {
     try {
 
-        // ===== KHÔNG DEFER KHI MỞ MODAL =====
         const isOpenModal =
             interaction.customId === 'bet_type_select' ||
             interaction.customId === 'open_bet_menu';
 
+        // Defer reply đúng chuẩn để dùng editReply()
         if (!isOpenModal && !interaction.deferred && !interaction.replied) {
-            await interaction.deferUpdate();
+            await interaction.deferReply({ ephemeral: true });
         }
 
         // ===== KIỂM TRA PHIÊN =====
@@ -60,6 +60,10 @@ async function handleButtonClick(interaction, bettingSession) {
         if (interaction.customId === 'bet_type_select') {
             const type = interaction.values[0];
             const user = getUser(interaction.user.id);
+
+            if (!user || user.balance <= 0) {
+                return interaction.editReply('❌ Bạn không có tiền để cược!');
+            }
 
             // ---- CƯỢC SỐ ----
             if (type === 'number') {
@@ -136,7 +140,7 @@ async function handleButtonClick(interaction, bettingSession) {
 
         try {
             if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({ content: '❌ Có lỗi xảy ra!', flags: 64 });
+                await interaction.reply({ content: '❌ Có lỗi xảy ra!', ephemeral: true });
             } else {
                 await interaction.editReply({ content: '❌ Có lỗi xảy ra!', components: [] });
             }
