@@ -5,7 +5,7 @@ process.removeAllListeners('warning');
 const http = require('http');
 const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
-const { saveDBDebounced, getUser, updateUser } = require('./utils/database');
+const { saveDB, getUser } = require('./utils/database'); // ← BỎ updateUser
 const { autoBackup, backupOnStartup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
 const { handleTaiXiu, handleSoiCau, getBettingSession } = require('./commands/game');
@@ -136,14 +136,11 @@ client.on('messageCreate', async (message) => {
 // ===== INTERACTION - FIX MODAL SUBMIT =====
 client.on('interactionCreate', async (interaction) => {
     try {
-        // ===== XỬ LÝ BUTTON & SELECT MENU =====
         if (interaction.isButton() || interaction.isStringSelectMenu()) {
             return await handleButtonClick(interaction, getBettingSession());
         }
 
-        // ===== XỬ LÝ MODAL SUBMIT =====
         if (interaction.isModalSubmit()) {
-            // Defer ngay để tránh timeout
             if (!interaction.deferred && !interaction.replied) {
                 await interaction.deferReply({ ephemeral: true });
             }
@@ -175,7 +172,7 @@ client.on('interactionCreate', async (interaction) => {
                 }
 
                 user.balance -= amount;
-                updateUser(userId, user);
+                saveDB(); // ← THAY updateUser BẰNG saveDB
 
                 session.bets[userId] = { type: betType, amount };
 
@@ -203,7 +200,7 @@ client.on('interactionCreate', async (interaction) => {
                 }
 
                 user.balance -= amount;
-                updateUser(userId, user);
+                saveDB(); // ← THAY updateUser BẰNG saveDB
 
                 session.bets[userId] = { type: 'number', value: number, amount };
 
@@ -231,7 +228,7 @@ client.on('interactionCreate', async (interaction) => {
                 }
 
                 user.balance -= amount;
-                updateUser(userId, user);
+                saveDB(); // ← THAY updateUser BẰNG saveDB
 
                 session.bets[userId] = { type: 'total', value: total, amount };
 
@@ -280,4 +277,5 @@ http.createServer((req, res) => {
 
 // ===== LOGIN =====
 client.login(TOKEN);
+
 
