@@ -73,8 +73,96 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.restart' && message.author.id === ADMIN_ID) process.exit(0);
 
         if (cmd === '.help') {
-            return message.reply('🎲 Gõ `.tx` để chơi Tài Xỉu – bấm nút để đặt cược!');
-        }
+    const isAdmin = message.author.id === ADMIN_ID;
+
+    // ===== USER HELP =====
+    const userEmbed = {
+        color: 0x00ff99,
+        title: '📋 HƯỚNG DẪN SỬ DỤNG BOT',
+        description: '**Chào mừng bạn đến với hệ thống Tài Xỉu!**',
+        fields: [
+            {
+                name: '🎲 Game',
+                value: '```\n.tx       → Bắt đầu phiên cược Tài Xỉu\n.sc       → Xem lịch sử kết quả\n```',
+                inline: false
+            },
+            {
+                name: '👤 Tài Khoản',
+                value: '```\n.mcoin    → Xem profile & số dư\n.setbg    → Đặt ảnh nền\n.dd       → Điểm danh (8h/lần)\n```',
+                inline: false
+            },
+            {
+                name: '🎁 Nhiệm Vụ & Quà',
+                value: '```\n.daily    → Nhiệm vụ hằng ngày\n.claimall → Nhận hết thưởng\n```',
+                inline: false
+            },
+            {
+                name: '💸 Giao Dịch',
+                value: '```\n.tang @user [số] → Tặng tiền\n.mshop           → Cửa hàng VIP & danh hiệu\n```',
+                inline: false
+            },
+            {
+                name: '🎁 Giftcode',
+                value: '```\n.code          → Xem danh sách code\n.code <MÃ>     → Nhập code nhận quà\n```',
+                inline: false
+            },
+            {
+                name: '📌 Cách Chơi Tài Xỉu',
+                value: '```\n1. Gõ .tx để mở phiên\n2. Bấm nút "Đặt Cược"\n3. Chọn cửa (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n4. Nhập tiền (1k, 5m, 10b)\n```',
+                inline: false
+            },
+            {
+                name: '💡 Lưu Ý',
+                value: '```\n• Tối thiểu: 1,000 Mcoin\n• Tài: 11-18 | Xỉu: 3-10\n• Số: x3 | Tổng: x5\n```',
+                inline: false
+            }
+        ],
+        footer: { text: '🎮 Chúc bạn may mắn!' },
+        timestamp: new Date()
+    };
+
+    // ===== ADMIN HELP =====
+    const adminEmbed = {
+        color: 0xff3333,
+        title: '⚙️ BẢNG LỆNH ADMIN',
+        description: '**Quyền hạn quản trị viên**',
+        fields: [
+            {
+                name: '👥 Lệnh Người Chơi',
+                value: '```\n.tx, .mcoin, .setbg, .sc, .tang, .dd\n.daily, .claimall, .mshop, .code\n```',
+                inline: false
+            },
+            {
+                name: '🎁 Quản Lý Giftcode',
+                value: '```\n.giftcode [tiền] [giờ]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```',
+                inline: false
+            },
+            {
+                name: '👑 Quản Lý VIP',
+                value: '```\n.givevip @user [1-3]\n.removevip @user\n.givetitle @user [tên]\n```',
+                inline: false
+            },
+            {
+                name: '💰 Quản Lý Tiền',
+                value: '```\n.donate @user [số]\n```',
+                inline: false
+            },
+            {
+                name: '🔧 Quản Lý Database',
+                value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```',
+                inline: false
+            }
+        ],
+        footer: { text: '🔒 Chỉ Admin mới thấy bảng này' },
+        timestamp: new Date()
+    };
+
+    if (isAdmin) {
+        await message.reply({ embeds: [userEmbed, adminEmbed] });
+    } else {
+        await message.reply({ embeds: [userEmbed] });
+    }
+
     } catch {
         message.reply('❌ Có lỗi xảy ra!');
     }
@@ -108,4 +196,5 @@ http.createServer((req,res)=>{
 
 // ===== LOGIN =====
 client.login(TOKEN);
+
 
