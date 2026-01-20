@@ -1,11 +1,11 @@
-// index.js - RENDER FREE LITE PLUS
+// index.js - RENDER FREE LITE PLUS - ĐÃ SỬA
 
 process.removeAllListeners('warning');
 
 const http = require('http');
 const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
-const { saveDBDebounced, getUser } = require('./utils/database');
+const { saveDBDebounced, getUser, updateUser } = require('./utils/database');
 const { autoBackup, backupOnStartup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
 const { handleTaiXiu, handleSoiCau, getBettingSession } = require('./commands/game');
@@ -73,132 +73,197 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.restart' && message.author.id === ADMIN_ID) process.exit(0);
 
         if (cmd === '.help') {
-    const isAdmin = message.author.id === ADMIN_ID;
+            const isAdmin = message.author.id === ADMIN_ID;
 
-    // ===== USER HELP =====
-    const userEmbed = {
-        color: 0x00ff99,
-        title: '📋 HƯỚNG DẪN SỬ DỤNG BOT',
-        description: '**Chào mừng bạn đến với hệ thống Tài Xỉu!**',
-        fields: [
-            {
-                name: '🎲 Game',
-                value: '```\n.tx       → Bắt đầu phiên cược Tài Xỉu\n.sc       → Xem lịch sử kết quả\n```',
-                inline: false
-            },
-            {
-                name: '👤 Tài Khoản',
-                value: '```\n.mcoin    → Xem profile & số dư\n.setbg    → Đặt ảnh nền\n.dd       → Điểm danh (8h/lần)\n```',
-                inline: false
-            },
-            {
-                name: '🎁 Nhiệm Vụ & Quà',
-                value: '```\n.daily    → Nhiệm vụ hằng ngày\n.claimall → Nhận hết thưởng\n```',
-                inline: false
-            },
-            {
-                name: '💸 Giao Dịch',
-                value: '```\n.tang @user [số] → Tặng tiền\n.mshop           → Cửa hàng VIP & danh hiệu\n```',
-                inline: false
-            },
-            {
-                name: '🎁 Giftcode',
-                value: '```\n.code          → Xem danh sách code\n.code <MÃ>     → Nhập code nhận quà\n```',
-                inline: false
-            },
-            {
-                name: '📌 Cách Chơi Tài Xỉu',
-                value: '```\n1. Gõ .tx để mở phiên\n2. Bấm nút "Đặt Cược"\n3. Chọn cửa (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n4. Nhập tiền (1k, 5m, 10b)\n```',
-                inline: false
-            },
-            {
-                name: '💡 Lưu Ý',
-                value: '```\n• Tối thiểu: 1,000 Mcoin\n• Tài: 11-18 | Xỉu: 3-10\n• Số: x3 | Tổng: x5\n```',
-                inline: false
+            const userEmbed = {
+                color: 0x00ff99,
+                title: '📋 HƯỚNG DẪN SỬ DỤNG BOT',
+                description: '**Chào mừng bạn đến với hệ thống Tài Xỉu!**',
+                fields: [
+                    { name: '🎲 Game', value: '```\n.tx       → Bắt đầu phiên cược Tài Xỉu\n.sc       → Xem lịch sử kết quả\n```', inline: false },
+                    { name: '👤 Tài Khoản', value: '```\n.mcoin    → Xem profile & số dư\n.setbg    → Đặt ảnh nền\n.dd       → Điểm danh (8h/lần)\n```', inline: false },
+                    { name: '🎁 Nhiệm Vụ & Quà', value: '```\n.daily    → Nhiệm vụ hằng ngày\n.claimall → Nhận hết thưởng\n```', inline: false },
+                    { name: '💸 Giao Dịch', value: '```\n.tang @user [số] → Tặng tiền\n.mshop           → Cửa hàng VIP & danh hiệu\n```', inline: false },
+                    { name: '🎁 Giftcode', value: '```\n.code          → Xem danh sách code\n.code <MÃ>     → Nhập code nhận quà\n```', inline: false },
+                    { name: '📌 Cách Chơi Tài Xỉu', value: '```\n1. Gõ .tx để mở phiên\n2. Bấm nút "Đặt Cược"\n3. Chọn cửa (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n4. Nhập tiền (1k, 5m, 10b)\n```', inline: false },
+                    { name: '💡 Lưu Ý', value: '```\n• Tối thiểu: 1,000 Mcoin\n• Tài: 11-18 | Xỉu: 3-10\n• Số: x3 | Tổng: x5\n```', inline: false }
+                ],
+                footer: { text: '🎮 Chúc bạn may mắn!' },
+                timestamp: new Date()
+            };
+
+            const adminEmbed = {
+                color: 0xff3333,
+                title: '⚙️ BẢNG LỆNH ADMIN',
+                description: '**Quyền hạn quản trị viên**',
+                fields: [
+                    { name: '👥 Lệnh Người Chơi', value: '```\n.tx, .mcoin, .setbg, .sc, .tang, .dd\n.daily, .claimall, .mshop, .code\n```', inline: false },
+                    { name: '🎁 Quản Lý Giftcode', value: '```\n.giftcode [tiền] [giờ]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
+                    { name: '👑 Quản Lý VIP', value: '```\n.givevip @user [1-3]\n.removevip @user\n.givetitle @user [tên]\n```', inline: false },
+                    { name: '💰 Quản Lý Tiền', value: '```\n.donate @user [số]\n```', inline: false },
+                    { name: '🔧 Quản Lý Database', value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```', inline: false }
+                ],
+                footer: { text: '🔒 Chỉ Admin mới thấy bảng này' },
+                timestamp: new Date()
+            };
+
+            if (isAdmin) {
+                await message.reply({ embeds: [userEmbed, adminEmbed] });
+            } else {
+                await message.reply({ embeds: [userEmbed] });
             }
-        ],
-        footer: { text: '🎮 Chúc bạn may mắn!' },
-        timestamp: new Date()
-    };
-
-    // ===== ADMIN HELP =====
-    const adminEmbed = {
-        color: 0xff3333,
-        title: '⚙️ BẢNG LỆNH ADMIN',
-        description: '**Quyền hạn quản trị viên**',
-        fields: [
-            {
-                name: '👥 Lệnh Người Chơi',
-                value: '```\n.tx, .mcoin, .setbg, .sc, .tang, .dd\n.daily, .claimall, .mshop, .code\n```',
-                inline: false
-            },
-            {
-                name: '🎁 Quản Lý Giftcode',
-                value: '```\n.giftcode [tiền] [giờ]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```',
-                inline: false
-            },
-            {
-                name: '👑 Quản Lý VIP',
-                value: '```\n.givevip @user [1-3]\n.removevip @user\n.givetitle @user [tên]\n```',
-                inline: false
-            },
-            {
-                name: '💰 Quản Lý Tiền',
-                value: '```\n.donate @user [số]\n```',
-                inline: false
-            },
-            {
-                name: '🔧 Quản Lý Database',
-                value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```',
-                inline: false
-            }
-        ],
-        footer: { text: '🔒 Chỉ Admin mới thấy bảng này' },
-        timestamp: new Date()
-    };
-
-    if (isAdmin) {
-        await message.reply({ embeds: [userEmbed, adminEmbed] });
-    } else {
-        await message.reply({ embeds: [userEmbed] });
-    }
         }
                 
-    } catch {
-        message.reply('❌ Có lỗi xảy ra!');
+    } catch (err) {
+        console.error('❌ Message error:', err);
+        message.reply('❌ Có lỗi xảy ra!').catch(() => {});
     }
 });
 
-// ===== INTERACTION =====
+// ===== INTERACTION - FIX MODAL SUBMIT =====
 client.on('interactionCreate', async (interaction) => {
     try {
-        if (interaction.isButton() || interaction.isStringSelectMenu())
-    return await handleButtonClick(interaction, getBettingSession());
-
-        if (interaction.isModalSubmit()) {
-    if (interaction.customId.startsWith('bet_modal_')) return await handleBetModal(interaction);
-    if (interaction.customId === 'modal_bet_number') return await handleBetNumberModal(interaction);
-    if (interaction.customId === 'modal_bet_total') return await handleBetTotalModal(interaction);
+        // ===== XỬ LÝ BUTTON & SELECT MENU =====
+        if (interaction.isButton() || interaction.isStringSelectMenu()) {
+            return await handleButtonClick(interaction, getBettingSession());
         }
-    } catch {
-        if (!interaction.replied && !interaction.deferred)
-            interaction.reply({ content:'❌ Có lỗi xảy ra!', flags:64 }).catch(()=>{});
+
+        // ===== XỬ LÝ MODAL SUBMIT =====
+        if (interaction.isModalSubmit()) {
+            // Defer ngay để tránh timeout
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferReply({ ephemeral: true });
+            }
+
+            const session = getBettingSession();
+            if (!session) {
+                return interaction.editReply('❌ Phiên cược đã kết thúc!');
+            }
+
+            const userId = interaction.user.id;
+            const user = getUser(userId);
+
+            if (!user) {
+                return interaction.editReply('❌ Bạn chưa có tài khoản!');
+            }
+
+            // ===== TÀI / XỈU / CHẴN / LẺ =====
+            if (interaction.customId.startsWith('bet_modal_')) {
+                const betType = interaction.customId.replace('bet_modal_', '');
+                const amountInput = interaction.fields.getTextInputValue('bet_amount');
+                const amount = parseAmount(amountInput);
+
+                if (!amount || amount < 1000) {
+                    return interaction.editReply('❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin');
+                }
+
+                if (user.balance < amount) {
+                    return interaction.editReply(`❌ Bạn chỉ có ${user.balance.toLocaleString()} Mcoin!`);
+                }
+
+                user.balance -= amount;
+                updateUser(userId, user);
+
+                session.bets[userId] = { type: betType, amount };
+
+                return interaction.editReply(`✅ Đã cược **${betType.toUpperCase()}** - ${amount.toLocaleString()} Mcoin`);
+            }
+
+            // ===== CƯỢC SỐ =====
+            if (interaction.customId === 'modal_bet_number') {
+                const numberInput = interaction.fields.getTextInputValue('number_value');
+                const amountInput = interaction.fields.getTextInputValue('bet_amount');
+
+                const number = parseInt(numberInput);
+                const amount = parseAmount(amountInput);
+
+                if (!number || number < 1 || number > 6) {
+                    return interaction.editReply('❌ Số phải từ 1-6!');
+                }
+
+                if (!amount || amount < 1000) {
+                    return interaction.editReply('❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin');
+                }
+
+                if (user.balance < amount) {
+                    return interaction.editReply(`❌ Bạn chỉ có ${user.balance.toLocaleString()} Mcoin!`);
+                }
+
+                user.balance -= amount;
+                updateUser(userId, user);
+
+                session.bets[userId] = { type: 'number', value: number, amount };
+
+                return interaction.editReply(`✅ Đã cược **SỐ ${number}** - ${amount.toLocaleString()} Mcoin`);
+            }
+
+            // ===== CƯỢC TỔNG =====
+            if (interaction.customId === 'modal_bet_total') {
+                const totalInput = interaction.fields.getTextInputValue('total_value');
+                const amountInput = interaction.fields.getTextInputValue('bet_amount');
+
+                const total = parseInt(totalInput);
+                const amount = parseAmount(amountInput);
+
+                if (!total || total < 3 || total > 18) {
+                    return interaction.editReply('❌ Tổng phải từ 3-18!');
+                }
+
+                if (!amount || amount < 1000) {
+                    return interaction.editReply('❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin');
+                }
+
+                if (user.balance < amount) {
+                    return interaction.editReply(`❌ Bạn chỉ có ${user.balance.toLocaleString()} Mcoin!`);
+                }
+
+                user.balance -= amount;
+                updateUser(userId, user);
+
+                session.bets[userId] = { type: 'total', value: total, amount };
+
+                return interaction.editReply(`✅ Đã cược **TỔNG ${total}** - ${amount.toLocaleString()} Mcoin`);
+            }
+        }
+
+    } catch (err) {
+        console.error('❌ Interaction error:', err);
+        
+        try {
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({ content: '❌ Có lỗi xảy ra!', ephemeral: true });
+            } else {
+                await interaction.editReply('❌ Có lỗi xảy ra!');
+            }
+        } catch {}
     }
 });
 
+// ===== HELPER: PARSE AMOUNT =====
+function parseAmount(input) {
+    if (!input) return null;
+    
+    input = input.toLowerCase().replace(/[,._]/g, '');
+    
+    if (input.endsWith('k')) {
+        return parseInt(input) * 1000;
+    } else if (input.endsWith('m')) {
+        return parseInt(input) * 1000000;
+    } else if (input.endsWith('b') || input.endsWith('t')) {
+        return parseInt(input) * 1000000000;
+    }
+    
+    return parseInt(input);
+}
+
 // ===== BACKUP 12H =====
-setInterval(()=>autoBackup(client, BACKUP_CHANNEL_ID).catch(()=>{}), 12*60*60*1000);
+setInterval(() => autoBackup(client, BACKUP_CHANNEL_ID).catch(() => {}), 12 * 60 * 60 * 1000);
 
 // ===== HTTP =====
-http.createServer((req,res)=>{
-    if(req.url==='/health') return res.end('OK');
+http.createServer((req, res) => {
+    if (req.url === '/health') return res.end('OK');
     res.end('BOT ONLINE');
-}).listen(process.env.PORT||10000);
+}).listen(process.env.PORT || 10000);
 
 // ===== LOGIN =====
 client.login(TOKEN);
-
-
-
-
-
