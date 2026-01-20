@@ -1,4 +1,4 @@
-// index.js - FULL CODE HOÀN CHỈNH (ĐÃ SỬA LỖI CÚ PHÁP)
+// index.js - FULL CODE HOÀN CHỈNH (ĐÃ SỬA TOÀN BỘ LỖI + TỐI ƯU)
 
 // Tắt warnings
 process.removeAllListeners('warning');
@@ -6,7 +6,7 @@ process.removeAllListeners('warning');
 const http = require('http');
 const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
-const { database, saveDB, getUser } = require('./utils/database');
+const { database, saveDB, saveDBDebounced, getUser } = require('./utils/database');
 const { autoBackup, backupOnStartup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
 // Import commands
@@ -30,8 +30,6 @@ const {
     handleDonate
 } = require('./commands/admin');
 const { handleMShop, buyVipPackage, buyTitle, showVipPackages, showTitles } = require('./commands/shop');
-
-// Import buttonHandler
 const { handleButtonClick } = require('./handlers/buttonHandler');
 
 // ✅ Validation token
@@ -86,7 +84,7 @@ async function emergencyBackup() {
         }
         
         await backupOnShutdown(client, BACKUP_CHANNEL_ID);
-        saveDB();
+        await saveDB();
         
     } catch (error) {
         console.error('❌ Lỗi backup khẩn cấp:', error.message);
@@ -482,7 +480,7 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// ===== INTERACTIONS - ✅ ĐÃ SỬA LỖI =====
+// ===== INTERACTIONS =====
 client.on('interactionCreate', async (interaction) => {
     try {
         if (interaction.isButton()) {
@@ -538,207 +536,183 @@ client.on('interactionCreate', async (interaction) => {
 
 // ===== XỬ LÝ MODAL CƯỢC SỐ =====
 async function handleBetNumberModal(interaction) {
-    const numberStr = interaction.fields.getTextInputValue('number_value').trim();
-    let amountStr = interaction.fields.getTextInputValue('bet_amount').toLowerCase().trim();
+    await interaction.deferReply({ flags: 64 });
     
-    const number = parseInt(numberStr);
-    const userId = interaction.user.id;
-    const user = getUser(userId);
-    const bettingSession = getBettingSession();
-    
-    if (!bettingSession) {
-        return interaction.reply({ 
-            content: '❌ Phiên đã kết thúc!', 
-            flags: 64
+    try {
+        const numberStr = interaction.fields.getTextInputValue('number_value').trim();
+        let amountStr = interaction.fields.getTextInputValue('bet_amount').toLowerCase().trim();
+        
+        const number = parseInt(numberStr);
+        const userId = interaction.user.id;
+        const user = getUser(userId);
+        const bettingSession = getBettingSession();
+        
+        if (!bettingSession) {
+            return interaction.editReply({ content: '❌ Phiên đã kết thúc!' });
+        }
+        
+        if (isNaN(number) || number < 1 || number > 6) {
+            return interaction.editReply({ content: '❌ Số phải từ 1 đến 6!' });
+        }
+        
+        let amount = 0;
+        if (amountStr.endsWith('k')) {
+            amount = parseFloat(amountStr) * 1000;
+        } else if (amountStr.endsWith('m')) {
+            amount = parseFloat(amountStr) * 1000000;
+        } else if (amountStr.endsWith('b')) {
+            amount = parseFloat(amountStr) * 1000000000;
+        } else {
+            amount = parseInt(amountStr);
+        }
+        
+        if (isNaN(amount) || amount < 1000) {
+            return interaction.editReply({ content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin' });
+        }
+        
+        if (amount > 100000000000000) {
+            return interaction.editReply({ content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin' });
+        }
+        
+        if (user.balance < amount) {
+            return interaction.editReply({ content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin` });
+        }
+        
+        user.balance -= amount;
+        bettingSession.bets[userId] = { amount, type: 'number', value: number };
+        
+        saveDBDebounced();
+        
+        await interaction.editReply({ 
+            content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào số **${number}** thành công!\n🎯 Thắng nhận: **${(amount * 3).toLocaleString('en-US')}** Mcoin (x3)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`
         });
+    } catch (error) {
+        console.error('Modal error:', error);
+        await interaction.editReply({ content: '❌ Có lỗi xảy ra!' });
     }
-    
-    if (isNaN(number) || number < 1 || number > 6) {
-        return interaction.reply({ 
-            content: '❌ Số phải từ 1 đến 6!', 
-            flags: 64
-        });
-    }
-    
-    let amount = 0;
-    if (amountStr.endsWith('k')) {
-        amount = parseFloat(amountStr) * 1000;
-    } else if (amountStr.endsWith('m')) {
-        amount = parseFloat(amountStr) * 1000000;
-    } else if (amountStr.endsWith('b')) {
-        amount = parseFloat(amountStr) * 1000000000;
-    } else {
-        amount = parseInt(amountStr);
-    }
-    
-    if (isNaN(amount) || amount < 1000) {
-        return interaction.reply({ 
-            content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
-            flags: 64
-        });
-    }
-    
-    if (amount > 100000000000000) {
-        return interaction.reply({ 
-            content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
-            flags: 64
-        });
-    }
-    
-    if (user.balance < amount) {
-        return interaction.reply({ 
-            content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-            flags: 64
-        });
-    }
-    
-    user.balance -= amount;
-    bettingSession.bets[userId] = { 
-        amount, 
-        type: 'number',
-        value: number 
-    };
-    
-    saveDB();
-    
-    await interaction.reply({ 
-        content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào số **${number}** thành công!\n🎯 Thắng nhận: **${(amount * 3).toLocaleString('en-US')}** Mcoin (x3)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-        flags: 64
-    });
 }
 
 // ===== XỬ LÝ MODAL CƯỢC TỔNG =====
 async function handleBetTotalModal(interaction) {
-    const totalStr = interaction.fields.getTextInputValue('total_value').trim();
-    let amountStr = interaction.fields.getTextInputValue('bet_amount').toLowerCase().trim();
+    await interaction.deferReply({ flags: 64 });
     
-    const totalValue = parseInt(totalStr);
-    const userId = interaction.user.id;
-    const user = getUser(userId);
-    const bettingSession = getBettingSession();
-    
-    if (!bettingSession) {
-        return interaction.reply({ 
-            content: '❌ Phiên đã kết thúc!', 
-            flags: 64
+    try {
+        const totalStr = interaction.fields.getTextInputValue('total_value').trim();
+        let amountStr = interaction.fields.getTextInputValue('bet_amount').toLowerCase().trim();
+        
+        const totalValue = parseInt(totalStr);
+        const userId = interaction.user.id;
+        const user = getUser(userId);
+        const bettingSession = getBettingSession();
+        
+        if (!bettingSession) {
+            return interaction.editReply({ content: '❌ Phiên đã kết thúc!' });
+        }
+        
+        if (isNaN(totalValue) || totalValue < 3 || totalValue > 18) {
+            return interaction.editReply({ content: '❌ Tổng phải từ 3 đến 18!' });
+        }
+        
+        let amount = 0;
+        if (amountStr.endsWith('k')) {
+            amount = parseFloat(amountStr) * 1000;
+        } else if (amountStr.endsWith('m')) {
+            amount = parseFloat(amountStr) * 1000000;
+        } else if (amountStr.endsWith('b')) {
+            amount = parseFloat(amountStr) * 1000000000;
+        } else {
+            amount = parseInt(amountStr);
+        }
+        
+        if (isNaN(amount) || amount < 1000) {
+            return interaction.editReply({ content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin' });
+        }
+        
+        if (amount > 100000000000000) {
+            return interaction.editReply({ content: '❌ Số tiền quá lớn!' });
+        }
+        
+        if (user.balance < amount) {
+            return interaction.editReply({ content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin` });
+        }
+        
+        user.balance -= amount;
+        bettingSession.bets[userId] = { amount, type: 'total', value: totalValue };
+        
+        saveDBDebounced();
+        
+        await interaction.editReply({ 
+            content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào tổng **${totalValue}** thành công!\n📊 Thắng nhận: **${(amount * 5).toLocaleString('en-US')}** Mcoin (x5)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`
         });
+    } catch (error) {
+        console.error('Modal error:', error);
+        await interaction.editReply({ content: '❌ Có lỗi xảy ra!' });
     }
-    
-    if (isNaN(totalValue) || totalValue < 3 || totalValue > 18) {
-        return interaction.reply({ 
-            content: '❌ Tổng phải từ 3 đến 18!', 
-            flags: 64
-        });
-    }
-    
-    let amount = 0;
-    if (amountStr.endsWith('k')) {
-        amount = parseFloat(amountStr) * 1000;
-    } else if (amountStr.endsWith('m')) {
-        amount = parseFloat(amountStr) * 1000000;
-    } else if (amountStr.endsWith('b')) {
-        amount = parseFloat(amountStr) * 1000000000;
-    } else {
-        amount = parseInt(amountStr);
-    }
-    
-    if (isNaN(amount) || amount < 1000) {
-        return interaction.reply({ 
-            content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
-            flags: 64
-        });
-    }
-    
-    if (amount > 100000000000000) {
-        return interaction.reply({ 
-            content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
-            flags: 64
-        });
-    }
-    
-    if (user.balance < amount) {
-        return interaction.reply({ 
-            content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-            flags: 64
-        });
-    }
-    
-    user.balance -= amount;
-    bettingSession.bets[userId] = { 
-        amount, 
-        type: 'total',
-        value: totalValue 
-    };
-    
-    saveDB();
-    
-    await interaction.reply({ 
-        content: `✅ Đặt cược **${amount.toLocaleString('en-US')}** Mcoin vào tổng **${totalValue}** thành công!\n📊 Thắng nhận: **${(amount * 5).toLocaleString('en-US')}** Mcoin (x5)\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-        flags: 64
-    });
 }
 
 // ===== XỬ LÝ MODAL TÀI/XỈU/CHẴN/LẺ =====
-
 async function handleBetModal(interaction) {
-    const customId = interaction.customId;
-    let amountStr = interaction.fields.getTextInputValue('bet_amount').toLowerCase().trim();
-    const userId = interaction.user.id;
-    const user = getUser(userId);
-    const bettingSession = getBettingSession();
+    await interaction.deferReply({ flags: 64 });
     
-
-    if (!bettingSession) {
-        return interaction.reply({ 
-            content: '❌ Phiên đã kết thúc!', 
-            flags: 64
+    try {
+        const customId = interaction.customId;
+        let amountStr = interaction.fields.getTextInputValue('bet_amount').toLowerCase().trim();
+        const userId = interaction.user.id;
+        const user = getUser(userId);
+        const bettingSession = getBettingSession();
+        
+        if (!bettingSession) {
+            return interaction.editReply({ content: '❌ Phiên đã kết thúc!' });
+        }
+        
+        let amount = 0;
+        if (amountStr.endsWith('k')) {
+            amount = parseFloat(amountStr) * 1000;
+        } else if (amountStr.endsWith('b')) {
+            amount = parseFloat(amountStr) * 1000000000;
+        } else {
+            amount = parseInt(amountStr);
+        }
+        
+        if (isNaN(amount) || amount < 1000) {
+            return interaction.editReply({ content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin' });
+        }
+        
+        if (amount > 100000000000000) {
+            return interaction.editReply({ content: '❌ Số tiền quá lớn!' });
+        }
+        
+        if (user.balance < amount) {
+            return interaction.editReply({ content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin` });
+        }
+        
+        user.balance -= amount;
+        
+        const betType = customId.replace('bet_modal_', '');
+        bettingSession.bets[userId] = { amount, type: betType };
+        
+        saveDBDebounced();
+        
+        const typeEmoji = {
+            'tai': '🔵 Tài',
+            'xiu': '🔴 Xỉu',
+            'chan': '🟣 Chẵn',
+            'le': '🟡 Lẻ'
+        };
+        
+        await interaction.editReply({ 
+            content: `✅ Đặt cược ${amount.toLocaleString('en-US')} Mcoin vào ${typeEmoji[betType]} thành công!\n💰 Số dư còn: ${user.balance.toLocaleString('en-US')} Mcoin`
         });
+    } catch (error) {
+        console.error('Modal error:', error);
+        await interaction.editReply({ content: '❌ Có lỗi xảy ra!' });
     }
+}
 
-
-    let amount = 0;
-    if (amountStr.endsWith('k')) {
-        amount = parseFloat(amountStr) * 1000;
-    } else if (amountStr.endsWith('m')) {
-        amount = parseFloat(amountStr) * 1000000;
-    } else if (amountStr.endsWith('b')) {
-        amount = parseFloat(amountStr) * 1000000000;
-    } else {
-        amount = parseInt(amountStr);
-    }
-    
-
-    if (isNaN(amount) || amount < 1000) {
-        return interaction.reply({ 
-            content: '❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin', 
-            flags: 64
-
-        });
-
-    }
-
-    
-
-    if (amount > 100000000000000) {
-        return interaction.reply({ 
-            content: '❌ Số tiền quá lớn! Tối đa 100,000,000,000,000 Mcoin', 
-            flags: 64
-        });
-    }
-
-
-    if (user.balance < amount) {
-        return interaction.reply({ 
-            content: `❌ Không đủ tiền!\n💰 Số dư: ${user.balance.toLocaleString('en-US')} Mcoin`, 
-            flags: 64
-        });
-    }
-    
-// ===== HTTP SERVER (ĐÃ CẢI THIỆN) =====
+// ===== HTTP SERVER =====
 const server = http.createServer((req, res) => {
     console.log(`📡 HTTP Request: ${req.method} ${req.url}`);
-
-
+    
     if (req.url === '/health' || req.url === '/') {
         const status = {
             status: client.isReady() ? 'online' : 'offline',
@@ -751,8 +725,7 @@ const server = http.createServer((req, res) => {
             guilds: client.guilds.cache.size,
             users: client.users.cache.size
         };
-
-
+        
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(status, null, 2));
     } else {
@@ -761,30 +734,24 @@ const server = http.createServer((req, res) => {
     }
 });
 
-
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 HTTP Server listening on 0.0.0.0:${PORT}`);
     console.log(`🔗 Health check: http://localhost:${PORT}/health`);
 });
 
-
 server.on('error', (err) => {
     console.error('❌ HTTP Server error:', err);
     process.exit(1);
 });
 
-
 // ===== SELF-PING (3 PHÚT) =====
-
 setInterval(() => {
     const url = process.env.RENDER_EXTERNAL_URL;
     if (!url) return;
-
     
     let pingUrl = url.startsWith('http') ? url : 'https://' + url;
     pingUrl = pingUrl.replace(/\/$/, '') + '/health';
-
     
     const https = require('https');
     https.get(pingUrl, res => {
@@ -794,50 +761,40 @@ setInterval(() => {
     });
 }, 3 * 60 * 1000);
 
-
 // ===== LOGIN =====
-
 console.log('🔑 Token:', TOKEN ? TOKEN.substring(0, 20) + '...' : 'MISSING');
-
 
 let attempts = 0;
 async function loginBot() {
     attempts++;
     console.log(`\n🔄 LOGIN #${attempts}/5`);
-
-
+    
     try {
         const timeout = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Timeout')), 30000)
         );
-
         
         await Promise.race([client.login(TOKEN), timeout]);
         console.log('✅✅✅ LOGIN SUCCESS ✅✅✅\n');
         attempts = 0;
         
-
     } catch (error) {
         console.log('❌❌❌ LOGIN FAILED ❌❌❌');
         console.error('Error:', error.message);
-  
-
+        
         if (error.code === 'TokenInvalid') {
             console.error('🚨 TOKEN SAI! Reset token trên Discord Portal');
             process.exit(1);
         }
         
-
         if (attempts >= 5) {
             console.error('🚨 Quá 5 lần thử, thoát...');
             process.exit(1);
         }
-
-
+        
         console.log(`🔄 Retry sau ${attempts * 10}s...\n`);
         setTimeout(loginBot, attempts * 10000);
     }
 }
-
 
 loginBot();
