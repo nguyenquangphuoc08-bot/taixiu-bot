@@ -162,7 +162,8 @@ client.on('messageCreate', async (message) => {
     } else {
         await message.reply({ embeds: [userEmbed] });
     }
-
+        }
+                
     } catch {
         message.reply('❌ Có lỗi xảy ra!');
     }
@@ -196,5 +197,6 @@ http.createServer((req,res)=>{
 
 // ===== LOGIN =====
 client.login(TOKEN);
+
 
 
