@@ -30,10 +30,23 @@ const client = new Client({
     shardId: 0
 });
 
-// ===== READY =====
+// index.js - THÊM PHẦN NÀY VÀO SAU client.once('ready')
+
 client.once('ready', async () => {
     console.log(`✅ Bot online: ${client.user.tag}`);
-    client.user.setPresence({ activities:[{name:'🎲 Tài Xỉu | .help', type:ActivityType.Playing}], status:'online' });
+    client.user.setPresence({ 
+        activities:[{name:'🎲 Tài Xỉu | .help', type:ActivityType.Playing}], 
+        status:'online' 
+    });
+
+    // ===== TỰ ĐỘNG XÓA PHIÊN CŨ KHI BOT RESTART =====
+    try {
+        const { cleanupSession } = require('./commands/game');
+        cleanupSession(); // Xóa phiên cược cũ
+        console.log('🧹 Đã xóa phiên cược cũ (nếu có)');
+    } catch (err) {
+        console.log('⚠️ Không thể xóa phiên cũ:', err.message);
+    }
 
     try { await backupOnStartup(client, BACKUP_CHANNEL_ID); } catch {}
     try { await restoreInterruptedSession(client); } catch {}
@@ -267,3 +280,4 @@ http.createServer((req, res) => {
 
 // ===== LOGIN =====
 client.login(TOKEN);
+
