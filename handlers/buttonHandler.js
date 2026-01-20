@@ -1,3 +1,5 @@
+// handlers/buttonHandler.js - FIX LỖI INTERACTION
+
 const { 
     ModalBuilder, 
     TextInputBuilder, 
@@ -10,18 +12,24 @@ const { getUser } = require('../utils/database');
 
 async function handleButtonClick(interaction, bettingSession) {
     try {
-
-        const isOpenModal =
+        // ===== DEFER NGAY LẬP TỨC - QUAN TRỌNG! =====
+        // Phải defer TRƯỚC KHI làm bất cứ việc gì
+        const needsModal = 
             interaction.customId === 'bet_type_select' ||
             interaction.customId === 'open_bet_menu';
 
-        // Defer reply đúng chuẩn để dùng editReply()
-        if (!isOpenModal && !interaction.deferred && !interaction.replied) {
-            await interaction.deferReply({ ephemeral: true });
+        if (!needsModal && !interaction.deferred && !interaction.replied) {
+            await interaction.deferUpdate();
         }
 
         // ===== KIỂM TRA PHIÊN =====
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
+            if (needsModal) {
+                return interaction.reply({
+                    content: '❌ Không có phiên cược nào đang diễn ra!',
+                    ephemeral: true
+                });
+            }
             return interaction.editReply({
                 content: '❌ Không có phiên cược nào đang diễn ra!',
                 components: []
@@ -30,6 +38,12 @@ async function handleButtonClick(interaction, bettingSession) {
 
         const elapsed = Date.now() - bettingSession.startTime;
         if (elapsed >= bettingSession.duration) {
+            if (needsModal) {
+                return interaction.reply({
+                    content: '⏱️ Phiên cược đã kết thúc!',
+                    ephemeral: true
+                });
+            }
             return interaction.editReply({
                 content: '⏱️ Phiên cược đã kết thúc!',
                 components: []
@@ -50,9 +64,10 @@ async function handleButtonClick(interaction, bettingSession) {
                     { label: 'Cược Tổng', description: '3-18 | x5', value: 'total', emoji: '📊' }
                 ]);
 
-            return interaction.editReply({
+            return interaction.followUp({
                 content: '⚡ **Chọn cửa để đặt cược**',
-                components: [new ActionRowBuilder().addComponents(selectMenu)]
+                components: [new ActionRowBuilder().addComponents(selectMenu)],
+                ephemeral: true
             });
         }
 
@@ -62,7 +77,10 @@ async function handleButtonClick(interaction, bettingSession) {
             const user = getUser(interaction.user.id);
 
             if (!user || user.balance <= 0) {
-                return interaction.editReply('❌ Bạn không có tiền để cược!');
+                return interaction.reply({
+                    content: '❌ Bạn không có tiền để cược!',
+                    ephemeral: true
+                });
             }
 
             // ---- CƯỢC SỐ ----
@@ -140,11 +158,19 @@ async function handleButtonClick(interaction, bettingSession) {
 
         try {
             if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({ content: '❌ Có lỗi xảy ra!', ephemeral: true });
-            } else {
-                await interaction.editReply({ content: '❌ Có lỗi xảy ra!', components: [] });
+                await interaction.reply({ 
+                    content: '❌ Có lỗi xảy ra!', 
+                    ephemeral: true 
+                });
+            } else if (interaction.deferred) {
+                await interaction.editReply({ 
+                    content: '❌ Có lỗi xảy ra!', 
+                    components: [] 
+                });
             }
-        } catch {}
+        } catch (e) {
+            console.error('❌ Error handling failed:', e);
+        }
     }
 }
 
