@@ -460,5 +460,7 @@ module.exports = {
     handleSoiCau,
     getBettingSession,
     setBettingSession
+    cleanupSession //
 };
+
 
