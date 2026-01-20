@@ -1,4 +1,4 @@
-// handlers/buttonHandler.js - FIX CUỐI CÙNG
+// handlers/buttonHandler.js - HỖ TRỢ CẢ .tx VÀ .mshop
 
 const { 
     ModalBuilder, 
@@ -12,7 +12,33 @@ const { getUser } = require('../utils/database');
 
 async function handleButtonClick(interaction, bettingSession) {
     try {
-        // ===== KIỂM TRA PHIÊN TRƯỚC =====
+        // ===== XỬ LÝ BUTTON SHOP =====
+        if (interaction.customId === 'shop_vip') {
+            const { showVipPackages } = require('../commands/shop');
+            return await showVipPackages(interaction);
+        }
+
+        if (interaction.customId === 'shop_titles') {
+            const { showTitles } = require('../commands/shop');
+            return await showTitles(interaction);
+        }
+
+        // ===== XỬ LÝ SELECT MENU SHOP =====
+        if (interaction.customId === 'buy_vip') {
+            const { buyVipPackage } = require('../commands/shop');
+            const vipId = interaction.values[0];
+            return await buyVipPackage(interaction, vipId);
+        }
+
+        if (interaction.customId === 'buy_title') {
+            const { buyTitle } = require('../commands/shop');
+            const titleId = interaction.values[0];
+            return await buyTitle(interaction, titleId);
+        }
+
+        // ===== XỬ LÝ TÀI XỈU =====
+        
+        // Kiểm tra phiên cược (CHỈ cho Tài Xỉu)
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
             return interaction.reply({
                 content: '❌ Không có phiên cược nào đang diễn ra!',
@@ -30,7 +56,7 @@ async function handleButtonClick(interaction, bettingSession) {
             }).catch(() => {});
         }
 
-        // ===== XỬ LÝ BUTTON "OPEN BET MENU" =====
+        // ===== BUTTON "OPEN BET MENU" =====
         if (interaction.isButton() && interaction.customId === 'open_bet_menu') {
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('bet_type_select')
@@ -51,7 +77,7 @@ async function handleButtonClick(interaction, bettingSession) {
             });
         }
 
-        // ===== XỬ LÝ SELECT MENU "BET TYPE SELECT" =====
+        // ===== SELECT MENU "BET TYPE SELECT" =====
         if (interaction.isStringSelectMenu() && interaction.customId === 'bet_type_select') {
             const type = interaction.values[0];
             const user = getUser(interaction.user.id);
@@ -136,7 +162,6 @@ async function handleButtonClick(interaction, bettingSession) {
     } catch (err) {
         console.error('❌ Button handler error:', err);
         
-        // Chỉ reply nếu chưa reply
         if (!interaction.replied && !interaction.deferred) {
             interaction.reply({ 
                 content: '❌ Có lỗi xảy ra!', 
