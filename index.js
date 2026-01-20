@@ -173,7 +173,7 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
     try {
         if (interaction.isButton() || interaction.isStringSelectMenu())
-            return handleButtonClick(interaction, getBettingSession());
+    return await handleButtonClick(interaction, getBettingSession());
 
         if (interaction.isModalSubmit()) {
             if (interaction.customId.startsWith('bet_modal_')) return handleBetModal(interaction);
@@ -197,6 +197,7 @@ http.createServer((req,res)=>{
 
 // ===== LOGIN =====
 client.login(TOKEN);
+
 
 
 
