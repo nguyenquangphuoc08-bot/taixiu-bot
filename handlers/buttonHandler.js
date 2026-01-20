@@ -6,13 +6,19 @@ const {
     StringSelectMenuBuilder 
 } = require('discord.js');
 
-const { getUser, saveDB } = require('../utils/database');
+const { getUser, saveDBDebounced } = require('../utils/database');
 
 async function handleButtonClick(interaction, bettingSession) {
     try {
+        // ✅ DEFER REPLY NGAY ĐỂ TRÁNH TIMEOUT 3 GIÂY
+        if (!interaction.deferred && !interaction.replied) {
+            await interaction.deferUpdate();
+        }
+        
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
             return interaction.editReply({
-                content: '❌ Không có phiên cược nào đang diễn ra!'
+                content: '❌ Không có phiên cược nào đang diễn ra!',
+                components: []
             });
         }
 
@@ -21,7 +27,8 @@ async function handleButtonClick(interaction, bettingSession) {
 
         if (elapsed >= bettingSession.duration) {
             return interaction.editReply({
-                content: '⏱️ Phiên cược đã kết thúc! Vui lòng chờ phiên tiếp theo.'
+                content: '⏱️ Phiên cược đã kết thúc! Vui lòng chờ phiên tiếp theo.',
+                components: []
             });
         }
 
@@ -63,12 +70,14 @@ async function handleButtonClick(interaction, bettingSession) {
                             .setCustomId('number_value')
                             .setLabel('Chọn số (1-6)')
                             .setStyle(TextInputStyle.Short)
+                            .setPlaceholder('VD: 3')
                             .setRequired(true)
                     ),
                     new ActionRowBuilder().addComponents(
                         new TextInputBuilder()
                             .setCustomId('bet_amount')
                             .setLabel(`Số dư: ${user.balance.toLocaleString()} Mcoin`)
+                            .setPlaceholder('VD: 1k, 5m, 10b')
                             .setStyle(TextInputStyle.Short)
                             .setRequired(true)
                     )
@@ -87,6 +96,7 @@ async function handleButtonClick(interaction, bettingSession) {
                         new TextInputBuilder()
                             .setCustomId('total_value')
                             .setLabel('Chọn tổng (3-18)')
+                            .setPlaceholder('VD: 12')
                             .setStyle(TextInputStyle.Short)
                             .setRequired(true)
                     ),
@@ -94,6 +104,7 @@ async function handleButtonClick(interaction, bettingSession) {
                         new TextInputBuilder()
                             .setCustomId('bet_amount')
                             .setLabel(`Số dư: ${user.balance.toLocaleString()} Mcoin`)
+                            .setPlaceholder('VD: 1k, 5m, 10b')
                             .setStyle(TextInputStyle.Short)
                             .setRequired(true)
                     )
@@ -102,6 +113,7 @@ async function handleButtonClick(interaction, bettingSession) {
                 return interaction.showModal(modal);
             }
 
+            // Tài/Xỉu/Chẵn/Lẻ
             const modal = new ModalBuilder()
                 .setCustomId(`bet_modal_${betType}`)
                 .setTitle('🎲 NHẬP SỐ TIỀN CƯỢC');
@@ -111,6 +123,7 @@ async function handleButtonClick(interaction, bettingSession) {
                     new TextInputBuilder()
                         .setCustomId('bet_amount')
                         .setLabel(`Số dư: ${user.balance.toLocaleString()} Mcoin`)
+                        .setPlaceholder('VD: 1k, 5m, 10b, 100000')
                         .setStyle(TextInputStyle.Short)
                         .setRequired(true)
                 )
@@ -123,10 +136,20 @@ async function handleButtonClick(interaction, bettingSession) {
         console.error('❌ Button handler error:', error);
 
         try {
-            await interaction.editReply({
-                content: '❌ Có lỗi xảy ra!'
-            });
-        } catch {}
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: '❌ Có lỗi xảy ra!',
+                    flags: 64
+                });
+            } else {
+                await interaction.editReply({
+                    content: '❌ Có lỗi xảy ra!',
+                    components: []
+                });
+            }
+        } catch (err) {
+            console.error('Failed to send error message:', err);
+        }
     }
 }
 
