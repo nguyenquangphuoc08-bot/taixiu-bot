@@ -1,4 +1,4 @@
-// handlers/buttonHandler.js - FIX LỖI INTERACTION
+// handlers/buttonHandler.js - FIX HOÀN TOÀN
 
 const { 
     ModalBuilder, 
@@ -12,20 +12,20 @@ const { getUser } = require('../utils/database');
 
 async function handleButtonClick(interaction, bettingSession) {
     try {
-        // ===== DEFER NGAY LẬP TỨC - QUAN TRỌNG! =====
-        // Phải defer TRƯỚC KHI làm bất cứ việc gì
-        const needsModal = 
-            interaction.customId === 'bet_type_select' ||
-            interaction.customId === 'open_bet_menu';
-
-        if (!needsModal && !interaction.deferred && !interaction.replied) {
+        // ===== DEFER UPDATE NGAY CHO TẤT CẢ BUTTON =====
+        if (interaction.isButton() && !interaction.deferred && !interaction.replied) {
             await interaction.deferUpdate();
+        }
+
+        // ===== DEFER REPLY CHO SELECT MENU =====
+        if (interaction.isStringSelectMenu() && !interaction.deferred && !interaction.replied) {
+            await interaction.deferReply({ ephemeral: true });
         }
 
         // ===== KIỂM TRA PHIÊN =====
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
-            if (needsModal) {
-                return interaction.reply({
+            if (interaction.isButton()) {
+                return interaction.followUp({
                     content: '❌ Không có phiên cược nào đang diễn ra!',
                     ephemeral: true
                 });
@@ -37,9 +37,11 @@ async function handleButtonClick(interaction, bettingSession) {
         }
 
         const elapsed = Date.now() - bettingSession.startTime;
-        if (elapsed >= bettingSession.duration) {
-            if (needsModal) {
-                return interaction.reply({
+        const BETTING_TIME = 30000; // 30 giây
+        
+        if (elapsed >= BETTING_TIME) {
+            if (interaction.isButton()) {
+                return interaction.followUp({
                     content: '⏱️ Phiên cược đã kết thúc!',
                     ephemeral: true
                 });
@@ -50,7 +52,7 @@ async function handleButtonClick(interaction, bettingSession) {
             });
         }
 
-        // ===== MỞ MENU =====
+        // ===== MỞ MENU CƯỢC =====
         if (interaction.customId === 'open_bet_menu') {
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('bet_type_select')
@@ -64,6 +66,7 @@ async function handleButtonClick(interaction, bettingSession) {
                     { label: 'Cược Tổng', description: '3-18 | x5', value: 'total', emoji: '📊' }
                 ]);
 
+            // Dùng followUp vì đã deferUpdate
             return interaction.followUp({
                 content: '⚡ **Chọn cửa để đặt cược**',
                 components: [new ActionRowBuilder().addComponents(selectMenu)],
@@ -71,15 +74,15 @@ async function handleButtonClick(interaction, bettingSession) {
             });
         }
 
-        // ===== CHỌN CỬA =====
+        // ===== CHỌN CỬA CƯỢC =====
         if (interaction.customId === 'bet_type_select') {
             const type = interaction.values[0];
             const user = getUser(interaction.user.id);
 
             if (!user || user.balance <= 0) {
-                return interaction.reply({
+                return interaction.editReply({
                     content: '❌ Bạn không có tiền để cược!',
-                    ephemeral: true
+                    components: []
                 });
             }
 
@@ -163,10 +166,17 @@ async function handleButtonClick(interaction, bettingSession) {
                     ephemeral: true 
                 });
             } else if (interaction.deferred) {
-                await interaction.editReply({ 
-                    content: '❌ Có lỗi xảy ra!', 
-                    components: [] 
-                });
+                if (interaction.isButton()) {
+                    await interaction.followUp({ 
+                        content: '❌ Có lỗi xảy ra!', 
+                        ephemeral: true 
+                    });
+                } else {
+                    await interaction.editReply({ 
+                        content: '❌ Có lỗi xảy ra!', 
+                        components: [] 
+                    });
+                }
             }
         } catch (e) {
             console.error('❌ Error handling failed:', e);
