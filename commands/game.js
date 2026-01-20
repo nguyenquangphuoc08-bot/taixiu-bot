@@ -35,10 +35,12 @@ async function handleTaiXiu(message, client) {
     const phienNumber = database.phienCounter;
     saveDB();
     
+    // ✅✅✅ CHỖ NÀY CẦN SỬA - THÊM duration: 30000 ✅✅✅
     bettingSession = {
         channelId: message.channel.id,
         bets: {},
         startTime: Date.now(),
+        duration: 30000, // ← THÊM DÒNG NÀY
         messageId: null,
         phienNumber: phienNumber
     };
@@ -459,3 +461,4 @@ module.exports = {
     getBettingSession,
     setBettingSession
 };
+
