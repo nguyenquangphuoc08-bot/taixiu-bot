@@ -1,4 +1,6 @@
-onst { 
+// handlers/buttonHandler.js - HỖ TRỢ CẢ .tx VÀ .mshop (ĐÃ SỬA 45 CHAR LIMIT)
+
+const { 
     ModalBuilder, 
     TextInputBuilder, 
     TextInputStyle, 
@@ -8,46 +10,70 @@ onst {
 
 const { getUser, saveDBDebounced } = require('../utils/database');
 
-// ✅ HÀM RÚT GỌN SỐ TIỀN
+// ✅ HÀM RÚT GỌN SỐ TIỀN (FIX 45 CHAR LIMIT)
 function formatBalance(balance) {
-    if (balance >= 1e24) return (balance / 1e24).toFixed(1) + 'Y';
-    if (balance >= 1e21) return (balance / 1e21).toFixed(1) + 'Z';
-    if (balance >= 1e18) return (balance / 1e18).toFixed(1) + 'E';
-    if (balance >= 1e15) return (balance / 1e15).toFixed(1) + 'P';
-    if (balance >= 1e12) return (balance / 1e12).toFixed(1) + 'T';
-    if (balance >= 1e9) return (balance / 1e9).toFixed(1) + 'B';
-    if (balance >= 1e6) return (balance / 1e6).toFixed(1) + 'M';
-    if (balance >= 1e3) return (balance / 1e3).toFixed(1) + 'K';
+    if (balance >= 1e24) return (balance / 1e24).toFixed(1) + 'Y'; // Yotta
+    if (balance >= 1e21) return (balance / 1e21).toFixed(1) + 'Z'; // Zetta
+    if (balance >= 1e18) return (balance / 1e18).toFixed(1) + 'E'; // Exa
+    if (balance >= 1e15) return (balance / 1e15).toFixed(1) + 'P'; // Peta
+    if (balance >= 1e12) return (balance / 1e12).toFixed(1) + 'T'; // Tera
+    if (balance >= 1e9) return (balance / 1e9).toFixed(1) + 'B';   // Billion
+    if (balance >= 1e6) return (balance / 1e6).toFixed(1) + 'M';   // Million
+    if (balance >= 1e3) return (balance / 1e3).toFixed(1) + 'K';   // Thousand
     return balance.toString();
 }
 
 async function handleButtonClick(interaction, bettingSession) {
     try {
-        if (!interaction.deferred && !interaction.replied) {
-            await interaction.deferUpdate();
+        // ===== XỬ LÝ BUTTON SHOP =====
+        if (interaction.customId === 'shop_vip') {
+            const { showVipPackages } = require('../commands/shop');
+            return await showVipPackages(interaction);
         }
+
+        if (interaction.customId === 'shop_titles') {
+            const { showTitles } = require('../commands/shop');
+            return await showTitles(interaction);
+        }
+
+        // ===== XỬ LÝ SELECT MENU SHOP =====
+        if (interaction.customId === 'buy_vip') {
+            const { buyVipPackage } = require('../commands/shop');
+            const vipId = interaction.values[0];
+            return await buyVipPackage(interaction, vipId);
+        }
+
+        if (interaction.customId === 'buy_title') {
+            const { buyTitle } = require('../commands/shop');
+            const titleId = interaction.values[0];
+            return await buyTitle(interaction, titleId);
+        }
+
+        // ===== XỬ LÝ TÀI XỈU =====
         
+        // Kiểm tra phiên cược (CHỈ cho Tài Xỉu)
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
-            return interaction.editReply({
+            return interaction.reply({
                 content: '❌ Không có phiên cược nào đang diễn ra!',
-                components: []
-            });
+                ephemeral: true
+            }).catch(() => {});
         }
 
-        const now = Date.now();
-        const elapsed = now - bettingSession.startTime;
-
-        if (elapsed >= bettingSession.duration) {
-            return interaction.editReply({
-                content: '⏱️ Phiên cược đã kết thúc! Vui lòng chờ phiên tiếp theo.',
-                components: []
-            });
+        const elapsed = Date.now() - bettingSession.startTime;
+        const BETTING_TIME = 30000;
+        
+        if (elapsed >= BETTING_TIME) {
+            return interaction.reply({
+                content: '⏱️ Phiên cược đã kết thúc!',
+                ephemeral: true
+            }).catch(() => {});
         }
 
-        if (interaction.customId === 'open_bet_menu') {
+        // ===== BUTTON "OPEN BET MENU" =====
+        if (interaction.isButton() && interaction.customId === 'open_bet_menu') {
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('bet_type_select')
-                .setPlaceholder('⚡ Chọn cửa và đặt cược tại đây!')
+                .setPlaceholder('⚡ Chọn cửa cược')
                 .addOptions([
                     { label: 'Tài', description: '11-18 | x1.9', value: 'tai', emoji: '🔵' },
                     { label: 'Xỉu', description: '3-10 | x1.9', value: 'xiu', emoji: '🔴' },
@@ -57,30 +83,38 @@ async function handleButtonClick(interaction, bettingSession) {
                     { label: 'Cược Tổng', description: '3-18 | x5', value: 'total', emoji: '📊' }
                 ]);
 
-            const row = new ActionRowBuilder().addComponents(selectMenu);
-
-            return interaction.editReply({
-                content: '⚡ **Chọn cửa và đặt cược tại đây!**',
-                components: [row]
+            return interaction.reply({
+                content: '⚡ **Chọn cửa để đặt cược**',
+                components: [new ActionRowBuilder().addComponents(selectMenu)],
+                ephemeral: true
             });
         }
 
-        if (interaction.customId === 'bet_type_select') {
-            const betType = interaction.values[0];
+        // ===== SELECT MENU "BET TYPE SELECT" =====
+        if (interaction.isStringSelectMenu() && interaction.customId === 'bet_type_select') {
+            const type = interaction.values[0];
             const user = getUser(interaction.user.id);
 
-            if (betType === 'number') {
+            if (!user || user.balance <= 0) {
+                return interaction.reply({
+                    content: '❌ Bạn không có tiền để cược!',
+                    ephemeral: true
+                });
+            }
+
+            // ---- CƯỢC SỐ ----
+            if (type === 'number') {
                 const modal = new ModalBuilder()
                     .setCustomId('modal_bet_number')
-                    .setTitle('🎯 CƯỢC VÀO SỐ (1-6)');
+                    .setTitle('🎯 CƯỢC SỐ (1-6)');
 
                 modal.addComponents(
                     new ActionRowBuilder().addComponents(
                         new TextInputBuilder()
                             .setCustomId('number_value')
-                            .setLabel('Chọn số (1-6)')
-                            .setStyle(TextInputStyle.Short)
+                            .setLabel('Nhập số (1-6)')
                             .setPlaceholder('VD: 3')
+                            .setStyle(TextInputStyle.Short)
                             .setRequired(true)
                     ),
                     new ActionRowBuilder().addComponents(
@@ -96,16 +130,17 @@ async function handleButtonClick(interaction, bettingSession) {
                 return interaction.showModal(modal);
             }
 
-            if (betType === 'total') {
+            // ---- CƯỢC TỔNG ----
+            if (type === 'total') {
                 const modal = new ModalBuilder()
                     .setCustomId('modal_bet_total')
-                    .setTitle('📊 CƯỢC VÀO TỔNG (3-18)');
+                    .setTitle('📊 CƯỢC TỔNG (3-18)');
 
                 modal.addComponents(
                     new ActionRowBuilder().addComponents(
                         new TextInputBuilder()
                             .setCustomId('total_value')
-                            .setLabel('Chọn tổng (3-18)')
+                            .setLabel('Nhập tổng (3-18)')
                             .setPlaceholder('VD: 12')
                             .setStyle(TextInputStyle.Short)
                             .setRequired(true)
@@ -123,8 +158,9 @@ async function handleButtonClick(interaction, bettingSession) {
                 return interaction.showModal(modal);
             }
 
+            // ---- TÀI / XỈU / CHẴN / LẺ ----
             const modal = new ModalBuilder()
-                .setCustomId(`bet_modal_${betType}`)
+                .setCustomId(`bet_modal_${type}`)
                 .setTitle('🎲 NHẬP SỐ TIỀN CƯỢC');
 
             modal.addComponents(
@@ -132,7 +168,7 @@ async function handleButtonClick(interaction, bettingSession) {
                     new TextInputBuilder()
                         .setCustomId('bet_amount')
                         .setLabel(`💰 ${formatBalance(user.balance)} Mcoin`) // ✅ ĐÃ SỬA
-                        .setPlaceholder('VD: 1k, 5m, 10b, 100000')
+                        .setPlaceholder('VD: 1k, 5m, 10b')
                         .setStyle(TextInputStyle.Short)
                         .setRequired(true)
                 )
@@ -141,23 +177,14 @@ async function handleButtonClick(interaction, bettingSession) {
             return interaction.showModal(modal);
         }
 
-    } catch (error) {
-        console.error('❌ Button handler error:', error);
-
-        try {
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({
-                    content: '❌ Có lỗi xảy ra!',
-                    flags: 64
-                });
-            } else {
-                await interaction.editReply({
-                    content: '❌ Có lỗi xảy ra!',
-                    components: []
-                });
-            }
-        } catch (err) {
-            console.error('Failed to send error message:', err);
+    } catch (err) {
+        console.error('❌ Button handler error:', err);
+        
+        if (!interaction.replied && !interaction.deferred) {
+            interaction.reply({ 
+                content: '❌ Có lỗi xảy ra!', 
+                ephemeral: true 
+            }).catch(() => {});
         }
     }
 }
