@@ -1,36 +1,26 @@
-// commands/user.js - CẬP NHẬT VỚI .setbg
+// commands/user.js - BỎ X2 ĐIỂM DANH, BỎ CHUỖI
 
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { database, getUser, saveDB } = require('../utils/database');
 const { createProfileCard } = require('../utils/canvas');
+const { updateQuest } = require('../services/quest');
 
-// Lệnh: .mcoin (CHỈ HIỂN THỊ ẢNH)
 async function handleMcoin(message) {
     const user = getUser(message.author.id);
-    
-    // Lấy avatar URL
     const avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 256 });
-    
-    // Tạo profile card
     const profileBuffer = await createProfileCard(message.author, user, avatarUrl);
     
     if (!profileBuffer) {
         return message.reply('❌ Không thể tạo profile card!');
     }
     
-    // ✅ CHỈ GỬI ẢNH, KHÔNG CÓ TEXT
     const attachment = new AttachmentBuilder(profileBuffer, { name: 'profile.png' });
-    
-    await message.reply({ 
-        files: [attachment] 
-    });
+    await message.reply({ files: [attachment] });
 }
 
-// ✅ LỆNH MỚI: .setbg (Upload ảnh nền)
 async function handleSetBg(message, args) {
     const user = getUser(message.author.id);
     
-    // ✅ XỬ LÝ: .setbg reset
     if (args && args[0] && args[0].toLowerCase() === 'reset') {
         user.customBg = null;
         saveDB();
@@ -38,104 +28,60 @@ async function handleSetBg(message, args) {
         const embed = new EmbedBuilder()
             .setTitle('🗑️ ĐÃ XÓA ẢNH NỀN')
             .setColor('#e74c3c')
-            .setDescription(`
-Ảnh nền đã được đặt về mặc định (hồng).
-
-📝 **Xem ngay:** Gõ \`.mcoin\`
-🎨 **Đặt ảnh mới:** Upload ảnh + \`.setbg\`
-            `)
+            .setDescription(`Ảnh nền đã được đặt về mặc định (hồng).\n\n📝 **Xem ngay:** Gõ \`.mcoin\`\n🎨 **Đặt ảnh mới:** Upload ảnh + \`.setbg\``)
             .setFooter({ text: 'Profile card bây giờ dùng ảnh nền hồng' });
         
         return message.reply({ embeds: [embed] });
     }
     
-    // ✅ XỬ LÝ: .setbg <URL>
     if (args && args[0] && args[0].startsWith('http')) {
         try {
-            // Test xem URL có load được không
-            const { loadImage } = require('canvas');
+            const { loadImage } = require('@napi-rs/canvas');
             await loadImage(args[0]);
-            
             user.customBg = args[0];
             saveDB();
             
             const embed = new EmbedBuilder()
                 .setTitle('✅ ĐÃ ĐẶT ẢNH NỀN TỪ URL!')
                 .setColor('#2ecc71')
-                .setDescription(`
-Ảnh nền của bạn đã được cập nhật!
-
-📝 **Xem ngay:** Gõ \`.mcoin\`
-🔄 **Đổi ảnh khác:** Upload ảnh mới + \`.setbg\`
-🗑️ **Xóa ảnh:** Gõ \`.setbg reset\`
-                `)
+                .setDescription(`Ảnh nền của bạn đã được cập nhật!\n\n📝 **Xem ngay:** Gõ \`.mcoin\`\n🔄 **Đổi ảnh khác:** Upload ảnh mới + \`.setbg\`\n🗑️ **Xóa ảnh:** Gõ \`.setbg reset\``)
                 .setImage(args[0])
                 .setFooter({ text: 'Ảnh sẽ hiển thị ở profile card của bạn' })
                 .setTimestamp();
             
             return message.reply({ embeds: [embed] });
-            
         } catch (error) {
             return message.reply('❌ URL ảnh không hợp lệ hoặc không thể tải được!');
         }
     }
     
-    // ✅ XỬ LÝ: .setbg (không có gì) → HƯỚNG DẪN
     if (message.attachments.size === 0) {
         const embed = new EmbedBuilder()
             .setTitle('🎨 HỖ TRỢ ĐẶT ẢNH NỀN')
             .setColor('#9b59b6')
-            .setDescription(`
-**Cách dùng:**
-
-**1️⃣ Upload ảnh từ máy:**
-• Nhấn icon 📎 (đính kèm file)
-• Chọn ảnh từ máy
-• Trong ô "Add a comment", gõ: \`.setbg\`
-• Gửi tin nhắn
-
-**2️⃣ Dùng link ảnh:**
-\`.setbg <URL>\`
-Ví dụ: \`.setbg https://i.imgur.com/abc.png\`
-
-**3️⃣ Xóa ảnh nền:**
-\`.setbg reset\` - Về mặc định (hồng)
-
-**Ảnh hiện tại:**
-${user.customBg ? '✅ Đã có ảnh nền tùy chỉnh' : '❌ Đang dùng ảnh mặc định (hồng)'}
-            `)
+            .setDescription(`**Cách dùng:**\n\n**1️⃣ Upload ảnh từ máy:**\n• Nhấn icon 📎 (đính kèm file)\n• Chọn ảnh từ máy\n• Trong ô "Add a comment", gõ: \`.setbg\`\n• Gửi tin nhắn\n\n**2️⃣ Dùng link ảnh:**\n\`.setbg <URL>\`\nVí dụ: \`.setbg https://i.imgur.com/abc.png\`\n\n**3️⃣ Xóa ảnh nền:**\n\`.setbg reset\` - Về mặc định (hồng)\n\n**Ảnh hiện tại:**\n${user.customBg ? '✅ Đã có ảnh nền tùy chỉnh' : '❌ Đang dùng ảnh mặc định (hồng)'}`)
             .setFooter({ text: 'Khuyến nghị: Ảnh 500x250 px, JPG/PNG' });
         
         return message.reply({ embeds: [embed] });
     }
     
-    // ✅ XỬ LÝ: Upload ảnh
     const attachment = message.attachments.first();
     
-    // Kiểm tra có phải ảnh không
     if (!attachment.contentType?.startsWith('image/')) {
         return message.reply('❌ File đính kèm phải là ảnh (JPG, PNG, GIF)!');
     }
     
-    // Kiểm tra kích thước (tối đa 8MB)
     if (attachment.size > 8 * 1024 * 1024) {
         return message.reply('❌ Ảnh quá lớn! Tối đa 8MB.');
     }
     
-    // Lưu URL ảnh vào database
     user.customBg = attachment.url;
     saveDB();
     
     const embed = new EmbedBuilder()
         .setTitle('✅ ĐÃ ĐẶT ẢNH NỀN MỚI!')
         .setColor('#2ecc71')
-        .setDescription(`
-Ảnh nền của bạn đã được cập nhật!
-
-📝 **Xem ngay:** Gõ \`.mcoin\`
-🔄 **Đổi ảnh khác:** Upload ảnh mới + \`.setbg\`
-🗑️ **Xóa ảnh:** Gõ \`.setbg reset\`
-        `)
+        .setDescription(`Ảnh nền của bạn đã được cập nhật!\n\n📝 **Xem ngay:** Gõ \`.mcoin\`\n🔄 **Đổi ảnh khác:** Upload ảnh mới + \`.setbg\`\n🗑️ **Xóa ảnh:** Gõ \`.setbg reset\``)
         .setImage(attachment.url)
         .setFooter({ text: 'Ảnh sẽ hiển thị ở profile card của bạn' })
         .setTimestamp();
@@ -143,7 +89,6 @@ ${user.customBg ? '✅ Đã có ảnh nền tùy chỉnh' : '❌ Đang dùng ả
     await message.reply({ embeds: [embed] });
 }
 
-// Lệnh: .tang
 async function handleTang(message, args) {
     const targetUser = message.mentions.users.first();
     const amount = parseInt(args[2]);
@@ -171,6 +116,8 @@ async function handleTang(message, args) {
     receiver.balance += amount;
     saveDB();
     
+    updateQuest(message.author.id, 5);
+    
     const embed = new EmbedBuilder()
         .setTitle('💝 TẶNG TIỀN THÀNH CÔNG!')
         .setColor('#e91e63')
@@ -184,7 +131,6 @@ async function handleTang(message, args) {
     await message.reply({ embeds: [embed] });
 }
 
-// Lệnh: .diemdanh (có VIP bonus)
 async function handleDiemDanh(message) {
     const userId = message.author.id;
     const now = Date.now();
@@ -198,13 +144,10 @@ async function handleDiemDanh(message) {
     }
     
     const user = getUser(userId);
-    const streak = user.dailyQuests?.streak || 0;
-    const multiplier = streak >= 3 ? 2 : 1;
     
-    // Base reward
-    let reward = 3000000 * multiplier;
+    // BỎ X2, CHỈ THƯỞNG CỐ ĐỊNH
+    let reward = 3000000;
     
-    // VIP bonus
     const vipBonus = user.vipBonus?.dailyBonus || 0;
     reward += vipBonus;
     
@@ -212,25 +155,17 @@ async function handleDiemDanh(message) {
     database.lastCheckin[userId] = now;
     saveDB();
     
+    updateQuest(userId, 3);
+    
     const embed = new EmbedBuilder()
         .setTitle('🎁 ĐIỂM DANH THÀNH CÔNG!')
         .setColor('#2ecc71')
-        .setDescription(`
-Bạn nhận được **${reward.toLocaleString('en-US')} Mcoin**!
-${multiplier === 2 ? '✨ **X2 nhờ chuỗi 3+ ngày làm nhiệm vụ!**' : ''}
-${vipBonus > 0 ? `⭐ **+${vipBonus.toLocaleString('en-US')} Mcoin từ VIP!**` : ''}
-        `)
-        .addFields(
-            {
-                name: '💰 Số dư mới',
-                value: `${user.balance.toLocaleString('en-US')} Mcoin`
-            },
-            {
-                name: '🔥 Chuỗi nhiệm vụ',
-                value: `${streak} ngày ${streak >= 3 ? '(Đang x2!)' : '(Cần 3+ để x2)'}`
-            }
-        )
-        .setFooter({ text: 'Quay lại sau 8 giờ | Làm .daily để giữ chuỗi!' })
+        .setDescription(`Bạn nhận được **${reward.toLocaleString('en-US')} Mcoin**!\n${vipBonus > 0 ? `⭐ **+${vipBonus.toLocaleString('en-US')} Mcoin từ VIP!**` : ''}`)
+        .addFields({
+            name: '💰 Số dư mới',
+            value: `${user.balance.toLocaleString('en-US')} Mcoin`
+        })
+        .setFooter({ text: 'Quay lại sau 8 giờ' })
         .setTimestamp();
     
     await message.reply({ embeds: [embed] });
