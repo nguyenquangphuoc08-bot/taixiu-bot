@@ -79,8 +79,8 @@ async function handleButtonClick(interaction, bettingSession) {
                     { label: 'Xỉu', description: '3-10 | x1.9', value: 'xiu', emoji: '🔴' },
                     { label: 'Chẵn', description: 'x1.9', value: 'chan', emoji: '🟣' },
                     { label: 'Lẻ', description: 'x1.9', value: 'le', emoji: '🟡' },
-                    { label: 'Cược Số', description: '1-6 | x3', value: 'number', emoji: '🎯' },
-                    { label: 'Cược Tổng', description: '3-18 | x5', value: 'total', emoji: '📊' }
+                    { label: 'Cược Số', description: '1-6 ', value: 'number', emoji: '🎯' },
+                    { label: 'Cược Tổng', description: '3-18 ', value: 'total', emoji: '📊' }
                 ]);
 
             return interaction.reply({
@@ -190,3 +190,4 @@ async function handleButtonClick(interaction, bettingSession) {
 }
 
 module.exports = { handleButtonClick };
+
