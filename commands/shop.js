@@ -1,80 +1,149 @@
-// handlers/shop.js - HỆ THỐNG CỬA HÀNG VIP
+// commands/shop.js - HỆ THỐNG VIP 1-10
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const { getUser, saveDB } = require('../utils/database');
 
-// Danh sách VIP items
+function formatNumber(num) {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+// VIP 1-10
 const VIP_ITEMS = {
     vip1: {
         id: 'vip1',
         name: '⭐ VIP 1',
-        price: 50000000,
-        dailyBonus: 2000000,
+        icon: '⭐',
+        price: 100000000,
+        dailyBonus: 10,
         betBonus: 5,
-        description: '+2M điểm danh, +5% thắng cược'
+        extraBonus: 0
     },
     vip2: {
         id: 'vip2',
         name: '⭐⭐ VIP 2',
-        price: 1500000000,
-        dailyBonus: 5000000,
+        icon: '⭐⭐',
+        price: 300000000,
+        dailyBonus: 20,
         betBonus: 10,
-        description: '+5M điểm danh, +10% thắng cược'
+        extraBonus: 0
     },
     vip3: {
         id: 'vip3',
         name: '⭐⭐⭐ VIP 3',
-        price: 5000000000,
-        dailyBonus: 150000000,
+        icon: '⭐⭐⭐',
+        price: 500000000,
+        dailyBonus: 30,
+        betBonus: 15,
+        extraBonus: 0
+    },
+    vip4: {
+        id: 'vip4',
+        name: '💎 VIP 4',
+        icon: '💎',
+        price: 1000000000,
+        dailyBonus: 40,
         betBonus: 20,
-        description: '+15M điểm danh, +20% thắng cược'
+        extraBonus: 0
+    },
+    vip5: {
+        id: 'vip5',
+        name: '💎⭐ VIP 5',
+        icon: '💎⭐',
+        price: 2000000000,
+        dailyBonus: 50,
+        betBonus: 25,
+        extraBonus: 50
+    },
+    vip6: {
+        id: 'vip6',
+        name: '💎💎 VIP 6',
+        icon: '💎💎',
+        price: 5000000000,
+        dailyBonus: 60,
+        betBonus: 30,
+        extraBonus: 50
+    },
+    vip7: {
+        id: 'vip7',
+        name: '👑 VIP 7',
+        icon: '👑',
+        price: 10000000000,
+        dailyBonus: 70,
+        betBonus: 35,
+        extraBonus: 50
+    },
+    vip8: {
+        id: 'vip8',
+        name: '👑⭐ VIP 8',
+        icon: '👑⭐',
+        price: 15000000000,
+        dailyBonus: 80,
+        betBonus: 40,
+        extraBonus: 50
+    },
+    vip9: {
+        id: 'vip9',
+        name: '👑💎 VIP 9',
+        icon: '👑💎',
+        price: 18000000000,
+        dailyBonus: 90,
+        betBonus: 45,
+        extraBonus: 50
+    },
+    vip10: {
+        id: 'vip10',
+        name: '🔥👑 VIP 10',
+        icon: '🔥👑',
+        price: 20000000000,
+        dailyBonus: 100,
+        betBonus: 50,
+        extraBonus: 50
     },
     title_legend: {
         id: 'title_legend',
         name: '👑 Huyền Thoại',
         price: 100000000,
-        titleName: 'Huyền Thoại',
-        description: 'Danh hiệu độc quyền'
+        titleName: 'Huyền Thoại'
     },
     title_dragon: {
         id: 'title_dragon',
         name: '🐉 Rồng Thần',
         price: 500000000,
-        titleName: 'Rồng Thần',
-        description: 'Danh hiệu quý hiếm'
+        titleName: 'Rồng Thần'
     },
     title_god: {
         id: 'title_god',
         name: '🌟 Thần Tài',
         price: 3000000000,
-        titleName: 'Thần Tài',
-        description: 'Danh hiệu siêu VIP'
+        titleName: 'Thần Tài'
     }
 };
 
-// Lệnh: .mshop
 async function handleMShop(message) {
     const user = getUser(message.author.id);
+    
+    const vipIcon = user.vipLevel ? VIP_ITEMS[`vip${user.vipLevel}`]?.icon || '⭐' : '❌';
     
     const embed = new EmbedBuilder()
         .setTitle('🏪 CỬA HÀNG VIP')
         .setColor('#f39c12')
         .setDescription(`
-💰 **Số dư của bạn:** ${user.balance.toLocaleString('en-US')} Mcoin
-⭐ **VIP hiện tại:** ${user.vipTitle || 'Chưa có'} (Level ${user.vipLevel || 0})
+💰 **Số dư:** ${formatNumber(user.balance)} Mcoin
+${vipIcon} **VIP hiện tại:** Level ${user.vipLevel || 0}
+👑 **Danh hiệu:** ${user.vipTitle || 'Chưa có'}
 
 **Chọn loại sản phẩm:**
-🌟 **VIP Package** - Buff điểm danh & thắng cược
-👑 **Danh hiệu** - Tên đẹp, khẳng định đẳng cấp
+🌟 **VIP 1-10** - Buff mạnh mẽ
+👑 **Danh hiệu** - Tên đẹp
         `)
-        .setFooter({ text: 'Bấm nút bên dưới để xem sản phẩm!' })
+        .setFooter({ text: 'Bấm nút để xem!' })
         .setTimestamp();
     
     const row = new ActionRowBuilder()
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('shop_vip')
-                .setLabel('🌟 VIP Package')
+                .setLabel('🌟 VIP 1-10')
                 .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
                 .setCustomId('shop_titles')
@@ -85,53 +154,60 @@ async function handleMShop(message) {
     await message.reply({ embeds: [embed], components: [row] });
 }
 
-// Hiển thị VIP packages
 async function showVipPackages(interaction) {
     const user = getUser(interaction.user.id);
     
     let vipText = '';
-    Object.values(VIP_ITEMS).filter(item => item.dailyBonus).forEach(vip => {
-        const owned = user.vipLevel >= parseInt(vip.id.replace('vip', '')) ? '✅' : '❌';
+    for (let i = 1; i <= 10; i++) {
+        const vip = VIP_ITEMS[`vip${i}`];
+        const owned = user.vipLevel >= i ? '✅' : '❌';
+        
+        let bonusText = `+${vip.dailyBonus}% điểm danh, +${vip.betBonus}% thắng`;
+        if (vip.extraBonus > 0) {
+            bonusText += `, +${vip.extraBonus}% BONUS`;
+        }
+        
         vipText += `
 ${owned} **${vip.name}**
-💰 Giá: ${vip.price.toLocaleString('en-US')} Mcoin
-📝 ${vip.description}
+💰 ${formatNumber(vip.price)}
+📝 ${bonusText}
 ━━━━━━━━━━━━━━
 `;
-    });
+    }
     
     const embed = new EmbedBuilder()
-        .setTitle('🌟 VIP PACKAGES')
+        .setTitle('🌟 VIP 1-10')
         .setColor('#9b59b6')
         .setDescription(`
-💰 **Số dư:** ${user.balance.toLocaleString('en-US')} Mcoin
+💰 **Số dư:** ${formatNumber(user.balance)}
 ⭐ **VIP hiện tại:** Level ${user.vipLevel || 0}
 
 ${vipText}
 
-⚠️ **Lưu ý:** Mua VIP cao hơn sẽ GHI ĐÈ VIP cũ!
+⚠️ **Mua VIP cao hơn sẽ GHI ĐÈ VIP cũ!**
         `)
-        .setFooter({ text: 'Chọn menu bên dưới để mua!' });
+        .setFooter({ text: 'Chọn menu để mua!' });
+    
+    const options = [];
+    for (let i = 1; i <= 10; i++) {
+        const vip = VIP_ITEMS[`vip${i}`];
+        options.push({
+            label: vip.name,
+            description: `${formatNumber(vip.price)} Mcoin`,
+            value: vip.id
+        });
+    }
     
     const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('buy_vip')
         .setPlaceholder('Chọn gói VIP...')
-        .addOptions(
-            Object.values(VIP_ITEMS)
-                .filter(item => item.dailyBonus)
-                .map(vip => ({
-                    label: vip.name,
-                    description: `${vip.price.toLocaleString('en-US')} Mcoin - ${vip.description}`,
-                    value: vip.id
-                }))
-        );
+        .addOptions(options);
     
     const row = new ActionRowBuilder().addComponents(selectMenu);
     
     await interaction.update({ embeds: [embed], components: [row] });
 }
 
-// Hiển thị danh hiệu
 async function showTitles(interaction) {
     const user = getUser(interaction.user.id);
     
@@ -140,8 +216,7 @@ async function showTitles(interaction) {
         const owned = user.ownedTitles?.includes(title.id) ? '✅' : '❌';
         titleText += `
 ${owned} **${title.name}**
-💰 Giá: ${title.price.toLocaleString('en-US')} Mcoin
-📝 ${title.description}
+💰 ${formatNumber(title.price)}
 ━━━━━━━━━━━━━━
 `;
     });
@@ -150,14 +225,14 @@ ${owned} **${title.name}**
         .setTitle('👑 DANH HIỆU')
         .setColor('#e91e63')
         .setDescription(`
-💰 **Số dư:** ${user.balance.toLocaleString('en-US')} Mcoin
-👑 **Danh hiệu hiện tại:** ${user.vipTitle || 'Chưa có'}
+💰 **Số dư:** ${formatNumber(user.balance)}
+👑 **Hiện tại:** ${user.vipTitle || 'Chưa có'}
 
 ${titleText}
 
-✨ **Danh hiệu sẽ hiển thị trên profile của bạn!**
+✨ **Hiển thị trên profile!**
         `)
-        .setFooter({ text: 'Chọn menu để mua danh hiệu!' });
+        .setFooter({ text: 'Chọn menu!' });
     
     const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('buy_title')
@@ -167,7 +242,7 @@ ${titleText}
                 .filter(item => item.titleName)
                 .map(title => ({
                     label: title.name,
-                    description: `${title.price.toLocaleString('en-US')} Mcoin`,
+                    description: `${formatNumber(title.price)} Mcoin`,
                     value: title.id
                 }))
         );
@@ -177,18 +252,17 @@ ${titleText}
     await interaction.update({ embeds: [embed], components: [row] });
 }
 
-// Mua VIP package
 async function buyVipPackage(interaction, vipId) {
     const user = getUser(interaction.user.id);
     const vip = VIP_ITEMS[vipId];
     
     if (!vip || !vip.dailyBonus) {
-        return interaction.reply({ content: '❌ Gói VIP không tồn tại!', ephemeral: true });
+        return interaction.reply({ content: '❌ VIP không tồn tại!', ephemeral: true });
     }
     
     if (user.balance < vip.price) {
         return interaction.reply({ 
-            content: `❌ Không đủ tiền! Bạn cần **${vip.price.toLocaleString('en-US')} Mcoin** nhưng chỉ có **${user.balance.toLocaleString('en-US')} Mcoin**!`,
+            content: `❌ Không đủ! Cần **${formatNumber(vip.price)}** nhưng chỉ có **${formatNumber(user.balance)}**!`,
             ephemeral: true 
         });
     }
@@ -197,7 +271,7 @@ async function buyVipPackage(interaction, vipId) {
     
     if (user.vipLevel >= vipLevel) {
         return interaction.reply({ 
-            content: `❌ Bạn đã có VIP ${user.vipLevel} rồi!`,
+            content: `❌ Bạn đã có VIP ${user.vipLevel}!`,
             ephemeral: true 
         });
     }
@@ -206,9 +280,18 @@ async function buyVipPackage(interaction, vipId) {
     user.vipLevel = vipLevel;
     user.vipBonus = {
         dailyBonus: vip.dailyBonus,
-        betBonus: vip.betBonus
+        betBonus: vip.betBonus,
+        extraBonus: vip.extraBonus
     };
     saveDB();
+    
+    let bonusText = `
+🎁 Điểm danh: +${vip.dailyBonus}%
+🎲 Thắng cược: +${vip.betBonus}%`;
+    
+    if (vip.extraBonus > 0) {
+        bonusText += `\n✨ BONUS thêm: +${vip.extraBonus}%`;
+    }
     
     const embed = new EmbedBuilder()
         .setTitle('✅ MUA VIP THÀNH CÔNG!')
@@ -216,18 +299,15 @@ async function buyVipPackage(interaction, vipId) {
         .setDescription(`
 Bạn đã mua **${vip.name}**!
 
-**Đặc quyền:**
-🎁 Điểm danh: +${vip.dailyBonus.toLocaleString('en-US')} Mcoin
-🎲 Thắng cược: +${vip.betBonus}%
+**Đặc quyền:**${bonusText}
 
-💰 **Số dư còn lại:** ${user.balance.toLocaleString('en-US')} Mcoin
+💰 **Số dư:** ${formatNumber(user.balance)}
         `)
         .setTimestamp();
     
     await interaction.reply({ embeds: [embed] });
 }
 
-// Mua danh hiệu
 async function buyTitle(interaction, titleId) {
     const user = getUser(interaction.user.id);
     const title = VIP_ITEMS[titleId];
@@ -240,14 +320,14 @@ async function buyTitle(interaction, titleId) {
     
     if (user.ownedTitles.includes(titleId)) {
         return interaction.reply({ 
-            content: `❌ Bạn đã sở hữu danh hiệu **${title.name}** rồi!`,
+            content: `❌ Đã có **${title.name}**!`,
             ephemeral: true 
         });
     }
     
     if (user.balance < title.price) {
         return interaction.reply({ 
-            content: `❌ Không đủ tiền! Bạn cần **${title.price.toLocaleString('en-US')} Mcoin**!`,
+            content: `❌ Không đủ! Cần **${formatNumber(title.price)}**!`,
             ephemeral: true 
         });
     }
@@ -263,10 +343,10 @@ async function buyTitle(interaction, titleId) {
         .setDescription(`
 Bạn đã mua **${title.name}**!
 
-👑 **Danh hiệu mới:** ${title.titleName}
-💰 **Số dư còn lại:** ${user.balance.toLocaleString('en-US')} Mcoin
+👑 **Danh hiệu:** ${title.titleName}
+💰 **Số dư:** ${formatNumber(user.balance)}
 
-✨ Danh hiệu sẽ hiển thị trên profile của bạn!
+✨ Hiển thị trên profile!
         `)
         .setTimestamp();
     
