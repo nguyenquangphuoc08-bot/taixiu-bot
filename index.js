@@ -95,9 +95,7 @@ client.on('messageCreate', async (message) => {
                     { name: '👤 Tài Khoản', value: '```\n.mcoin    → Xem profile & số dư\n.setbg    → Đặt ảnh nền\n.dd       → Điểm danh (8h/lần)\n```', inline: false },
                     { name: '🎁 Nhiệm Vụ & Quà', value: '```\n.daily    → Nhiệm vụ hằng ngày\n.claimall → Nhận hết thưởng\n```', inline: false },
                     { name: '💸 Giao Dịch', value: '```\n.tang @user [số] → Tặng tiền\n.mshop           → Cửa hàng VIP & danh hiệu\n```', inline: false },
-                    { name: '🎁 Giftcode', value: '```\n.code          → Xem danh sách code\n.code <MÃ>     → Nhập code nhận quà\n```', inline: false },
-                    { name: '📌 Cách Chơi Tài Xỉu', value: '```\n1. Gõ .tx để mở phiên\n2. Bấm nút "Đặt Cược"\n3. Chọn cửa (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n4. Nhập tiền (1k, 5m, 10b)\n```', inline: false },
-                    { name: '💡 Tỷ lệ cược', value: '```\n• Tài/Xỉu/Chẵn/Lẻ: x1.9\n• Cược số: x1.9/x2.8/x3.6\n• Cược tổng 9-12: x4.5\n• Cược tổng 3&18: x10.8\n• Cược tổng còn lại: x6.2\n• Cược ≥20k mới ăn hũ\n```', inline: false }
+                    { name: '🎁 Giftcode', value: '```\n.code          → Xem danh sách code\n.code <MÃ>     → Nhập code nhận quà\n```', inline: false }
                 ],
                 footer: { text: '🎮 Chúc bạn may mắn!' },
                 timestamp: new Date()
