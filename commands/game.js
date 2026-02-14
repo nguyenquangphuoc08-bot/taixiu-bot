@@ -1,4 +1,4 @@
-// commands/game.js - ĐÃ SỬA (Bỏ hiển thị 100% nổ hũ & Nổ ở 1000b)
+// commands/game.js - HỆ THỐNG HŨ MỚI (10% vào hũ, nổ theo mốc, chia tỷ lệ)
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
@@ -35,12 +35,11 @@ async function handleTaiXiu(message, client) {
     const phienNumber = database.phienCounter;
     saveDB();
     
-    // ✅✅✅ CHỖ NÀY CẦN SỬA - THÊM duration: 30000 ✅✅✅
     bettingSession = {
         channelId: message.channel.id,
         bets: {},
         startTime: Date.now(),
-        duration: 30000, // ← THÊM DÒNG NÀY
+        duration: 30000,
         messageId: null,
         phienNumber: phienNumber
     };
@@ -55,32 +54,32 @@ async function handleTaiXiu(message, client) {
     const jackpotDisplay = database.jackpot ? database.jackpot.toLocaleString('en-US') : '0';
     
     const embed = new EmbedBuilder()
-        .setTitle(`🎲 PHIÊN CƯỢC #${phienNumber}`)
-        .setColor('#e67e22')
+        .setTitle(`TÀI XỈU #${phienNumber}`)
+        .setColor('#f39c12')
         .setDescription(`
-**Cửa cược:**
-🔵 **Tài** (11-18) | 🔴 **Xỉu** (3-10)
-🟣 **Chẵn** | 🟡 **Lẻ**
-🎯 **Cược Số** (1-6) | 📊 **Cược Tổng** (3-18)
+**Tỉ lệ cược**
 
-**Tỷ lệ:**
-✅ Tài/Xỉu/Chẵn/Lẻ: **x1.9**
-🎯 Cược Số đúng: **x3**
-📊 Cược Tổng đúng: **x5**
-🎰 **Nổ hũ x20** khi 3 xúc xắc trùng nhau!
-⚠️ **Chỉ người THẮNG cược mới nhận hũ!**
+• **Tài - Xỉu:** x1.9
+• **Chẵn - Lẻ:** x1.9
+• **Cược số:** x1.9/x2.8/x3.6 (Dựa theo số lượng xúc xắc xuất hiện)
+• **Cược tổng:**
+  **9 tới 12:** x4.5
+  **3 và 18:** x10.8
+  **Còn lại:** x6.2
 
-💎 **HŨ HIỆN TẠI: ${jackpotDisplay} Mcoin**
-📊 Mỗi cược cộng 2/3 vào hũ
+• **Nổ hũ:** Khi 3 xúc xắc trùng nhau
+  └ Hũ đạt 100B/200B/300B... → Nổ 100%
+  └ Dưới 100B → Nổ ngẫu nhiên theo % hũ
+  └ Người thắng nhận theo tỷ lệ tiền cược
+
+• **Mỗi lần cược:** 10% tiền cược vào hũ
         `)
         .addFields(
-            { name: '⏰ Thời gian còn lại', value: '30 giây', inline: true },
-            { name: '🎯 Phiên số', value: `#${phienNumber}`, inline: true }
+            { name: '⏰ Thời gian còn lại', value: '**30** giây tới', inline: false }
         )
-        .setFooter({ text: 'Bấm nút để đặt cược!' })
+        .setFooter({ text: 'Hãy chọn cửa và ghi số tiền cược\nKết thúc trong: 30 giây tới' })
         .setTimestamp();
     
-    // ✅ CHỈ 1 NÚT DUY NHẤT
     const row = new ActionRowBuilder()
         .addComponents(
             new ButtonBuilder()
@@ -105,8 +104,8 @@ async function handleTaiXiu(message, client) {
             
             embed.spliceFields(0, 1, { 
                 name: `${emoji} Thời gian còn lại`, 
-                value: `**${timeLeft}** giây`, 
-                inline: true 
+                value: `**${timeLeft}** giây tới`, 
+                inline: false 
             });
             
             await sentMessage.edit({ embeds: [embed], components: [row] }).catch(() => {});
@@ -139,28 +138,26 @@ async function animateResult(sentMessage, client) {
         let dice1, dice2, dice3, total;
         let isJackpot = false;
         
-        // ✅ LOGIC NỔ HŨ: Nổ khi đạt 1000 tỷ (1000000000000)
-        if (currentJackpot >= 1000000000000) {
-            const forcedNumber = Math.floor(Math.random() * 6) + 1;
-            dice1 = dice2 = dice3 = forcedNumber;
-            total = dice1 + dice2 + dice3;
-            isJackpot = true;
+        // ===== LOGIC NỔ HŨ MỚI =====
+        const rollResult = rollDice();
+        dice1 = rollResult.dice1;
+        dice2 = rollResult.dice2;
+        dice3 = rollResult.dice3;
+        total = rollResult.total;
+        
+        const isTriple = checkJackpot(dice1, dice2, dice3);
+        
+        if (isTriple) {
+            // Tính mốc hũ gần nhất (100B, 200B, 300B, ...)
+            const jackpotMilestone = Math.ceil(currentJackpot / 100000000000) * 100000000000;
             
-            console.log(`🎰 HŨ ĐẦY 1000 TỶ! ÉP 3 XÚC XẮC: ${dice1}-${dice2}-${dice3}`);
-        } 
-        else {
-            const rollResult = rollDice();
-            dice1 = rollResult.dice1;
-            dice2 = rollResult.dice2;
-            dice3 = rollResult.dice3;
-            total = rollResult.total;
-            
-            // Kiểm tra có 3 xúc xắc giống nhau không
-            const isTriple = checkJackpot(dice1, dice2, dice3);
-            
-            if (isTriple) {
-                // Xác suất nổ = (Hũ hiện tại / 1000 tỷ) * 100%
-                const jackpotChance = (currentJackpot / 1000000000000) * 100;
+            // Nếu đạt mốc 100B/200B/300B... → Nổ 100%
+            if (currentJackpot >= jackpotMilestone && jackpotMilestone > 0) {
+                isJackpot = true;
+                console.log(`🎰 HŨ ĐẠT MỐC ${(jackpotMilestone / 1000000000).toFixed(0)}B! NỔ 100%`);
+            } else {
+                // Dưới mốc → Nổ ngẫu nhiên theo %
+                const jackpotChance = (currentJackpot / 100000000000) * 100; // % so với 100B
                 const randomChance = Math.random() * 100;
                 
                 if (randomChance <= jackpotChance) {
@@ -175,7 +172,7 @@ async function animateResult(sentMessage, client) {
         const result = checkResult(total);
         const phienNumber = bettingSession.phienNumber;
         
-        // ===== FRAME 1: Tô đè hoàn toàn (0%) =====
+        // ===== ANIMATION FRAME 1-5: Tô nâng dần =====
         const frame1 = createBowlLift(dice1, dice2, dice3, 0);
         if (frame1) {
             const embed2 = new EmbedBuilder()
@@ -193,7 +190,6 @@ async function animateResult(sentMessage, client) {
         }
         await sleep(500);
         
-        // ===== FRAME 2-5: Animation tô nâng dần =====
         for (let i = 25; i <= 100; i += 25) {
             const frame = createBowlLift(dice1, dice2, dice3, i);
             if (frame) {
@@ -204,27 +200,7 @@ async function animateResult(sentMessage, client) {
             await sleep(400);
         }
         
-        // ===== FRAME 6: Kết quả lộ hoàn toàn =====
-        const frame5 = createBowlLift(dice1, dice2, dice3, 100);
-        if (frame5) {
-            const embed3 = new EmbedBuilder()
-                .setTitle(isJackpot ? `🎰💥 PHIÊN #${phienNumber} - NỔ HŨ!!! 💥🎰` : `🎲 PHIÊN #${phienNumber} - XÚC XẮC ĐÃ LỘ!`)
-                .setColor(isJackpot ? '#FFD700' : '#3498db')
-                .setDescription(`
-🎯 **${dice1} - ${dice2} - ${dice3} = ${total}**
-**${result.tai ? '🔴 TÀI' : '🔵 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
-
-${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
-                `)
-                .setImage('attachment://lift.png')
-                .setTimestamp();
-            
-            await sentMessage.edit({ 
-                embeds: [embed3], 
-                files: [new AttachmentBuilder(frame5, { name: 'lift.png' })]
-            }).catch(() => {});
-        }
-        await sleep(1500);
+        await sleep(1000);
         
         // ===== TÍNH TOÁN KẾT QUẢ =====
         database.history.push({ 
@@ -239,60 +215,83 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
         
         let participants = [];
         let jackpotWinners = [];
+        let totalBetAmount = 0;
+        let winnerBets = {}; // { userId: betAmount }
         
+        // Tính tổng tiền cược
+        for (const [userId, bet] of Object.entries(bettingSession.bets)) {
+            totalBetAmount += bet.amount;
+        }
+        
+        // Xử lý từng người chơi
         for (const [userId, bet] of Object.entries(bettingSession.bets)) {
             const user = getUser(userId);
             let win = false;
-            let winMultiplier = 1.9;
+            let winMultiplier = 0;
             
-            updateQuest(userId, 1);
-            updateQuest(userId, 3, bet.amount);
+            // Cập nhật nhiệm vụ
+            updateQuest(userId, 2); // Cược 1 lần
+            updateQuest(userId, 1, bet.amount); // Cược tổng X tiền
             
+            // ===== TÍNH TỶ LỆ CƯỢC =====
             if (bet.type === 'tai' && result.tai) {
                 win = true;
+                winMultiplier = 1.9;
                 user.tai++;
                 updateQuest(userId, 4);
             } else if (bet.type === 'xiu' && result.xiu) {
                 win = true;
+                winMultiplier = 1.9;
                 user.xiu++;
                 updateQuest(userId, 5);
             } else if (bet.type === 'chan' && result.chan) {
                 win = true;
+                winMultiplier = 1.9;
                 user.chan++;
             } else if (bet.type === 'le' && result.le) {
                 win = true;
+                winMultiplier = 1.9;
                 user.le++;
             }
             else if (bet.type === 'number') {
-                if (dice1 === bet.value || dice2 === bet.value || dice3 === bet.value) {
+                let count = 0;
+                if (dice1 === bet.value) count++;
+                if (dice2 === bet.value) count++;
+                if (dice3 === bet.value) count++;
+                
+                if (count > 0) {
                     win = true;
-                    winMultiplier = 3;
+                    if (count === 1) winMultiplier = 1.9;
+                    else if (count === 2) winMultiplier = 2.8;
+                    else if (count === 3) winMultiplier = 3.6;
                     user.numberWins = (user.numberWins || 0) + 1;
                 }
             }
             else if (bet.type === 'total') {
                 if (total === bet.value) {
                     win = true;
-                    winMultiplier = 5;
+                    if (total >= 9 && total <= 12) {
+                        winMultiplier = 4.5;
+                    } else if (total === 3 || total === 18) {
+                        winMultiplier = 10.8;
+                    } else {
+                        winMultiplier = 6.2;
+                    }
                     user.totalWins = (user.totalWins || 0) + 1;
                 }
             }
             
-            const jackpotAdd = Math.floor(bet.amount * 2 / 3);
+            // ===== 10% TIỀN CƯỢC VÀO HŨ =====
+            const jackpotAdd = Math.floor(bet.amount * 0.1);
             database.jackpot = (database.jackpot || 0) + jackpotAdd;
             
             if (win) {
                 const winAmount = Math.floor(bet.amount * winMultiplier);
                 user.balance += winAmount;
                 
-                updateQuest(userId, 2);
-                
+                // Lưu người thắng để chia hũ
                 if (isJackpot) {
-                    const currentJackpot = database.jackpot || 0;
-                    const jackpotAmount = currentJackpot * 20;
-                    user.balance += jackpotAmount;
-                    user.jackpotWins++;
-                    jackpotWinners.push(`<@${userId}>: +${jackpotAmount.toLocaleString('en-US')} 🎰💎`);
+                    winnerBets[userId] = bet.amount;
                 }
                 
                 let betTypeDisplay = '';
@@ -317,44 +316,58 @@ ${isJackpot ? '🎰🎰🎰 **BA CON GIỐNG NHAU!!!** 🎰🎰🎰' : ''}
             }
         }
         
-        if (isJackpot && jackpotWinners.length > 0) {
-            database.jackpot = 0;
+        // ===== CHIA HŨ THEO TỶ LỆ TIỀN CƯỢC =====
+        if (isJackpot && Object.keys(winnerBets).length > 0) {
+            const currentJackpotAmount = database.jackpot || 0;
+            let totalWinnerBets = 0;
+            
+            // Tính tổng tiền cược của người thắng
+            for (const amount of Object.values(winnerBets)) {
+                totalWinnerBets += amount;
+            }
+            
+            // Chia hũ theo tỷ lệ
+            for (const [userId, betAmount] of Object.entries(winnerBets)) {
+                const user = getUser(userId);
+                const ratio = betAmount / totalWinnerBets; // Tỷ lệ tiền cược
+                const jackpotReward = Math.floor(currentJackpotAmount * ratio);
+                
+                user.balance += jackpotReward;
+                user.jackpotWins = (user.jackpotWins || 0) + 1;
+                
+                jackpotWinners.push(`<@${userId}>: Cược ${betAmount.toLocaleString('en-US')} → +${jackpotReward.toLocaleString('en-US')} 🎰💎`);
+            }
+            
+            database.jackpot = 0; // Reset hũ
         }
         
         saveDB();
         
-        // ===== EMBED KẾT QUẢ CUỐI =====
+        // ===== GỬI TIN NHẮN KẾT QUẢ RIÊNG =====
         const diceBuffer = createDiceImageSafe(dice1, dice2, dice3);
         
         const resultEmbed = new EmbedBuilder()
-            .setTitle(isJackpot ? `🎰💥💥 PHIÊN #${phienNumber} - NỔ HŨ!!! 💥💥🎰` : `🎊 KẾT QUẢ PHIÊN #${phienNumber}`)
-            .setColor(isJackpot ? '#FFD700' : (result.tai ? '#e74c3c' : '#3498db'));
+            .setTitle(`KẾT QUẢ TÀI XỈU #${phienNumber}`)
+            .setColor('#e74c3c');
         
-        let files = [];
         let embedDescription = '';
         
         if (diceBuffer && Buffer.isBuffer(diceBuffer) && diceBuffer.length > 0) {
             embedDescription = `
-**⇒ Kết quả: ${dice1} + ${dice2} + ${dice3} = ${total}**
+⇒ **Kết quả: ${dice1} + ${dice2} + ${dice3} = ${total}**
 
-**🎯 Chung cuộc: ${result.tai ? '🔴 TÀI' : '🔵 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
-
-${isJackpot ? '\n🎰🎰🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰🎰🎰\n' : ''}
-${isJackpot && jackpotWinners.length === 0 ? '⚠️ **Không có người thắng - Hũ tiếp tục tăng!**\n' : ''}
+**Chung cuộc: ${result.tai ? 'TÀI' : 'XỈU'} - ${result.chan ? 'CHẴN' : 'LẺ'}**
             `;
             
             resultEmbed.setDescription(embedDescription);
             resultEmbed.setImage('attachment://dice.png');
-            files.push(new AttachmentBuilder(diceBuffer, { name: 'dice.png' }));
             
         } else {
             embedDescription = `
 🎲 **${dice1}  ${dice2}  ${dice3}**
 
-**⇒ Tổng: ${total} điểm**
-**🎯 ${result.tai ? '🔴 TÀI' : '🔵 XỈU'} - ${result.chan ? '🟣 CHẴN' : '🟡 LẺ'}**
-
-${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
+⇒ **Tổng: ${total} điểm**
+**🎯 ${result.tai ? 'TÀI' : 'XỈU'} - ${result.chan ? 'CHẴN' : 'LẺ'}**
             `;
             
             resultEmbed.setDescription(embedDescription);
@@ -362,55 +375,57 @@ ${isJackpot ? '\n🎰 **NỔ HŨ!!! BA XÚC XẮC TRÙNG NHAU!!!** 🎰\n' : ''}
         
         if (isJackpot && jackpotWinners.length > 0) {
             resultEmbed.addFields({
-                name: '🎰💎 JACKPOT - CHỈ NGƯỜI THẮNG NHẬN! 💎🎰',
+                name: '🎰💎 JACKPOT - CHIA THEO TỶ LỆ CƯỢC! 💎🎰',
                 value: jackpotWinners.join('\n'),
                 inline: false
             });
         }
         
-        resultEmbed.addFields(
-            { 
-                name: '📋 DANH SÁCH THAM GIA', 
-                value: participants.length > 0 ? participants.join('\n') : '_Không có ai tham gia_',
-                inline: false
-            }
-        );
-        
-        // ✅ BỎ PHẦN HIỂN THỊ % NỔ HŨ - CHỈ HIỂN THỊ SỐ TIỀN HŨ
         const jackpotCurrent = database.jackpot || 0;
+        const nextMilestone = Math.ceil(jackpotCurrent / 100000000000) * 100000000000;
         
         const jackpotDisplay = `
-💎 **HŨ TÀI XỈU**
 💰 **${jackpotCurrent.toLocaleString('en-US')} Mcoin**
-🎰 Nổ khi 3 xúc xắc trùng nhau!
+🎯 Mốc tiếp theo: **${nextMilestone.toLocaleString('en-US')} Mcoin** (Nổ 100%)
+🎰 10% mỗi cược vào hũ
         `.trim();
         
         resultEmbed.addFields(
             {
-                name: '━━━━━━━━━━━━━━━━━━━━',
+                name: 'HŨ TÀI XỈU',
                 value: jackpotDisplay,
                 inline: false
-            },
-            {
-                name: '🎯 Phiên số',
-                value: `#${phienNumber}`,
-                inline: true
             }
         );
         
-        resultEmbed.setFooter({ text: isJackpot ? 'NỔ HŨ, LÊN ĐỈNH NÀO! 🎰' : 'Hẹn gặp lại lần sau nhé ^_^' });
+        resultEmbed.addFields(
+            { 
+                name: 'DANH SÁCH THAM GIA', 
+                value: participants.length > 0 ? participants.join('\n') : 'Chưa có ai đặt cược.',
+                inline: false
+            }
+        );
+        
         resultEmbed.setTimestamp();
         
         try {
-            await sentMessage.edit({ 
-                components: []
-            }).catch(() => {});
-            
             await sentMessage.channel.send({
-                content: isJackpot ? '**🎰💥 TRÚNG ĐẠI JACKPOT!!! 💥🎰**' : `**🎊 KẾT QUẢ TÀI XỈU #${phienNumber}**`,
                 embeds: [resultEmbed],
-                files: files
+                files: diceBuffer ? [new AttachmentBuilder(diceBuffer, { name: 'dice.png' })] : []
             });
+            
+            const disabledRow = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('open_bet_menu')
+                        .setLabel('⚡ Hết thời gian!')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(true)
+                );
+            
+            await sentMessage.edit({ 
+                components: [disabledRow]
+            }).catch(() => {});
             
         } catch (error) {
             console.error('❌ Send result error:', error.message);
@@ -460,8 +475,5 @@ module.exports = {
     handleSoiCau,
     getBettingSession,
     setBettingSession,
-    cleanupSession, //
+    cleanupSession,
 };
-
-
-
