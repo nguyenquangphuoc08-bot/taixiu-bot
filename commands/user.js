@@ -10,7 +10,7 @@ function formatNumber(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
-// ===== .mcoin - HIỆN ẢNH + TEXT =====
+// ===== .mcoin - CHỈ HIỂN THỊ 3 THÔNG TIN =====
 async function handleMcoin(message) {
     const user = getUser(message.author.id);
     const avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 256 });
@@ -22,11 +22,10 @@ async function handleMcoin(message) {
     
     const attachment = new AttachmentBuilder(profileBuffer, { name: 'profile.png' });
     
-    // ===== TEXT HIỂN THỊ =====
+    // ===== CHỈ 3 THÔNG TIN =====
     const balanceDisplay = formatNumber(user.balance);
     const vipLevel = user.vipLevel || 0;
     const title = user.vipTitle || 'Thường';
-    const totalBets = (user.tai || 0) + (user.xiu || 0) + (user.chan || 0) + (user.le || 0);
     
     await message.reply({ 
         content: `💎 | **${message.author.username}**, bạn hiện có: **${balanceDisplay} Mcoin**.`,
