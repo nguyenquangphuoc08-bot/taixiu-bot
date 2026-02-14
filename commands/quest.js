@@ -1,8 +1,12 @@
-// commands/quest.js - ĐƠN GIẢN (Chỉ tiền, bỏ kim cương, bỏ lượt reset)
+// commands/quest.js - BỎ DÒNG TỔNG
 
 const { EmbedBuilder } = require('discord.js');
 const { getUser, saveDB } = require('../utils/database');
 const { checkAllQuestsCompleted } = require('../services/quest');
+
+function formatNumber(num) {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
 
 async function handleDaily(message) {
     const user = getUser(message.author.id);
@@ -35,12 +39,9 @@ async function handleDaily(message) {
     
     const totalQuestReward = quests.reduce((sum, q) => sum + q.reward, 0);
     const bonusReward = 1000000;
-    const totalReward = totalQuestReward + bonusReward;
     
-    let rewardText = `• **${(totalQuestReward / 1000000).toFixed(1)}M** 💰 cho tất cả nhiệm vụ.\n`;
-    rewardText += `• Hoàn thành tất cả nhiệm vụ thưởng thêm **${(bonusReward / 1000000).toFixed(1)}M** 💰.\n`;
-    rewardText += `━━━━━━━━━━━━━━━━\n`;
-    rewardText += `• **TỔNG: ${(totalReward / 1000000).toFixed(1)}M** 💰`;
+    let rewardText = `• **${formatNumber(totalQuestReward)}** 💰 cho tất cả nhiệm vụ.\n`;
+    rewardText += `• Hoàn thành tất cả thưởng thêm **${formatNumber(bonusReward)}** 💰.`;
     
     embed.addFields({
         name: '🎁 Phần thưởng:',
@@ -67,7 +68,7 @@ async function handleClaimAll(message) {
     const user = getUser(message.author.id);
     
     if (!checkAllQuestsCompleted(message.author.id)) {
-        return message.reply('❌ Bạn chưa hoàn thành tất cả nhiệm vụ!');
+        return message.reply('❌ Chưa hoàn thành tất cả!');
     }
     
     const quests = user.dailyQuests.quests;
@@ -77,7 +78,6 @@ async function handleClaimAll(message) {
     
     user.balance += totalReward;
     
-    // Reset nhiệm vụ sau 24h
     const { initDailyQuests } = require('../services/quest');
     user.dailyQuests = initDailyQuests();
     
@@ -87,18 +87,16 @@ async function handleClaimAll(message) {
         .setTitle('🎉 NHẬN THƯỞNG THÀNH CÔNG!')
         .setColor('#2ecc71')
         .setDescription(`
-Chúc mừng bạn đã hoàn thành tất cả nhiệm vụ!
+Chúc mừng!
 
-💰 **Thưởng nhiệm vụ:** ${questReward.toLocaleString('en-US')} Mcoin
-🎁 **Thưởng hoàn thành:** ${bonusReward.toLocaleString('en-US')} Mcoin
-━━━━━━━━━━━━━━━━
-✨ **TỔNG:** ${totalReward.toLocaleString('en-US')} Mcoin
+💰 **Thưởng nhiệm vụ:** ${formatNumber(questReward)}
+🎁 **Thưởng hoàn thành:** ${formatNumber(bonusReward)}
         `)
         .addFields({
             name: '💎 Số dư mới',
-            value: `${user.balance.toLocaleString('en-US')} Mcoin`
+            value: formatNumber(user.balance)
         })
-        .setFooter({ text: 'Nhiệm vụ mới sẽ có sau 24 giờ' })
+        .setFooter({ text: 'Nhiệm vụ mới sau 24h' })
         .setTimestamp();
     
     await message.reply({ embeds: [embed] });
