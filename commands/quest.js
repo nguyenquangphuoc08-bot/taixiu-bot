@@ -190,5 +190,8 @@ module.exports = {
     handleMcoin,
     handleSetBg,
     handleTang,
-    handleDiemDanh
+    handleDiemDanh,
+    handleDaily,
+    handleClaimAll
 };
+
