@@ -1,4 +1,4 @@
-// commands/admin.js - FULL CODE (ĐÃ FIX LỖI)
+// commands/admin.js - FULL CODE (ĐÃ THÊM RESET QUEST)
 
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, DB_PATH, getUser } = require('../utils/database');
@@ -244,6 +244,38 @@ Admin tặng **${amount.toLocaleString('en-US')} Mcoin** cho <@${targetUser.id}>
 }
 
 // ========================================
+// 🔄 RESET QUEST
+// ========================================
+
+async function handleResetQuest(message, args) {
+    if (message.author.id !== ADMIN_ID) {
+        return message.reply('❌ Chỉ admin!');
+    }
+    
+    const targetUser = message.mentions.users.first();
+    
+    if (!targetUser) {
+        return message.reply('❌ Sử dụng: `.resetquest @user`');
+    }
+    
+    const user = getUser(targetUser.id);
+    const { initDailyQuests } = require('../services/quest');
+    
+    user.dailyQuests = initDailyQuests();
+    saveDB();
+    
+    const embed = new EmbedBuilder()
+        .setTitle('🔄 RESET NHIỆM VỤ THÀNH CÔNG!')
+        .setColor('#2ecc71')
+        .setDescription(`Đã reset nhiệm vụ của <@${targetUser.id}>!\n\nNgười chơi có thể gõ \`.daily\` để xem nhiệm vụ mới.`)
+        .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    
+    console.log(`✅ Admin reset quest cho ${targetUser.tag}`);
+}
+
+// ========================================
 // 📤 SENDCODE
 // ========================================
 
@@ -408,9 +440,11 @@ module.exports = {
     handleRemoveVip,
     handleGiveTitle,
     handleDonate,
+    handleResetQuest,
     handleDbInfo,
     handleBackup,
     handleBackupNow,
     handleRestore,
     handleRestoreFile
 };
+
