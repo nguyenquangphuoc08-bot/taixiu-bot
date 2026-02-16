@@ -14,7 +14,7 @@ const { handleMcoin, handleSetBg, handleTang, handleDiemDanh } = require('./comm
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { handleDbInfo, handleBackup, handleBackupNow, handleRestore, handleRestoreFile,
         handleSendCode, handleGiveVip, handleRemoveVip, handleGiveTitle,
-        handleCreateGiftcode, handleCode, handleDeleteCode, handleDeleteAllCodes, handleDonate } = require('./commands/admin');
+        handleCreateGiftcode, handleCode, handleDeleteCode, handleDeleteAllCodes, handleDonate, handleResetQuest } = require('./commands/admin');
 const { handleMShop, buyVipPackage, buyTitle } = require('./commands/shop');
 const { handleButtonClick } = require('./handlers/buttonHandler');
 
@@ -81,8 +81,8 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.removevip') return handleRemoveVip(message, args);
         if (cmd === '.givetitle') return handleGiveTitle(message, args);
         if (cmd === '.donate') return handleDonate(message, args);
+        if (cmd === '.resetquest') return handleResetQuest(message, args);
         if (cmd === '.restart' && message.author.id === ADMIN_ID) process.exit(0);
-
         if (cmd === '.help') {
             const isAdmin = message.author.id === ADMIN_ID;
 
@@ -273,3 +273,4 @@ http.createServer((req, res) => {
 
 // ===== LOGIN =====
 client.login(TOKEN);
+
