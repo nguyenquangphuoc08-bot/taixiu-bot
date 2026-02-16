@@ -257,13 +257,12 @@ async function createProfileCard(user, userData, avatarUrl) {
         ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
         
-        // ✅ STATS - CHỮ TRẮNG + VIỀN ĐEN
-        const stats = [
-            { label: 'Mcoin', value: userData.balance.toLocaleString('en-US'), x: 75 },
-            { label: 'Cược', value: (userData.tai + userData.xiu + userData.chan + userData.le).toString(), x: 190 },
-            { label: 'VIP', value: `Lv${userData.vipLevel || 0}`, x: 305 },
-            { label: 'Danh hiệu', value: (userData.vipTitle || 'Thường').substring(0, 8), x: 420 }
-        ];
+        // ✅ STATS - CHỮ TRẮNG + VIỀN ĐEN (XÓA CỘT CƯỢC, CHỈ GIỮ 3 CỘT)
+const stats = [
+    { label: 'Mcoin', value: userData.balance.toLocaleString('en-US'), x: 125 },
+    { label: 'VIP', value: `Lv${userData.vipLevel || 0}`, x: 250 },
+    { label: 'Danh hiệu', value: (userData.vipTitle || 'Thường').substring(0, 8), x: 375 }
+];
         
         // Bóng cho stats
         ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
@@ -525,4 +524,5 @@ module.exports = {
     createHistoryChart,
     createProfileCard
 };
+
 
