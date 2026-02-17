@@ -1,4 +1,4 @@
-// commands/game.js - HIỂN THỊ HŨ RIÊNG + ICON VIP
+// commands/game.js - VIP BONUS TIỀN THẮNG
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
@@ -43,7 +43,6 @@ async function handleTaiXiu(message, client) {
     const phienNumber = database.phienCounter;
     saveDB();
     
-    // ===== GỬI TIN NHẮN HŨ RIÊNG =====
     const jackpotDisplay = formatNumber(database.jackpot || 0);
     
     const jackpotEmbed = new EmbedBuilder()
@@ -55,7 +54,6 @@ async function handleTaiXiu(message, client) {
     
     await message.channel.send({ embeds: [jackpotEmbed] });
     
-    // ===== GỬI PHIÊN CƯỢC =====
     bettingSession = {
         channelId: message.channel.id,
         bets: {},
@@ -110,10 +108,8 @@ async function handleTaiXiu(message, client) {
         timeLeft -= 1;
         
         if (timeLeft > 0) {
-            const clockEmoji = '🕐';
-            
             embed.spliceFields(0, 1, { 
-                name: `${clockEmoji} Thời gian còn lại`, 
+                name: `🕐 Thời gian còn lại`, 
                 value: `**${timeLeft}** giây`, 
                 inline: false 
             });
@@ -241,8 +237,7 @@ async function animateResult(sentMessage, client) {
                 win = true;
                 winMultiplier = 1.9;
                 user.le++;
-            }
-            else if (bet.type === 'number') {
+            } else if (bet.type === 'number') {
                 let count = 0;
                 if (dice1 === bet.value) count++;
                 if (dice2 === bet.value) count++;
@@ -255,8 +250,7 @@ async function animateResult(sentMessage, client) {
                     else if (count === 3) winMultiplier = 3.6;
                     user.numberWins = (user.numberWins || 0) + 1;
                 }
-            }
-            else if (bet.type === 'total') {
+            } else if (bet.type === 'total') {
                 if (total === bet.value) {
                     win = true;
                     if (total >= 9 && total <= 12) {
@@ -273,8 +267,30 @@ async function animateResult(sentMessage, client) {
             const jackpotAdd = Math.floor(bet.amount * 0.1);
             database.jackpot = (database.jackpot || 0) + jackpotAdd;
             
+            const vipIcon = getVipIcon(user.vipLevel);
+            const vipDisplay = vipIcon ? `${vipIcon} | ` : '';
+            
+            let betTypeDisplay = '';
+            if (bet.type === 'tai') betTypeDisplay = 'Tài';
+            else if (bet.type === 'xiu') betTypeDisplay = 'Xỉu';
+            else if (bet.type === 'chan') betTypeDisplay = 'Chẵn';
+            else if (bet.type === 'le') betTypeDisplay = 'Lẻ';
+            else if (bet.type === 'number') betTypeDisplay = `Số ${bet.value}`;
+            else if (bet.type === 'total') betTypeDisplay = `Tổng ${bet.value}`;
+            
             if (win) {
-                const winAmount = Math.floor(bet.amount * winMultiplier);
+                // ===== BASE TIỀN THẮNG =====
+                let winAmount = Math.floor(bet.amount * winMultiplier);
+                
+                // ===== VIP BONUS TIỀN THẮNG =====
+                if (user.vipLevel && user.vipLevel > 0 && user.vipBonus) {
+                    const betBonus = user.vipBonus.betBonus || 0;      // VIP1=5%, VIP10=50%
+                    const extraBonus = user.vipBonus.extraBonus || 0;  // VIP5-10: +50%
+                    const totalBonusPercent = betBonus + extraBonus;
+                    const bonusAmount = Math.floor(winAmount * totalBonusPercent / 100);
+                    winAmount += bonusAmount;
+                }
+                
                 user.balance += winAmount;
                 
                 if (isJackpot) {
@@ -282,31 +298,8 @@ async function animateResult(sentMessage, client) {
                     totalWinnerBets += bet.amount;
                 }
                 
-                // ===== HIỂN THỊ ICON VIP =====
-                const vipIcon = getVipIcon(user.vipLevel);
-                const vipDisplay = vipIcon ? `${vipIcon} | ` : '';
-                
-                let betTypeDisplay = '';
-                if (bet.type === 'tai') betTypeDisplay = 'Tài';
-                else if (bet.type === 'xiu') betTypeDisplay = 'Xỉu';
-                else if (bet.type === 'chan') betTypeDisplay = 'Chẵn';
-                else if (bet.type === 'le') betTypeDisplay = 'Lẻ';
-                else if (bet.type === 'number') betTypeDisplay = `Số ${bet.value}`;
-                else if (bet.type === 'total') betTypeDisplay = `Tổng ${bet.value}`;
-                
                 participants.push(`${vipDisplay}<@${userId}> | ${betTypeDisplay}: ${formatNumber(bet.amount)} | ✅ (+${formatNumber(winAmount)})`);
             } else {
-                const vipIcon = getVipIcon(user.vipLevel);
-                const vipDisplay = vipIcon ? `${vipIcon} | ` : '';
-                
-                let betTypeDisplay = '';
-                if (bet.type === 'tai') betTypeDisplay = 'Tài';
-                else if (bet.type === 'xiu') betTypeDisplay = 'Xỉu';
-                else if (bet.type === 'chan') betTypeDisplay = 'Chẵn';
-                else if (bet.type === 'le') betTypeDisplay = 'Lẻ';
-                else if (bet.type === 'number') betTypeDisplay = `Số ${bet.value}`;
-                else if (bet.type === 'total') betTypeDisplay = `Tổng ${bet.value}`;
-                
                 participants.push(`${vipDisplay}<@${userId}> | ${betTypeDisplay}: ${formatNumber(bet.amount)} | ❌`);
             }
         }
@@ -331,7 +324,6 @@ async function animateResult(sentMessage, client) {
         saveDB();
         
         const diceBuffer = createDiceImageSafe(dice1, dice2, dice3);
-        
         const hasWinners = participants.some(p => p.includes('✅'));
         const embedColor = hasWinners ? '#2ecc71' : '#e74c3c';
         
@@ -339,27 +331,20 @@ async function animateResult(sentMessage, client) {
             .setTitle(`KẾT QUẢ TÀI XỈU #${phienNumber}`)
             .setColor(embedColor);
         
-        let embedDescription = '';
-        
         if (diceBuffer && Buffer.isBuffer(diceBuffer) && diceBuffer.length > 0) {
-            embedDescription = `
+            resultEmbed.setDescription(`
 ⇒ **Kết quả: ${dice1} + ${dice2} + ${dice3} = ${total}**
 
 **Chung cuộc: ${result.tai ? 'TÀI' : 'XỈU'} - ${result.chan ? 'CHẴN' : 'LẺ'}**
-            `;
-            
-            resultEmbed.setDescription(embedDescription);
+            `);
             resultEmbed.setImage('attachment://dice.png');
-            
         } else {
-            embedDescription = `
+            resultEmbed.setDescription(`
 🎲 **${dice1}  ${dice2}  ${dice3}**
 
 ⇒ **Tổng: ${total}**
 **${result.tai ? 'TÀI' : 'XỈU'} - ${result.chan ? 'CHẴN' : 'LẺ'}**
-            `;
-            
-            resultEmbed.setDescription(embedDescription);
+            `);
         }
         
         if (isJackpot && jackpotWinners.length > 0) {
@@ -370,48 +355,28 @@ async function animateResult(sentMessage, client) {
             });
         }
         
-        const jackpotCurrent = database.jackpot || 0;
-        
         resultEmbed.addFields(
-            {
-                name: 'HŨ',
-                value: `💰 ${formatNumber(jackpotCurrent)}`,
-                inline: false
-            }
-        );
-        
-        resultEmbed.addFields(
-            { 
-                name: 'DANH SÁCH THAM GIA', 
-                value: participants.length > 0 ? participants.join('\n') : 'Chưa có ai.',
-                inline: false
-            }
+            { name: 'HŨ', value: `💰 ${formatNumber(database.jackpot || 0)}`, inline: false },
+            { name: 'DANH SÁCH THAM GIA', value: participants.length > 0 ? participants.join('\n') : 'Chưa có ai.', inline: false }
         );
         
         resultEmbed.setTimestamp();
         
-        try {
-            await sentMessage.channel.send({
-                embeds: [resultEmbed],
-                files: diceBuffer ? [new AttachmentBuilder(diceBuffer, { name: 'dice.png' })] : []
-            });
-            
-            const disabledRow = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('open_bet_menu')
-                        .setLabel('⚡ Hết thời gian!')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(true)
-                );
-            
-            await sentMessage.edit({ 
-                components: [disabledRow]
-            }).catch(() => {});
-            
-        } catch (error) {
-            console.error('❌ Error:', error.message);
-        }
+        await sentMessage.channel.send({
+            embeds: [resultEmbed],
+            files: diceBuffer ? [new AttachmentBuilder(diceBuffer, { name: 'dice.png' })] : []
+        });
+        
+        const disabledRow = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('open_bet_menu')
+                    .setLabel('⚡ Hết thời gian!')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true)
+            );
+        
+        await sentMessage.edit({ components: [disabledRow] }).catch(() => {});
         
         cleanupSession();
         
@@ -454,3 +419,4 @@ module.exports = {
     setBettingSession,
     cleanupSession,
 };
+
