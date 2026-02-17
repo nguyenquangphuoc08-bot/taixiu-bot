@@ -1,4 +1,4 @@
-// index.js - RENDER FREE LITE PLUS - ĐÃ SỬA (CẬP NHẬT TIN NHẮN BẤT KỲ)
+// index.js - ĐÃ THÊM ADMIN GIVETITLE HANDLER
 
 process.removeAllListeners('warning');
 
@@ -8,7 +8,6 @@ const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./c
 const { saveDB, getUser } = require('./utils/database');
 const { autoBackup, backupOnStartup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
-// ===== IMPORT cleanupSession ĐÃ SỬA =====
 const { handleTaiXiu, handleSoiCau, getBettingSession, cleanupSession } = require('./commands/game');
 const { handleMcoin, handleSetBg, handleTang, handleDiemDanh } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
@@ -38,7 +37,6 @@ client.once('ready', async () => {
         status:'online' 
     });
 
-    // ===== TỰ ĐỘNG XÓA PHIÊN CŨ KHI BOT RESTART =====
     try {
         cleanupSession();
         console.log('🧹 Đã xóa phiên cược cũ (nếu có)');
@@ -54,15 +52,11 @@ client.once('ready', async () => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
-    // ===== CẬP NHẬT NHIỆM VỤ GỬI TIN NHẮN (TIN NHẮN NÀO CŨNG TÍNH) =====
     try {
         const { updateQuest } = require('./services/quest');
-        updateQuest(message.author.id, 4); // Nhiệm vụ #4: Gửi 10 tin nhắn
-    } catch (err) {
-        // Bỏ qua lỗi nếu quest chưa init
-    }
+        updateQuest(message.author.id, 4);
+    } catch (err) {}
 
-    // Chỉ xử lý lệnh có dấu .
     if (!message.content.startsWith('.')) return;
 
     const args = message.content.trim().split(/\s+/);
@@ -120,7 +114,7 @@ client.on('messageCreate', async (message) => {
                 fields: [
                     { name: '👥 Lệnh Người Chơi', value: '```\n.tx, .mcoin, .setbg, .sc, .tang, .dd\n.daily, .claimall, .mshop, .code\n```', inline: false },
                     { name: '🎁 Quản Lý Giftcode', value: '```\n.giftcode [tiền] [giờ]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
-                    { name: '👑 Quản Lý VIP', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user [tên]\n```', inline: false },
+                    { name: '👑 Quản Lý VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n```', inline: false },
                     { name: '💰 Quản Lý Tiền', value: '```\n.donate @user [số]\n.resetquest @user\n```', inline: false },
                     { name: '🔧 Quản Lý Database', value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```', inline: false }
                 ],
@@ -141,10 +135,47 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// ===== INTERACTION - FIX MODAL SUBMIT =====
+// ===== INTERACTION =====
 client.on('interactionCreate', async (interaction) => {
     try {
         if (interaction.isButton() || interaction.isStringSelectMenu()) {
+            
+            // ===== ADMIN GIVETITLE HANDLER =====
+            if (interaction.isStringSelectMenu() && interaction.customId === 'admin_givetitle') {
+                if (interaction.user.id !== ADMIN_ID) {
+                    return interaction.reply({ content: '❌ Chỉ admin!', ephemeral: true });
+                }
+                
+                const value = interaction.values[0]; // givetitle_userId_titleId
+                const parts = value.split('_');
+                const targetUserId = parts[1];
+                const titleId = parts.slice(2).join('_'); // xử lý titleId có dấu _
+                
+                const { TITLE_ITEMS } = require('./commands/shop');
+                const title = TITLE_ITEMS[titleId];
+                
+                if (!title) {
+                    return interaction.reply({ content: '❌ Danh hiệu không hợp lệ!', ephemeral: true });
+                }
+                
+                const user = getUser(targetUserId);
+                user.vipTitle = title.titleName;
+                user.titleBonus = {
+                    dailyBonus: title.dailyBonus,
+                    betBonus: title.betBonus,
+                    jackpotBonus: title.jackpotBonus
+                };
+                if (!user.ownedTitles) user.ownedTitles = [];
+                if (!user.ownedTitles.includes(titleId)) user.ownedTitles.push(titleId);
+                saveDB();
+                
+                return interaction.update({
+                    content: `✅ Đã cấp **${title.titleName}** cho <@${targetUserId}>!`,
+                    embeds: [],
+                    components: []
+                });
+            }
+            
             return await handleButtonClick(interaction, getBettingSession());
         }
 
@@ -165,7 +196,6 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply('❌ Bạn chưa có tài khoản!');
             }
 
-            // ===== TÀI / XỈU / CHẴN / LẺ =====
             if (interaction.customId.startsWith('bet_modal_')) {
                 const betType = interaction.customId.replace('bet_modal_', '');
                 const amountInput = interaction.fields.getTextInputValue('bet_amount');
@@ -187,7 +217,6 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply(`✅ Đã cược **${betType.toUpperCase()}** - ${amount.toLocaleString()} Mcoin`);
             }
 
-            // ===== CƯỢC SỐ =====
             if (interaction.customId === 'modal_bet_number') {
                 const numberInput = interaction.fields.getTextInputValue('number_value');
                 const amountInput = interaction.fields.getTextInputValue('bet_amount');
@@ -215,7 +244,6 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply(`✅ Đã cược **SỐ ${number}** - ${amount.toLocaleString()} Mcoin`);
             }
 
-            // ===== CƯỢC TỔNG =====
             if (interaction.customId === 'modal_bet_total') {
                 const totalInput = interaction.fields.getTextInputValue('total_value');
                 const amountInput = interaction.fields.getTextInputValue('bet_amount');
@@ -246,7 +274,6 @@ client.on('interactionCreate', async (interaction) => {
 
     } catch (err) {
         console.error('❌ Interaction error:', err);
-        
         try {
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({ content: '❌ Có lỗi xảy ra!', ephemeral: true });
@@ -257,31 +284,20 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// ===== HELPER: PARSE AMOUNT =====
 function parseAmount(input) {
     if (!input) return null;
-    
     input = input.toLowerCase().replace(/[,._]/g, '');
-    
-    if (input.endsWith('k')) {
-        return parseInt(input) * 1000;
-    } else if (input.endsWith('m')) {
-        return parseInt(input) * 1000000;
-    } else if (input.endsWith('b') || input.endsWith('t')) {
-        return parseInt(input) * 1000000000;
-    }
-    
+    if (input.endsWith('k')) return parseInt(input) * 1000;
+    else if (input.endsWith('m')) return parseInt(input) * 1000000;
+    else if (input.endsWith('b') || input.endsWith('t')) return parseInt(input) * 1000000000;
     return parseInt(input);
 }
 
-// ===== BACKUP 12H =====
 setInterval(() => autoBackup(client, BACKUP_CHANNEL_ID).catch(() => {}), 12 * 60 * 60 * 1000);
 
-// ===== HTTP =====
 http.createServer((req, res) => {
     if (req.url === '/health') return res.end('OK');
     res.end('BOT ONLINE');
 }).listen(process.env.PORT || 10000);
 
-// ===== LOGIN =====
 client.login(TOKEN);
