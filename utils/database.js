@@ -11,12 +11,10 @@ let database = {
     activeBettingSession: null
 };
 
-// ===== OPTIMIZATIONS =====
 let saveTimeout = null;
 let isSaving = false;
 let pendingSave = false;
 
-// Load database
 function loadDB() {
     try {
         if (fs.existsSync(DB_PATH)) {
@@ -32,7 +30,6 @@ function loadDB() {
     }
 }
 
-// ✅ ASYNC SAVE DATABASE (NON-BLOCKING)
 async function saveDB() {
     if (isSaving) {
         pendingSave = true;
@@ -47,12 +44,10 @@ async function saveDB() {
             fs.mkdirSync(dir, { recursive: true });
         }
         
-        // ✅ ASYNC WRITE - KHÔNG BLOCK EVENT LOOP
         await fs.promises.writeFile(DB_PATH, JSON.stringify(database, null, 2));
         
         isSaving = false;
         
-        // Nếu có save pending, thực hiện ngay
         if (pendingSave) {
             pendingSave = false;
             await saveDB();
@@ -63,7 +58,6 @@ async function saveDB() {
     }
 }
 
-// ✅ DEBOUNCED SAVE (GỌI NHIỀU LẦN NHƯNG CHỈ SAVE 1 LẦN)
 function saveDBDebounced(delay = 1000) {
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
@@ -71,13 +65,12 @@ function saveDBDebounced(delay = 1000) {
     }, delay);
 }
 
-// ✅ IMMEDIATE SAVE (CHO CÁC THAO TÁC QUAN TRỌNG)
 async function saveDBImmediate() {
     clearTimeout(saveTimeout);
     await saveDB();
 }
 
-// Get or create user
+// ===== GET USER - ĐÃ SỬA =====
 function getUser(userId) {
     if (!database.users[userId]) {
         database.users[userId] = {
@@ -87,110 +80,95 @@ function getUser(userId) {
             chan: 0,
             le: 0,
             jackpotWins: 0,
-            
-            // Cược số và tổng
             numberWins: 0,
             totalWins: 0,
-            
-            // VIP system
             vipLevel: 0,
             vipTitle: null,
             vipBonus: null,
             ownedTitles: [],
-            
-            // Custom background
             customBg: null,
             
-            // Quest system
+            // ===== NHIỆM VỤ MỚI =====
             dailyQuests: {
-                lastReset: new Date().toDateString(),
-                streak: 0,
-                lastCompleted: null,
+                lastReset: Date.now(),
                 quests: [
-                    { id: 1, name: '🎲 Chơi 5 phiên Tài Xỉu', target: 5, current: 0, reward: 1000000, completed: false },
-                    { id: 2, name: '🎯 Thắng 3 lần cược', target: 3, current: 0, reward: 1000000, completed: false },
-                    { id: 3, name: '💰 Cược tổng 500K Mcoin', target: 500000, current: 0, reward: 1000000, completed: false },
-                    { id: 4, name: '🔵 Thắng Tài 2 lần', target: 2, current: 0, reward: 1000000, completed: false },
-                    { id: 5, name: '🔴 Thắng Xỉu 2 lần', target: 2, current: 0, reward: 1000000, completed: false }
+                    { id: 1, name: 'Đặt cược tổng 20M', type: 'bet_total', target: 20000000, current: 0, reward: 2000000, completed: false },
+                    { id: 2, name: 'Đặt cược 5 lần', type: 'bet_count', target: 5, current: 0, reward: 1000000, completed: false },
+                    { id: 3, name: 'Điểm danh 1 lần', type: 'checkin', target: 1, current: 0, reward: 500000, completed: false },
+                    { id: 4, name: 'Gửi 10 tin nhắn', type: 'message_count', target: 10, current: 0, reward: 800000, completed: false },
+                    { id: 5, name: 'Tặng tiền cho 1 người', type: 'gift_money', target: 1, current: 0, reward: 1500000, completed: false }
                 ]
             }
         };
-        saveDBDebounced(); // ✅ DÙNG DEBOUNCED
+        saveDBDebounced();
     }
     
-    // Migrate old users to new structure
     const user = database.users[userId];
     
     if (!user.vipLevel) user.vipLevel = 0;
     if (!user.vipTitle) user.vipTitle = null;
     if (!user.vipBonus) user.vipBonus = null;
     if (!user.ownedTitles) user.ownedTitles = [];
-    
     if (user.customBg === undefined) user.customBg = null;
-    
     if (user.numberWins === undefined) user.numberWins = 0;
     if (user.totalWins === undefined) user.totalWins = 0;
     
-    if (!user.dailyQuests) {
+    // ===== TỰ ĐỘNG MIGRATE USER CŨ → MỚI =====
+    if (!user.dailyQuests || !user.dailyQuests.lastReset || typeof user.dailyQuests.lastReset === 'string') {
         user.dailyQuests = {
-            lastReset: new Date().toDateString(),
-            streak: 0,
-            lastCompleted: null,
+            lastReset: Date.now(),
             quests: [
-                { id: 1, name: '🎲 Chơi 5 phiên Tài Xỉu', target: 5, current: 0, reward: 1000000, completed: false },
-                { id: 2, name: '🎯 Thắng 3 lần cược', target: 3, current: 0, reward: 1000000, completed: false },
-                { id: 3, name: '💰 Cược tổng 500K Mcoin', target: 500000, current: 0, reward: 1000000, completed: false },
-                { id: 4, name: '🔵 Thắng Tài 2 lần', target: 2, current: 0, reward: 1000000, completed: false },
-                { id: 5, name: '🔴 Thắng Xỉu 2 lần', target: 2, current: 0, reward: 1000000, completed: false }
+                { id: 1, name: 'Đặt cược tổng 20M', type: 'bet_total', target: 20000000, current: 0, reward: 2000000, completed: false },
+                { id: 2, name: 'Đặt cược 5 lần', type: 'bet_count', target: 5, current: 0, reward: 1000000, completed: false },
+                { id: 3, name: 'Điểm danh 1 lần', type: 'checkin', target: 1, current: 0, reward: 500000, completed: false },
+                { id: 4, name: 'Gửi 10 tin nhắn', type: 'message_count', target: 10, current: 0, reward: 800000, completed: false },
+                { id: 5, name: 'Tặng tiền cho 1 người', type: 'gift_money', target: 1, current: 0, reward: 1500000, completed: false }
             ]
         };
+        saveDBDebounced();
     }
     
     return user;
 }
 
-// Reset daily quests
 function resetDailyQuests() {
-    const today = new Date().toDateString();
+    const now = Date.now();
     
     for (const userId in database.users) {
         const user = database.users[userId];
         
         if (!user.dailyQuests) {
             user.dailyQuests = {
-                lastReset: today,
-                streak: 0,
-                lastCompleted: null,
+                lastReset: now,
                 quests: [
-                    { id: 1, name: 'Chơi 5 ván', target: 5, current: 0, reward: 1000000, completed: false },
-                    { id: 2, name: 'Thắng 3 ván', target: 3, current: 0, reward: 2000000, completed: false },
-                    { id: 3, name: 'Cược 10M', target: 10000000, current: 0, reward: 1500000, completed: false },
-                    { id: 4, name: 'Thắng Tài 2 lần', target: 2, current: 0, reward: 1000000, completed: false },
-                    { id: 5, name: 'Thắng Xỉu 2 lần', target: 2, current: 0, reward: 1000000, completed: false }
+                    { id: 1, name: 'Đặt cược tổng 20M', type: 'bet_total', target: 20000000, current: 0, reward: 2000000, completed: false },
+                    { id: 2, name: 'Đặt cược 5 lần', type: 'bet_count', target: 5, current: 0, reward: 1000000, completed: false },
+                    { id: 3, name: 'Điểm danh 1 lần', type: 'checkin', target: 1, current: 0, reward: 500000, completed: false },
+                    { id: 4, name: 'Gửi 10 tin nhắn', type: 'message_count', target: 10, current: 0, reward: 800000, completed: false },
+                    { id: 5, name: 'Tặng tiền cho 1 người', type: 'gift_money', target: 1, current: 0, reward: 1500000, completed: false }
                 ]
             };
-        }
-        
-        if (user.dailyQuests.lastReset !== today) {
-            const yesterday = new Date(Date.now() - 86400000).toDateString();
-            const completedYesterday = user.dailyQuests.lastCompleted === yesterday;
+        } else {
+            const timeElapsed = now - (user.dailyQuests.lastReset || 0);
             
-            if (!completedYesterday) {
-                user.dailyQuests.streak = 0;
+            if (timeElapsed >= 24 * 60 * 60 * 1000) {
+                user.dailyQuests = {
+                    lastReset: now,
+                    quests: [
+                        { id: 1, name: 'Đặt cược tổng 20M', type: 'bet_total', target: 20000000, current: 0, reward: 2000000, completed: false },
+                        { id: 2, name: 'Đặt cược 5 lần', type: 'bet_count', target: 5, current: 0, reward: 1000000, completed: false },
+                        { id: 3, name: 'Điểm danh 1 lần', type: 'checkin', target: 1, current: 0, reward: 500000, completed: false },
+                        { id: 4, name: 'Gửi 10 tin nhắn', type: 'message_count', target: 10, current: 0, reward: 800000, completed: false },
+                        { id: 5, name: 'Tặng tiền cho 1 người', type: 'gift_money', target: 1, current: 0, reward: 1500000, completed: false }
+                    ]
+                };
             }
-            
-            user.dailyQuests.lastReset = today;
-            user.dailyQuests.quests.forEach(q => {
-                q.current = 0;
-                q.completed = false;
-            });
         }
     }
     
-    saveDBImmediate(); // ✅ QUAN TRỌNG - SAVE NGAY
+    saveDBImmediate();
 }
 
-// Auto reset quests every day at 00:00
 setInterval(() => {
     const now = new Date();
     if (now.getHours() === 0 && now.getMinutes() === 0) {
@@ -199,7 +177,6 @@ setInterval(() => {
     }
 }, 60000);
 
-// ✅ AUTO SAVE MỖI 30 GIÂY (BACKUP)
 setInterval(() => {
     saveDB().catch(err => console.error('Auto-save error:', err));
 }, 30000);
@@ -209,9 +186,10 @@ loadDB();
 module.exports = {
     database,
     saveDB,
-    saveDBDebounced,      // ✅ DÙNG CHO ĐĂNG CƯỢC
-    saveDBImmediate,      // ✅ DÙNG CHO ADMIN/CRITICAL
+    saveDBDebounced,
+    saveDBImmediate,
     getUser,
     resetDailyQuests,
     DB_PATH
 };
+
