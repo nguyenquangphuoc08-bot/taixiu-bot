@@ -1,39 +1,9 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { database } = require('../utils/database');
 
-// Backup khi khởi động
-async function backupOnStartup(client, BACKUP_CHANNEL_ID) {
-    try {
-        const channel = await client.channels.fetch(BACKUP_CHANNEL_ID);
-        
-        const backup = JSON.stringify(database, null, 2);
-        const attachment = new AttachmentBuilder(Buffer.from(backup), { 
-            name: `startup_backup_${Date.now()}.json` 
-        });
-        
-        const embed = new EmbedBuilder()
-            .setTitle('🚀 BOT VỪA KHỞI ĐỘNG')
-            .setColor('#2ecc71')
-            .setDescription(`
-Bot đã online và tạo backup khởi động!
+// ❌ ĐÃ XÓA: backupOnStartup
 
-**Database hiện tại:**
-👥 Người chơi: ${Object.keys(database.users).length}
-📊 Lịch sử: ${database.history.length} phiên  
-🎰 Hũ: ${database.jackpot.toLocaleString('en-US')} Mcoin
-            `)
-            .setFooter({ text: 'Backup khi khởi động' })
-            .setTimestamp();
-        
-        await channel.send({ embeds: [embed], files: [attachment] });
-        console.log('✅ Backup khởi động thành công!');
-        
-    } catch (e) {
-        console.error('❌ Lỗi backup khởi động:', e.message);
-    }
-}
-
-// Auto backup mỗi 6 giờ
+// Auto backup mỗi 12 giờ
 async function autoBackup(client, BACKUP_CHANNEL_ID) {
     try {
         const channel = await client.channels.fetch(BACKUP_CHANNEL_ID);
@@ -45,7 +15,7 @@ async function autoBackup(client, BACKUP_CHANNEL_ID) {
         });
         
         const embed = new EmbedBuilder()
-            .setTitle('🤖 AUTO BACKUP - 6 GIỜ')
+            .setTitle('🤖 AUTO BACKUP - 12 GIỜ')
             .setColor('#3498db')
             .setDescription(`
 **Thống kê database:**
@@ -55,7 +25,7 @@ async function autoBackup(client, BACKUP_CHANNEL_ID) {
 💰 Tổng tiền hệ thống: **${Object.values(database.users).reduce((sum, u) => sum + u.balance, 0).toLocaleString('en-US')}** Mcoin
 ⏳ Phiên đang chạy: ${database.activeBettingSession ? '✅ Có' : '❌ Không'}
             `)
-            .setFooter({ text: 'Backup tự động mỗi 6 giờ' })
+            .setFooter({ text: 'Backup tự động mỗi 12 giờ' })
             .setTimestamp();
         
         await channel.send({ embeds: [embed], files: [attachment] });
@@ -141,8 +111,8 @@ Vui lòng bắt đầu phiên mới bằng lệnh \`.tx\`
 }
 
 module.exports = {
-    backupOnStartup,
     autoBackup,
     backupOnShutdown,
     restoreInterruptedSession
 };
+
