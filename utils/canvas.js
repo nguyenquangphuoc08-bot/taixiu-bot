@@ -1,13 +1,11 @@
-// utils/canvas.js - CẬP NHẬT HÀM createHistoryChart()
+// utils/canvas.js - ĐÃ XÓA VIP BADGE VÀNG, THÊM ICON VIP
 
 const { createCanvas, loadImage } = require("@napi-rs/canvas");
 
-// === HÀM MỚI: VẼ BIỂU ĐỒ GIỐNG ẢNH ===
 function createHistoryChart(historyArray) {
     try {
         let last20 = historyArray.slice(-20);
         
-        // Nếu ít hơn 20 phiên, tạo dữ liệu giả để đủ 20
         if (last20.length < 20) {
             const fakeData = [];
             for (let i = 0; i < 20 - last20.length; i++) {
@@ -26,49 +24,72 @@ function createHistoryChart(historyArray) {
             last20 = [...fakeData, ...last20];
         }
         
-        const canvas = createCanvas(400, 380);
+        const canvas = createCanvas(700, 500);
         const ctx = canvas.getContext('2d');
         
-        // Background
-        ctx.fillStyle = '#2b2d31';
-        ctx.fillRect(0, 0, 400, 380);
+        // ===== NỀN ĐEN =====
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(0, 0, 700, 500);
+        
+        // ===== HEADER =====
+        const latestPhien = last20[last20.length - 1];
+        const phienNumber = historyArray.length || 1;
+        const phienResult = latestPhien.tai ? 'TÀI' : 'XỈU';
+        const phienDice = `(${latestPhien.dice1}-${latestPhien.dice2}-${latestPhien.dice3})`;
+        
+        // Background header
+        ctx.fillStyle = '#2d2d2d';
+        ctx.fillRect(0, 0, 700, 60);
         
         // Title
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 14px Arial';
-        ctx.fillText('THỐNG KÊ PHIÊN', 10, 20);
+        ctx.fillStyle = '#FFD700';
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('THỐNG KÊ PHIÊN', 350, 30);
         
         // Subtitle
         ctx.fillStyle = '#888888';
-        ctx.font = '10px Arial';
-        ctx.fillText('Phân tích dựa trên 20 phiên gần nhất', 220, 22);
+        ctx.font = '14px Arial';
+        ctx.fillText(`Phiên gần nhất: #${phienNumber} ${phienResult} ${phienDice}`, 350, 50);
         
         // ===== CHART 1: LINE CHART (TỔNG ĐIỂM) =====
-        const chart1Y = 40;
-        const chart1Height = 130;
-        const chartWidth = 360;
-        const chartX = 25;
+        const chart1Y = 80;
+        const chart1Height = 150;
+        const chartWidth = 640;
+        const chartX = 40;
         
-        // Grid lines
-        ctx.strokeStyle = '#3a3c40';
+        // Grid - Ô LƯỚI NGANG (mọi giá trị)
+        ctx.strokeStyle = '#2a2a2a';
         ctx.lineWidth = 1;
-        for (let i = 3; i <= 18; i += 3) {
+        for (let i = 3; i <= 18; i++) {
             const y = chart1Y + chart1Height - ((i - 3) / 15) * chart1Height;
             ctx.beginPath();
             ctx.moveTo(chartX, y);
             ctx.lineTo(chartX + chartWidth, y);
             ctx.stroke();
-            
-            // Y-axis labels
-            ctx.fillStyle = '#888888';
-            ctx.font = '9px Arial';
-            ctx.textAlign = 'right';
-            ctx.fillText(i.toString(), chartX - 5, y + 3);
+        }
+        
+        // Grid - Ô LƯỚI DỌC
+        for (let i = 0; i <= 20; i++) {
+            const x = chartX + (i / 20) * chartWidth;
+            ctx.beginPath();
+            ctx.moveTo(x, chart1Y);
+            ctx.lineTo(x, chart1Y + chart1Height);
+            ctx.stroke();
+        }
+        
+        // Y-axis labels (chỉ số chẵn)
+        ctx.fillStyle = '#666666';
+        ctx.font = 'bold 11px Arial';
+        ctx.textAlign = 'right';
+        for (let i = 3; i <= 18; i += 3) {
+            const y = chart1Y + chart1Height - ((i - 3) / 15) * chart1Height;
+            ctx.fillText(i.toString(), chartX - 8, y + 4);
         }
         
         // Draw line
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
         
         last20.forEach((h, i) => {
@@ -84,38 +105,39 @@ function createHistoryChart(historyArray) {
         });
         ctx.stroke();
         
-        // Draw dots with numbers
+        // ===== ĐIỂM TRÒN CÓ SỐ BÊN TRONG =====
         last20.forEach((h, i) => {
             const x = chartX + (i / 19) * chartWidth;
             const total = h.total || 10;
             const y = chart1Y + chart1Height - ((total - 3) / 15) * chart1Height;
             
-            // Dot background
-            ctx.fillStyle = '#2b2d31';
+            // Vòng tròn nền đen
+            ctx.fillStyle = '#1a1a1a';
             ctx.beginPath();
-            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.arc(x, y, 12, 0, Math.PI * 2);
             ctx.fill();
             
-            // Dot border
+            // Viền trắng
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.arc(x, y, 12, 0, Math.PI * 2);
             ctx.stroke();
             
-            // ✅ SỐ HIỂN THỊ TRÊN ĐIỂM
+            // ===== SỐ TRONG ĐIỂM =====
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 10px Arial';
+            ctx.font = 'bold 11px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(total.toString(), x, y - 10);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(total.toString(), x, y);
         });
         
-        // ===== CHART 2: XÚC XẮC 3 CON =====
-        const chart2Y = 200;
-        const chart2Height = 130;
+        // ===== CHART 2: 3 ZIGZAG LINES =====
+        const chart2Y = 260;
+        const chart2Height = 160;
         
-        // Grid lines
-        ctx.strokeStyle = '#3a3c40';
+        // Grid - Ô LƯỚI NGANG
+        ctx.strokeStyle = '#2a2a2a';
         ctx.lineWidth = 1;
         for (let i = 0; i <= 6; i++) {
             const y = chart2Y + chart2Height - (i / 6) * chart2Height;
@@ -123,32 +145,43 @@ function createHistoryChart(historyArray) {
             ctx.moveTo(chartX, y);
             ctx.lineTo(chartX + chartWidth, y);
             ctx.stroke();
-            
-            // Y-axis labels
-            ctx.fillStyle = '#888888';
-            ctx.font = '9px Arial';
-            ctx.textAlign = 'right';
-            ctx.fillText(i.toString(), chartX - 5, y + 3);
         }
         
-        // Prepare data for 3 dice (zigzag lines)
+        // Grid - Ô LƯỚI DỌC
+        for (let i = 0; i <= 20; i++) {
+            const x = chartX + (i / 20) * chartWidth;
+            ctx.beginPath();
+            ctx.moveTo(x, chart2Y);
+            ctx.lineTo(x, chart2Y + chart2Height);
+            ctx.stroke();
+        }
+        
+        // Y-axis labels
+        ctx.fillStyle = '#666666';
+        ctx.font = 'bold 11px Arial';
+        ctx.textAlign = 'right';
+        for (let i = 0; i <= 6; i++) {
+            const y = chart2Y + chart2Height - (i / 6) * chart2Height;
+            ctx.fillText(i.toString(), chartX - 8, y + 4);
+        }
+        
+        // 3 lines data
         const lines = [
-            { name: 'Xí ngầu 1', color: '#5865f2', data: [] },
-            { name: 'Xí ngầu 2', color: '#57f287', data: [] },
-            { name: 'Xí ngầu 3', color: '#eb459e', data: [] }
+            { name: 'Xí ngầu 1', color: '#8b5cf6', data: [] },  // Tím
+            { name: 'Xí ngầu 2', color: '#06b6d4', data: [] },  // Xanh dương
+            { name: 'Xí ngầu 3', color: '#ec4899', data: [] }   // Hồng
         ];
         
-        // Extract dice values from history
         last20.forEach((h, i) => {
             lines[0].data.push(h.dice1 || Math.floor(Math.random() * 6) + 1);
             lines[1].data.push(h.dice2 || Math.floor(Math.random() * 6) + 1);
             lines[2].data.push(h.dice3 || Math.floor(Math.random() * 6) + 1);
         });
         
-        // Draw 3 zigzag lines
+        // Draw lines
         lines.forEach(line => {
             ctx.strokeStyle = line.color;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.5;
             ctx.beginPath();
             
             line.data.forEach((val, i) => {
@@ -164,19 +197,29 @@ function createHistoryChart(historyArray) {
             ctx.stroke();
         });
         
-        // Legend
-        const legendY = 350;
+        // ===== LEGEND (Ở DƯỚI BIỂU ĐỒ 2) =====
+        const legendY = 445;
         lines.forEach((line, i) => {
-            const legendX = 25 + i * 120;
+            const legendX = 200 + i * 120;
             
+            // Color circle
             ctx.fillStyle = line.color;
-            ctx.fillRect(legendX, legendY, 12, 12);
+            ctx.beginPath();
+            ctx.arc(legendX, legendY, 6, 0, Math.PI * 2);
+            ctx.fill();
             
+            // Text
             ctx.fillStyle = '#ffffff';
-            ctx.font = '11px Arial';
+            ctx.font = '12px Arial';
             ctx.textAlign = 'left';
-            ctx.fillText(line.name, legendX + 18, legendY + 10);
+            ctx.fillText(line.name, legendX + 12, legendY + 4);
         });
+        
+        // ===== WATERMARK =====
+        ctx.fillStyle = '#444444';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'right';
+        ctx.fillText('Powered by mxtbot.com', 690, 490);
         
         return canvas.toBuffer('image/png');
         
@@ -186,14 +229,11 @@ function createHistoryChart(historyArray) {
     }
 }
 
-// === CÁC HÀM KHÁC GIỮ NGUYÊN ===
-
 async function createProfileCard(user, userData, avatarUrl) {
     try {
         const canvas = createCanvas(500, 250);
         const ctx = canvas.getContext('2d');
         
-        // ✅ DÙNG ẢNH NỀN TÙY CHỈNH NẾU CÓ
         if (userData.customBg) {
             try {
                 const bgImage = await loadImage(userData.customBg);
@@ -214,7 +254,6 @@ async function createProfileCard(user, userData, avatarUrl) {
             ctx.fillRect(0, 0, 500, 250);
         }
         
-        // Avatar
         try {
             const avatar = await loadImage(avatarUrl);
             ctx.save();
@@ -234,37 +273,47 @@ async function createProfileCard(user, userData, avatarUrl) {
             console.error('Avatar load failed:', e);
         }
         
-        // ✅ USERNAME - CHỮ TRẮNG + VIỀN ĐEN + BÓng
         ctx.textAlign = 'center';
         ctx.font = 'bold 24px Arial';
         
-        // Bóng đen
         ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
         ctx.shadowBlur = 8;
         ctx.shadowOffsetX = 2;
         ctx.shadowOffsetY = 2;
         
-        // Viền đen dày
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 6;
         ctx.strokeText(user.username, 250, 145);
         
-        // Chữ trắng
         ctx.fillStyle = '#ffffff';
         ctx.fillText(user.username, 250, 145);
         
-        // Reset shadow
         ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
         
-        // ✅ STATS - CHỮ TRẮNG + VIỀN ĐEN (XÓA CỘT CƯỢC, CHỈ GIỮ 3 CỘT)
-const stats = [
-    { label: 'Mcoin', value: userData.balance.toLocaleString('en-US'), x: 125 },
-    { label: 'VIP', value: `Lv${userData.vipLevel || 0}`, x: 250 },
-    { label: 'Danh hiệu', value: (userData.vipTitle || 'Thường').substring(0, 8), x: 375 }
-];
+        // ✅ ICON VIP THEO LEVEL
+        const vipIcons = {
+            1: '⭐',
+            2: '⭐⭐',
+            3: '⭐⭐⭐',
+            4: '💎',
+            5: '💎⭐',
+            6: '💎💎',
+            7: '👑',
+            8: '👑⭐',
+            9: '👑💎',
+            10: '🔥👑'
+        };
         
-        // Bóng cho stats
+        const vipIcon = vipIcons[userData.vipLevel] || '';
+        const vipDisplay = userData.vipLevel > 0 ? `${vipIcon} Lv${userData.vipLevel}` : 'Lv0';
+        
+        const stats = [
+            { label: 'Mcoin', value: userData.balance.toLocaleString('en-US'), x: 125 },
+            { label: 'VIP', value: vipDisplay, x: 250 },
+            { label: 'Danh hiệu', value: (userData.vipTitle || 'Thường').substring(0, 8), x: 375 }
+        ];
+        
         ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
         ctx.shadowBlur = 5;
         ctx.shadowOffsetX = 1;
@@ -272,14 +321,12 @@ const stats = [
         
         ctx.font = 'bold 13px Arial';
         stats.forEach(stat => {
-            // Label - viền đen + chữ trắng
             ctx.strokeStyle = '#000000';
             ctx.lineWidth = 4;
             ctx.strokeText(stat.label, stat.x, 180);
             ctx.fillStyle = '#ffffff';
             ctx.fillText(stat.label, stat.x, 180);
             
-            // Value - viền đen + chữ trắng
             ctx.font = 'bold 15px Arial';
             ctx.strokeStyle = '#000000';
             ctx.lineWidth = 4;
@@ -289,15 +336,7 @@ const stats = [
             ctx.font = 'bold 13px Arial';
         });
         
-        // VIP Badge
-        if (userData.vipLevel && userData.vipLevel > 0) {
-            ctx.font = 'bold 12px Arial';
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 4;
-            ctx.strokeText(`⭐ VIP ${userData.vipLevel}`, 250, 230);
-            ctx.fillStyle = '#FFD700';
-            ctx.fillText(`⭐ VIP ${userData.vipLevel}`, 250, 230);
-        }
+        // ❌ ĐÃ XÓA VIP BADGE MÀU VÀNG Ở DƯỚI
         
         return canvas.toBuffer('image/png');
         
@@ -524,5 +563,4 @@ module.exports = {
     createHistoryChart,
     createProfileCard
 };
-
 
