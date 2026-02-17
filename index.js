@@ -201,6 +201,11 @@ client.on('interactionCreate', async (interaction) => {
                 const amountInput = interaction.fields.getTextInputValue('bet_amount');
                 const amount = parseAmount(amountInput);
 
+                // ===== CHẶN CƯỢC 2 LẦN =====
+                if (session.bets[userId]) {
+                    return interaction.editReply('❌ Bạn đã đặt cược rồi! Mỗi phiên chỉ được cược 1 lần.');
+                }
+
                 if (!amount || amount < 1000) {
                     return interaction.editReply('❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin');
                 }
@@ -220,6 +225,11 @@ client.on('interactionCreate', async (interaction) => {
             if (interaction.customId === 'modal_bet_number') {
                 const numberInput = interaction.fields.getTextInputValue('number_value');
                 const amountInput = interaction.fields.getTextInputValue('bet_amount');
+
+                // ===== CHẶN CƯỢC 2 LẦN =====
+                if (session.bets[userId]) {
+                    return interaction.editReply('❌ Bạn đã đặt cược rồi! Mỗi phiên chỉ được cược 1 lần.');
+                }
 
                 const number = parseInt(numberInput);
                 const amount = parseAmount(amountInput);
@@ -247,6 +257,11 @@ client.on('interactionCreate', async (interaction) => {
             if (interaction.customId === 'modal_bet_total') {
                 const totalInput = interaction.fields.getTextInputValue('total_value');
                 const amountInput = interaction.fields.getTextInputValue('bet_amount');
+
+                // ===== CHẶN CƯỢC 2 LẦN =====
+                if (session.bets[userId]) {
+                    return interaction.editReply('❌ Bạn đã đặt cược rồi! Mỗi phiên chỉ được cược 1 lần.');
+                }
 
                 const total = parseInt(totalInput);
                 const amount = parseAmount(amountInput);
