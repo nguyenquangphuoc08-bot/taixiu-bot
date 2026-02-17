@@ -177,17 +177,41 @@ async function handleGiveTitle(message, args) {
     }
     
     const targetUser = message.mentions.users.first();
-    const titleName = args.slice(2).join(' ');
     
-    if (!targetUser || !titleName) {
-        return message.reply('❌ Sử dụng: .givetitle @user [tên]');
+    if (!targetUser) {
+        return message.reply('❌ Sử dụng: .givetitle @user');
     }
     
-    const user = getUser(targetUser.id);
-    user.vipTitle = titleName;
-    saveDB();
+    const { TITLE_ITEMS } = require('./shop');
+    const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
     
-    await message.reply(`✅ Đã cấp danh hiệu "${titleName}" cho <@${targetUser.id}>!`);
+    // Hiện bảng chọn danh hiệu
+    const options = Object.values(TITLE_ITEMS).map(title => {
+        let bonusText = `+${title.dailyBonus}% dd`;
+        if (title.betBonus > 0) bonusText += `, +${title.betBonus}% thắng`;
+        if (title.jackpotBonus > 0) bonusText += `, +${title.jackpotBonus}% jackpot`;
+        
+        return {
+            label: title.titleName,
+            description: bonusText,
+            value: `givetitle_${targetUser.id}_${title.id}`
+        };
+    });
+    
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('admin_givetitle')
+        .setPlaceholder('Chọn danh hiệu để cấp...')
+        .addOptions(options);
+    
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+    
+    const embed = new EmbedBuilder()
+        .setTitle('👑 CẤP DANH HIỆU')
+        .setColor('#e91e63')
+        .setDescription(`Chọn danh hiệu để cấp cho <@${targetUser.id}>:`)
+        .setFooter({ text: 'Chọn từ menu bên dưới' });
+    
+    await message.reply({ embeds: [embed], components: [row] });
 }
 
 // ========================================
