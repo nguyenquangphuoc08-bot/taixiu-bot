@@ -1,4 +1,4 @@
-// index.js - RENDER FREE LITE PLUS - ĐÃ SỬA
+// index.js - RENDER FREE LITE PLUS - ĐÃ SỬA (CẬP NHẬT TIN NHẮN BẤT KỲ)
 
 process.removeAllListeners('warning');
 
@@ -40,7 +40,7 @@ client.once('ready', async () => {
 
     // ===== TỰ ĐỘNG XÓA PHIÊN CŨ KHI BOT RESTART =====
     try {
-        cleanupSession(); // Xóa phiên cược cũ
+        cleanupSession();
         console.log('🧹 Đã xóa phiên cược cũ (nếu có)');
     } catch (err) {
         console.log('⚠️ Không thể xóa phiên cũ:', err.message);
@@ -52,7 +52,18 @@ client.once('ready', async () => {
 
 // ===== MESSAGE =====
 client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.content.startsWith('.')) return;
+    if (message.author.bot) return;
+
+    // ===== CẬP NHẬT NHIỆM VỤ GỬI TIN NHẮN (TIN NHẮN NÀO CŨNG TÍNH) =====
+    try {
+        const { updateQuest } = require('./services/quest');
+        updateQuest(message.author.id, 4); // Nhiệm vụ #4: Gửi 10 tin nhắn
+    } catch (err) {
+        // Bỏ qua lỗi nếu quest chưa init
+    }
+
+    // Chỉ xử lý lệnh có dấu .
+    if (!message.content.startsWith('.')) return;
 
     const args = message.content.trim().split(/\s+/);
     const cmd = args[0].toLowerCase();
@@ -83,6 +94,7 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.donate') return handleDonate(message, args);
         if (cmd === '.resetquest') return handleResetQuest(message, args);
         if (cmd === '.restart' && message.author.id === ADMIN_ID) process.exit(0);
+
         if (cmd === '.help') {
             const isAdmin = message.author.id === ADMIN_ID;
 
@@ -108,8 +120,8 @@ client.on('messageCreate', async (message) => {
                 fields: [
                     { name: '👥 Lệnh Người Chơi', value: '```\n.tx, .mcoin, .setbg, .sc, .tang, .dd\n.daily, .claimall, .mshop, .code\n```', inline: false },
                     { name: '🎁 Quản Lý Giftcode', value: '```\n.giftcode [tiền] [giờ]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
-                    { name: '👑 Quản Lý VIP', value: '```\n.givevip @user [1-3]\n.removevip @user\n.givetitle @user [tên]\n```', inline: false },
-                    { name: '💰 Quản Lý Tiền', value: '```\n.donate @user [số]\n```', inline: false },
+                    { name: '👑 Quản Lý VIP', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user [tên]\n```', inline: false },
+                    { name: '💰 Quản Lý Tiền', value: '```\n.donate @user [số]\n.resetquest @user\n```', inline: false },
                     { name: '🔧 Quản Lý Database', value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```', inline: false }
                 ],
                 footer: { text: '🔒 Chỉ Admin mới thấy bảng này' },
@@ -273,4 +285,3 @@ http.createServer((req, res) => {
 
 // ===== LOGIN =====
 client.login(TOKEN);
-
