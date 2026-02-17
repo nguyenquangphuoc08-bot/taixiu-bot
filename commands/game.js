@@ -81,7 +81,7 @@ async function handleTaiXiu(message, client) {
 • **Cược số:** x1.9/x2.8/x3.6
 • **Cược tổng:**
   **9-12:** x4.5
-  **3&18:** x10.8
+  **3-18:** x10.8
   **Còn lại:** x6.2
 
 • **Nổ hũ:** Khi 3 xúc xắc trùng nhau
@@ -371,4 +371,5 @@ module.exports = {
     setBettingSession,
     cleanupSession,
 };
+
 
