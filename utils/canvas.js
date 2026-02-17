@@ -197,6 +197,30 @@ function createHistoryChart(historyArray) {
             ctx.stroke();
         });
         
+        // ===== VẼ QUẢ CẦU MÀU Ở BIỂU ĐỒ 2 (VẼ NGƯỢC 3→2→1) =====
+        // Vẽ ngược để xúc xắc 1 (tím) luôn hiện trên cùng khi trùng
+        for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex--) {
+            const line = lines[lineIndex];
+            
+            line.data.forEach((val, i) => {
+                const x = chartX + (i / 19) * chartWidth;
+                const y = chart2Y + chart2Height - (val / 6) * chart2Height;
+                
+                // Quả cầu nền đen
+                ctx.fillStyle = '#1a1a1a';
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Viền màu (cùng màu với đường)
+                ctx.strokeStyle = line.color;
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+        }
+        
         // ===== LEGEND (Ở DƯỚI BIỂU ĐỒ 2) =====
         const legendY = 445;
         lines.forEach((line, i) => {
