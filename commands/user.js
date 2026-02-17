@@ -1,16 +1,14 @@
-// commands/user.js - .mcoin HIỆN ẢNH + TEXT
+// commands/user.js - ĐÃ SỬA
 
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { database, getUser, saveDB } = require('../utils/database');
 const { createProfileCard } = require('../utils/canvas');
 const { updateQuest } = require('../services/quest');
 
-// ===== FORMAT SỐ VN STYLE (dấu chấm) =====
 function formatNumber(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
-// ===== .mcoin - CHỈ HIỂN THỊ 3 THÔNG TIN =====
 async function handleMcoin(message) {
     const user = getUser(message.author.id);
     const avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 256 });
@@ -21,11 +19,7 @@ async function handleMcoin(message) {
     }
     
     const attachment = new AttachmentBuilder(profileBuffer, { name: 'profile.png' });
-    
-    // ===== CHỈ 3 THÔNG TIN =====
     const balanceDisplay = formatNumber(user.balance);
-    const vipLevel = user.vipLevel || 0;
-    const title = user.vipTitle || 'Thường';
     
     await message.reply({ 
         content: `💎 | **${message.author.username}**, bạn hiện có: **${balanceDisplay} Mcoin**.`,
@@ -114,8 +108,9 @@ async function handleTang(message, args) {
         return message.reply('❌ Sử dụng: `.tang @user [số]`');
     }
     
-    if (!amount || amount < 10000) {
-        return message.reply('❌ Tối thiểu 10,000 Mcoin!');
+    // ===== BỎ GIỚI HẠN TỐI THIỂU - CHỈ CẦN > 0 =====
+    if (!amount || amount <= 0) {
+        return message.reply('❌ Số tiền phải lớn hơn 0!');
     }
     
     const sender = getUser(message.author.id);
@@ -163,8 +158,23 @@ async function handleDiemDanh(message) {
     const user = getUser(userId);
     
     let reward = 3000000;
-    const vipBonus = user.vipBonus?.dailyBonus || 0;
-    reward += vipBonus;
+    let bonusText = '';
+    
+    // ===== VIP BONUS =====
+    const vipDailyBonus = user.vipBonus?.dailyBonus || 0;
+    if (vipDailyBonus > 0) {
+        const vipBonusAmount = Math.floor(reward * vipDailyBonus / 100);
+        reward += vipBonusAmount;
+        bonusText += `⭐ VIP: +${formatNumber(vipBonusAmount)} (${vipDailyBonus}%)\n`;
+    }
+    
+    // ===== TITLE BONUS =====
+    const titleDailyBonus = user.titleBonus?.dailyBonus || 0;
+    if (titleDailyBonus > 0) {
+        const titleBonusAmount = Math.floor(3000000 * titleDailyBonus / 100);
+        reward += titleBonusAmount;
+        bonusText += `👑 ${user.vipTitle}: +${formatNumber(titleBonusAmount)} (${titleDailyBonus}%)\n`;
+    }
     
     user.balance += reward;
     database.lastCheckin[userId] = now;
@@ -175,7 +185,7 @@ async function handleDiemDanh(message) {
     const embed = new EmbedBuilder()
         .setTitle('🎁 ĐIỂM DANH THÀNH CÔNG!')
         .setColor('#2ecc71')
-        .setDescription(`Bạn nhận được **${formatNumber(reward)}**!\n${vipBonus > 0 ? `⭐ **+${formatNumber(vipBonus)}** từ VIP` : ''}`)
+        .setDescription(`Bạn nhận được **${formatNumber(reward)}**!\n${bonusText}`)
         .addFields({
             name: '💰 Số dư mới',
             value: formatNumber(user.balance)
