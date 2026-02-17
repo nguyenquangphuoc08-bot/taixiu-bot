@@ -129,22 +129,28 @@ async function handleGiveVip(message, args) {
     const targetUser = message.mentions.users.first();
     const vipLevel = parseInt(args[2]);
     
-    if (!targetUser || !vipLevel || vipLevel < 1 || vipLevel > 3) {
-        return message.reply('❌ Sử dụng: .givevip @user [1-3]');
+    if (!targetUser || !vipLevel || vipLevel < 1 || vipLevel > 10) {
+        return message.reply('❌ Sử dụng: .givevip @user [1-10]');
     }
     
     const user = getUser(targetUser.id);
-    const vipData = {
-        1: { dailyBonus: 2000000, betBonus: 5 },
-        2: { dailyBonus: 5000000, betBonus: 10 },
-        3: { dailyBonus: 15000000, betBonus: 20 }
-    };
+    const { VIP_ITEMS } = require('./shop');
+    
+    const vipItem = VIP_ITEMS[`vip${vipLevel}`];
+    
+    if (!vipItem) {
+        return message.reply('❌ VIP level không hợp lệ!');
+    }
     
     user.vipLevel = vipLevel;
-    user.vipBonus = vipData[vipLevel];
+    user.vipBonus = {
+        dailyBonus: vipItem.dailyBonus,
+        betBonus: vipItem.betBonus,
+        extraBonus: vipItem.extraBonus || 0
+    };
     saveDB();
     
-    await message.reply(`✅ Đã cấp VIP ${vipLevel} cho <@${targetUser.id}>!`);
+    await message.reply(`✅ Đã cấp ${vipItem.name} cho <@${targetUser.id}>!`);
 }
 
 async function handleRemoveVip(message, args) {
