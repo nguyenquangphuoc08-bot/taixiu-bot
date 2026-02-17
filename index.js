@@ -6,7 +6,7 @@ const http = require('http');
 const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
 const { saveDB, getUser } = require('./utils/database');
-const { autoBackup, backupOnStartup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
+const { autoBackup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
 const { handleTaiXiu, handleSoiCau, getBettingSession, cleanupSession } = require('./commands/game');
 const { handleMcoin, handleSetBg, handleTang, handleDiemDanh } = require('./commands/user');
@@ -44,7 +44,6 @@ client.once('ready', async () => {
         console.log('⚠️ Không thể xóa phiên cũ:', err.message);
     }
 
-    try { await backupOnStartup(client, BACKUP_CHANNEL_ID); } catch {}
     try { await restoreInterruptedSession(client); } catch {}
 });
 
@@ -316,3 +315,4 @@ http.createServer((req, res) => {
 }).listen(process.env.PORT || 10000);
 
 client.login(TOKEN);
+
