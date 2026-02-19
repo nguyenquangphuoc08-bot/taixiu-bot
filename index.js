@@ -323,4 +323,28 @@ http.createServer((req, res) => {
     res.end('BOT ONLINE');
 }).listen(process.env.PORT || 10000);
 
+// ===== BACKUP KHI TẮT BOT =====
+process.on('SIGINT', async () => {
+    console.log('⚠️ Bot đang tắt...');
+    try {
+        await backupOnShutdown(client, BACKUP_CHANNEL_ID);
+        console.log('✅ Backup hoàn tất!');
+    } catch (e) {
+        console.error('❌ Backup lỗi:', e);
+    }
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    console.log('⚠️ Bot đang tắt (SIGTERM)...');
+    try {
+        await backupOnShutdown(client, BACKUP_CHANNEL_ID);
+        console.log('✅ Backup hoàn tất!');
+    } catch (e) {
+        console.error('❌ Backup lỗi:', e);
+    }
+    process.exit(0);
+});
+
 client.login(TOKEN);
+
