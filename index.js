@@ -139,6 +139,15 @@ client.on('interactionCreate', async (interaction) => {
     try {
         if (interaction.isButton() || interaction.isStringSelectMenu()) {
             
+            // ===== COPY CODE BUTTON =====
+            if (interaction.isButton() && interaction.customId.startsWith('copy_code_')) {
+                const code = interaction.customId.replace('copy_code_', '');
+                return interaction.reply({
+                    content: `📋 **Copy code này:**\n\`\`\`.code ${code}\`\`\``,
+                    ephemeral: true
+                });
+            }
+            
             // ===== ADMIN GIVETITLE HANDLER =====
             if (interaction.isStringSelectMenu() && interaction.customId === 'admin_givetitle') {
                 if (interaction.user.id !== ADMIN_ID) {
@@ -315,4 +324,3 @@ http.createServer((req, res) => {
 }).listen(process.env.PORT || 10000);
 
 client.login(TOKEN);
-
