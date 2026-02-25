@@ -1,4 +1,4 @@
-// handlers/buttonHandler.js - HỖ TRỢ CẢ .tx VÀ .mshop (ĐÃ SỬA 45 CHAR LIMIT)
+// handlers/buttonHandler.js - HIỆN SỐ DƯ ĐẦY ĐỦ
 
 const { 
     ModalBuilder, 
@@ -10,17 +10,9 @@ const {
 
 const { getUser, saveDBDebounced } = require('../utils/database');
 
-// ✅ HÀM RÚT GỌN SỐ TIỀN (FIX 45 CHAR LIMIT)
+// ===== FORMAT SỐ ĐẦY ĐỦ =====
 function formatBalance(balance) {
-    if (balance >= 1e24) return (balance / 1e24).toFixed(1) + 'Y'; // Yotta
-    if (balance >= 1e21) return (balance / 1e21).toFixed(1) + 'Z'; // Zetta
-    if (balance >= 1e18) return (balance / 1e18).toFixed(1) + 'E'; // Exa
-    if (balance >= 1e15) return (balance / 1e15).toFixed(1) + 'P'; // Peta
-    if (balance >= 1e12) return (balance / 1e12).toFixed(1) + 'T'; // Tera
-    if (balance >= 1e9) return (balance / 1e9).toFixed(1) + 'B';   // Billion
-    if (balance >= 1e6) return (balance / 1e6).toFixed(1) + 'M';   // Million
-    if (balance >= 1e3) return (balance / 1e3).toFixed(1) + 'K';   // Thousand
-    return balance.toString();
+    return balance.toLocaleString('vi-VN');
 }
 
 async function handleButtonClick(interaction, bettingSession) {
@@ -51,7 +43,6 @@ async function handleButtonClick(interaction, bettingSession) {
 
         // ===== XỬ LÝ TÀI XỈU =====
         
-        // Kiểm tra phiên cược (CHỈ cho Tài Xỉu)
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
             return interaction.reply({
                 content: '❌ Không có phiên cược nào đang diễn ra!',
@@ -120,7 +111,7 @@ async function handleButtonClick(interaction, bettingSession) {
                     new ActionRowBuilder().addComponents(
                         new TextInputBuilder()
                             .setCustomId('bet_amount')
-                            .setLabel(`💰 ${formatBalance(user.balance)} Mcoin`) // ✅ ĐÃ SỬA
+                            .setLabel(`💰 ${formatBalance(user.balance)} Mcoin`)
                             .setPlaceholder('VD: 1k, 5m, 10b')
                             .setStyle(TextInputStyle.Short)
                             .setRequired(true)
@@ -148,7 +139,7 @@ async function handleButtonClick(interaction, bettingSession) {
                     new ActionRowBuilder().addComponents(
                         new TextInputBuilder()
                             .setCustomId('bet_amount')
-                            .setLabel(`💰 ${formatBalance(user.balance)} Mcoin`) // ✅ ĐÃ SỬA
+                            .setLabel(`💰 ${formatBalance(user.balance)} Mcoin`)
                             .setPlaceholder('VD: 1k, 5m, 10b')
                             .setStyle(TextInputStyle.Short)
                             .setRequired(true)
@@ -167,7 +158,7 @@ async function handleButtonClick(interaction, bettingSession) {
                 new ActionRowBuilder().addComponents(
                     new TextInputBuilder()
                         .setCustomId('bet_amount')
-                        .setLabel(`💰 ${formatBalance(user.balance)} Mcoin`) // ✅ ĐÃ SỬA
+                        .setLabel(`💰 ${formatBalance(user.balance)} Mcoin`)
                         .setPlaceholder('VD: 1k, 5m, 10b')
                         .setStyle(TextInputStyle.Short)
                         .setRequired(true)
