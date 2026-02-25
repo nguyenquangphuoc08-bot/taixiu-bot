@@ -45,6 +45,20 @@ async function handleTaiXiu(message, client) {
     
     const jackpotDisplay = formatNumber(database.jackpot || 0);
     
+    // ===== TẠO ICON SOI CẦU =====
+    const last10 = database.history.slice(-10);
+    let soiCauText = '\n📊 **SOI CẦU 10 PHIÊN GẦN NHẤT**\n';
+    
+    let taiXiuLine = '';
+    let chanLeLine = '';
+    
+    last10.forEach(h => {
+        taiXiuLine += h.tai ? '🔵' : '🔴'; // Tài = xanh, Xỉu = đỏ
+        chanLeLine += (h.total % 2 === 0) ? '🟣' : '🟡'; // Chẵn = tím, Lẻ = vàng
+    });
+    
+    soiCauText += taiXiuLine + '\n' + chanLeLine;
+    
     const jackpotEmbed = new EmbedBuilder()
         .setTitle('🎰 HŨ TÀI XỈU')
         .setColor('#FFD700')
@@ -81,10 +95,12 @@ async function handleTaiXiu(message, client) {
 • **Cược số:** x1.9/x2.8/x3.6
 • **Cược tổng:**
   **9-12:** x4.5
-  **3-18:** x10.8
+  **3&18:** x10.8
   **Còn lại:** x6.2
 
 • **Nổ hũ:** Khi 3 xúc xắc trùng nhau
+
+${soiCauText}
         `)
         .addFields({ name: '🕐 Thời gian còn lại', value: '**30** giây', inline: false })
         .setFooter({ text: 'Chọn cửa và đặt cược' })
@@ -143,11 +159,13 @@ async function animateResult(sentMessage, client) {
         const isTriple = checkJackpot(dice1, dice2, dice3);
         
         if (isTriple) {
-            const jackpotMilestone = Math.ceil(currentJackpot / 100000000000) * 100000000000;
-            if (currentJackpot >= jackpotMilestone && jackpotMilestone > 0) {
-                isJackpot = true;
+            if (currentJackpot >= 1000000000) {
+                // >= 1 tỷ → 70% nổ
+                const jackpotChance = 70;
+                if (Math.random() * 100 <= jackpotChance) isJackpot = true;
             } else {
-                const jackpotChance = (currentJackpot / 100000000000) * 100;
+                // < 1 tỷ → 50% nổ
+                const jackpotChance = 50;
                 if (Math.random() * 100 <= jackpotChance) isJackpot = true;
             }
         }
@@ -266,7 +284,7 @@ async function animateResult(sentMessage, client) {
             }
         }
         
-        // ===== JACKPOT =====
+        // ===== JACKPOT (CHIA THEO TỶ LỆ TIỀN CƯỢC) =====
         if (isJackpot && Object.keys(winnerBets).length > 0) {
             const currentJackpotAmount = database.jackpot || 0;
             
@@ -371,5 +389,4 @@ module.exports = {
     setBettingSession,
     cleanupSession,
 };
-
 
