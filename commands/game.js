@@ -45,29 +45,16 @@ async function handleTaiXiu(message, client) {
     
     const jackpotDisplay = formatNumber(database.jackpot || 0);
     
-    // ===== TẠO ICON SOI CẦU =====
-    const last10 = database.history.slice(-10);
-    let soiCauText = '\n📊 **SOI CẦU 10 PHIÊN GẦN NHẤT**\n';
-    
-    let taiXiuLine = '';
-    let chanLeLine = '';
-    
-    last10.forEach(h => {
-        taiXiuLine += h.tai ? '🔵' : '🔴'; // Tài = xanh, Xỉu = đỏ
-        chanLeLine += (h.total % 2 === 0) ? '🟣' : '🟡'; // Chẵn = tím, Lẻ = vàng
-    });
-    
-    soiCauText += taiXiuLine + '\n' + chanLeLine;
-    
+    // ===== 1. HŨ TÀI XỈU (VÀNG) =====
     const jackpotEmbed = new EmbedBuilder()
         .setTitle('🎰 HŨ TÀI XỈU')
         .setColor('#FFD700')
-        .setDescription(`💰 **${jackpotDisplay}**`)
-        .setFooter({ text: 'Nổ khi 3 xúc xắc trùng nhau!' })
-        .setTimestamp();
+        .setDescription(`💰 **${jackpotDisplay}** Mcoin`)
+        .setFooter({ text: 'Nổ khi ra bộ ba' });
     
     await message.channel.send({ embeds: [jackpotEmbed] });
     
+    // ===== 2. TÀI XỈU + TỈ LỆ (CAM) =====
     bettingSession = {
         channelId: message.channel.id,
         bets: {},
@@ -84,7 +71,7 @@ async function handleTaiXiu(message, client) {
     };
     saveDB();
     
-    const embed = new EmbedBuilder()
+    const mainEmbed = new EmbedBuilder()
         .setTitle(`TÀI XỈU #${phienNumber}`)
         .setColor('#f39c12')
         .setDescription(`
@@ -94,17 +81,44 @@ async function handleTaiXiu(message, client) {
 • **Chẵn - Lẻ:** x1.9
 • **Cược số:** x1.9/x2.8/x3.6
 • **Cược tổng:**
-  **9-12:** x4.5
-  **3&18:** x10.8
+  **9 hoặc 12:** x4.5
+  **3 hoặc 18:** x10.8
   **Còn lại:** x6.2
 
-• **Nổ hũ:** Khi 3 xúc xắc trùng nhau
-
-${soiCauText}
+• **Nổ hũ:** Ra bộ ba
         `)
-        .addFields({ name: '🕐 Thời gian còn lại', value: '**30** giây', inline: false })
-        .setFooter({ text: 'Chọn cửa và đặt cược' })
-        .setTimestamp();
+        .addFields({ name: '⏰ Thời gian còn lại', value: '**30** giây', inline: false })
+        .setFooter({ text: 'Chọn cửa và đặt cược' });
+    
+    // ===== 3. SOI CẦU (TÍM) =====
+    const last10 = database.history.slice(-10);
+    let taiXiuLine = '';
+    let chanLeLine = '';
+    
+    if (last10.length > 0) {
+        last10.forEach(h => {
+            taiXiuLine += h.tai ? '🔵' : '🔴';
+            chanLeLine += (h.total % 2 === 0) ? '🟣' : '🟡';
+        });
+    } else {
+        taiXiuLine = '🔵🔴🔵🔴🔵🔴🔵🔴🔵🔴';
+        chanLeLine = '🟣🟡🟣🟡🟣🟡🟣🟡🟣🟡';
+    }
+    
+    const soiCauEmbed = new EmbedBuilder()
+        .setTitle('📊 SOI CẦU TÀI XỈU')
+        .setColor('#9b59b6')
+        .setDescription(`${taiXiuLine}\n━━━━━━━━━━━━━━━━━━━\n${chanLeLine}`);
+    
+    // ===== 4. TỔNG CƯỢC (XANH) =====
+    const tongCuocEmbed = new EmbedBuilder()
+        .setTitle('TỔNG CƯỢC')
+        .setColor('#3498db')
+        .setDescription(`
+**Tài:** 0 | **Xỉu:** 0
+**Chẵn:** 0 | **Lẻ:** 0
+**Số/Tổng:** 0
+        `);
     
     const row = new ActionRowBuilder()
         .addComponents(
@@ -114,7 +128,11 @@ ${soiCauText}
                 .setStyle(ButtonStyle.Success)
         );
     
-    const sentMessage = await message.reply({ embeds: [embed], components: [row] });
+    const sentMessage = await message.reply({ 
+        embeds: [mainEmbed, soiCauEmbed, tongCuocEmbed], 
+        components: [row] 
+    });
+    
     bettingSession.messageId = sentMessage.id;
     
     let timeLeft = 30;
@@ -122,12 +140,32 @@ ${soiCauText}
         timeLeft -= 1;
         
         if (timeLeft > 0) {
-            embed.spliceFields(0, 1, { 
-                name: `🕐 Thời gian còn lại`, 
+            mainEmbed.spliceFields(0, 1, { 
+                name: `⏰ Thời gian còn lại`, 
                 value: `**${timeLeft}** giây`, 
                 inline: false 
             });
-            await sentMessage.edit({ embeds: [embed], components: [row] }).catch(() => {});
+            
+            // Cập nhật tổng cược
+            let taiCount = 0, xiuCount = 0, chanCount = 0, leCount = 0, otherCount = 0;
+            Object.values(bettingSession.bets).forEach(bet => {
+                if (bet.type === 'tai') taiCount++;
+                else if (bet.type === 'xiu') xiuCount++;
+                else if (bet.type === 'chan') chanCount++;
+                else if (bet.type === 'le') leCount++;
+                else otherCount++;
+            });
+            
+            tongCuocEmbed.setDescription(`
+**Tài:** ${taiCount} | **Xỉu:** ${xiuCount}
+**Chẵn:** ${chanCount} | **Lẻ:** ${leCount}
+**Số/Tổng:** ${otherCount}
+            `);
+            
+            await sentMessage.edit({ 
+                embeds: [mainEmbed, soiCauEmbed, tongCuocEmbed], 
+                components: [row] 
+            }).catch(() => {});
         } else {
             clearInterval(countdown);
             row.components.forEach(btn => btn.setDisabled(true));
