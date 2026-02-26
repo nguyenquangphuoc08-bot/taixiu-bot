@@ -143,7 +143,7 @@ client.on('interactionCreate', async (interaction) => {
             if (interaction.isButton() && interaction.customId.startsWith('copy_code_')) {
                 const code = interaction.customId.replace('copy_code_', '');
                 return interaction.reply({
-                    content: `📋 **Copy code này:**\n\`\`\`.code ${code}\`\`\``,
+                    content: `.code ${code}`,
                     ephemeral: true
                 });
             }
