@@ -8,7 +8,6 @@
   "dependencies": {
     "discord.js": "^14.17.3",
     "@napi-rs/canvas": "^0.1.52",
-    "gifencoder": "^2.0.1",
     "dotenv": "^16.3.1"
   },
   "engines": {
