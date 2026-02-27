@@ -1,0 +1,234 @@
+// utils/createBowlGif.js
+// Animation 20 giây: tô hé từng con xúc xắc rồi vụt lên biến mất
+
+const { createCanvas } = require('@napi-rs/canvas');
+const GIFEncoder = require('gifencoder');
+
+function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+function easeInCubic(t) {
+    return t * t * t;
+}
+
+function drawBackground(ctx, width, height) {
+    const grad = ctx.createRadialGradient(width/2, height/2, 60, width/2, height/2, width/1.4);
+    grad.addColorStop(0, '#2d8a4f');
+    grad.addColorStop(1, '#1a5c33');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(width/2, height/2, 175, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(width/2, height/2, 210, 0, Math.PI * 2);
+    ctx.stroke();
+}
+
+function drawDice(ctx, number, x, y, size = 80, opacity = 1) {
+    if (opacity <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = opacity;
+
+    const half = size / 2;
+    const r = size * 0.14;
+
+    ctx.shadowColor = 'rgba(0,0,0,0.45)';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetX = 4;
+    ctx.shadowOffsetY = 4;
+
+    const diceGrad = ctx.createLinearGradient(x - half, y - half, x + half, y + half);
+    diceGrad.addColorStop(0, '#ffffff');
+    diceGrad.addColorStop(1, '#e0e0e0');
+    ctx.fillStyle = diceGrad;
+
+    ctx.beginPath();
+    ctx.moveTo(x - half + r, y - half);
+    ctx.lineTo(x + half - r, y - half);
+    ctx.quadraticCurveTo(x + half, y - half, x + half, y - half + r);
+    ctx.lineTo(x + half, y + half - r);
+    ctx.quadraticCurveTo(x + half, y + half, x + half - r, y + half);
+    ctx.lineTo(x - half + r, y + half);
+    ctx.quadraticCurveTo(x - half, y + half, x - half, y + half - r);
+    ctx.lineTo(x - half, y - half + r);
+    ctx.quadraticCurveTo(x - half, y - half, x - half + r, y - half);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#111111';
+    const dotR = size * 0.095;
+    const off  = size * 0.27;
+    const dots = {
+        1: [[0, 0]],
+        2: [[-off, -off], [off, off]],
+        3: [[-off, -off], [0, 0], [off, off]],
+        4: [[-off, -off], [off, -off], [-off, off], [off, off]],
+        5: [[-off, -off], [off, -off], [0, 0], [-off, off], [off, off]],
+        6: [[-off,-off*1.1],[off,-off*1.1],[-off,0],[off,0],[-off,off*1.1],[off,off*1.1]]
+    };
+    (dots[number] || []).forEach(([dx, dy]) => {
+        ctx.beginPath();
+        ctx.arc(x + dx, y + dy, dotR, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    ctx.restore();
+}
+
+function drawBowl(ctx, cx, cy, offsetX = 0, offsetY = 0, scaleY = 1) {
+    ctx.save();
+    ctx.translate(cx + offsetX, cy + offsetY);
+    ctx.scale(1, scaleY);
+
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 25;
+    ctx.shadowOffsetX = 8;
+    ctx.shadowOffsetY = 8;
+
+    const bowlGrad = ctx.createRadialGradient(-40, -40, 15, 0, 0, 165);
+    bowlGrad.addColorStop(0, '#c8906a');
+    bowlGrad.addColorStop(0.5, '#8B5A3C');
+    bowlGrad.addColorStop(1, '#4e2a14');
+    ctx.fillStyle = bowlGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, 160, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = '#a0693f';
+    ctx.lineWidth = 7;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.20)';
+    ctx.beginPath();
+    ctx.ellipse(-48, -55, 58, 32, -Math.PI / 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#7a4a2c';
+    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+    ctx.shadowBlur = 5;
+    ctx.beginPath();
+    ctx.ellipse(0, -150, 24, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = '#5c3520';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+/**
+ * Tạo GIF 20 giây:
+ *  0- 5s : tô rung → hé TRÁI  → lộ xúc xắc 1 → kéo về
+ *  5-10s : tô rung → hé PHẢI  → lộ xúc xắc 2 → kéo về
+ * 10-15s : tô rung → hé TRÁI  → lộ xúc xắc 3 → kéo về
+ * 15-17.5s: dừng xem full 3 xúc xắc
+ * 17.5-20s: tô vụt LÊN TRÊN biến mất
+ */
+function createBowlSlideGif(dice1, dice2, dice3) {
+    const width  = 600;
+    const height = 520;
+    const cx = width  / 2;
+    const cy = height / 2 + 10;
+
+    const FPS      = 24;
+    const totalF   = FPS * 20; // 480 frame
+
+    const P1_END   = 120; // frame 0→120  (5s)
+    const P2_END   = 240; // frame 120→240 (5s)
+    const P3_END   = 360; // frame 240→360 (5s)
+    const HOLD_END = 420; // frame 360→420 (2.5s)
+    const END      = 480; // frame 420→480 (2.5s)
+
+    const HE_AMOUNT = 240; // px tô trượt sang 1 bên
+
+    // Vị trí 3 xúc xắc
+    const dicePos = [
+        { x: cx - 100, y: cy + 35  }, // trái   → lộ đầu tiên
+        { x: cx + 100, y: cy + 35  }, // phải   → lộ thứ hai
+        { x: cx,       y: cy - 70  }, // trên   → lộ cuối
+    ];
+    const diceVals = [dice1, dice2, dice3];
+
+    const encoder = new GIFEncoder(width, height);
+    encoder.start();
+    encoder.setRepeat(0);
+    encoder.setQuality(8);
+    encoder.setDelay(Math.round(1000 / FPS));
+
+    const canvas = createCanvas(width, height);
+    const ctx    = canvas.getContext('2d');
+
+    let diceOpacity = [0, 0, 0];
+
+    for (let f = 0; f < totalF; f++) {
+        ctx.clearRect(0, 0, width, height);
+        drawBackground(ctx, width, height);
+
+        let bowlOffX = 0;
+        let bowlOffY = 0;
+        let bowlScY  = 1;
+
+        // ── helpers ──
+        function phaseSlide(t, direction, diceIdx) {
+            if (t < 0.12) {
+                // rung chuẩn bị
+                bowlOffX = Math.sin(t * 70) * 7 * direction;
+            } else if (t < 0.62) {
+                const s = easeInOutCubic((t - 0.12) / 0.5);
+                bowlOffX = s * HE_AMOUNT * direction;
+                diceOpacity[diceIdx] = Math.min(1, s * 2);
+            } else {
+                const b = easeInOutCubic((t - 0.62) / 0.38);
+                bowlOffX = (1 - b) * HE_AMOUNT * direction;
+                diceOpacity[diceIdx] = 1;
+            }
+        }
+
+        if (f < P1_END) {
+            phaseSlide(f / P1_END, -1, 0); // hé trái, lộ dice[0]
+
+        } else if (f < P2_END) {
+            phaseSlide((f - P1_END) / (P2_END - P1_END), 1, 1); // hé phải, lộ dice[1]
+
+        } else if (f < P3_END) {
+            phaseSlide((f - P2_END) / (P3_END - P2_END), -1, 2); // hé trái, lộ dice[2]
+
+        } else if (f < HOLD_END) {
+            diceOpacity = [1, 1, 1];
+
+        } else {
+            // vụt lên
+            const t   = (f - HOLD_END) / (END - HOLD_END);
+            const e   = easeInCubic(t);
+            bowlOffY  = -e * (height + 220);
+            bowlScY   = 1 - e * 0.35;
+            diceOpacity = [1, 1, 1];
+        }
+
+        // Vẽ xúc xắc trước (bên dưới tô)
+        dicePos.forEach((pos, i) => {
+            drawDice(ctx, diceVals[i], pos.x, pos.y, 84, diceOpacity[i]);
+        });
+
+        // Vẽ tô đè lên
+        drawBowl(ctx, cx, cy, bowlOffX, bowlOffY, bowlScY);
+
+        encoder.addFrame(ctx);
+    }
+
+    encoder.finish();
+    return encoder.out.getData();
+}
+
+module.exports = { createBowlSlideGif };
