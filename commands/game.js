@@ -1,4 +1,4 @@
-// commands/game.js - GIF ANIMATION + VIP BONUS + TITLE BONUS
+// commands/game.js - GIF tạo trước, gửi sau khi hết giờ
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
@@ -54,13 +54,18 @@ async function handleTaiXiu(message, client) {
     
     await message.channel.send({ embeds: [jackpotEmbed] });
     
+    // Roll xúc xắc NGAY từ đầu để tạo GIF song song
+    const rollResult = rollDice();
+    const { dice1, dice2, dice3, total } = rollResult;
+
     bettingSession = {
         channelId: message.channel.id,
         bets: {},
         startTime: Date.now(),
         duration: 30000,
         messageId: null,
-        phienNumber: phienNumber
+        phienNumber: phienNumber,
+        rollResult: rollResult // lưu kết quả đã roll
     };
     
     database.activeBettingSession = {
@@ -69,6 +74,17 @@ async function handleTaiXiu(message, client) {
         startTime: Date.now()
     };
     saveDB();
+
+    // Tạo GIF NGAY trong lúc người chơi đặt cược (chạy song song)
+    let gifBuffer = null;
+    console.log('🎬 Đang tạo GIF...');
+    const gifStart = Date.now();
+    try {
+        gifBuffer = createBowlSlideGif(dice1, dice2, dice3);
+        console.log(`✅ GIF tạo xong sau ${Date.now() - gifStart}ms, size: ${gifBuffer ? (gifBuffer.length/1024).toFixed(0)+'KB' : 'null'}`);
+    } catch (err) {
+        console.error('❌ GIF lỗi:', err.message);
+    }
     
     const mainEmbed = new EmbedBuilder()
         .setTitle(`TÀI XỈU #${phienNumber}`)
@@ -90,18 +106,8 @@ async function handleTaiXiu(message, client) {
         .setFooter({ text: 'Chọn cửa và đặt cược' });
     
     const last10 = database.history.slice(-10);
-    let taiXiuLine = '';
-    let chanLeLine = '';
-    
-    if (last10.length > 0) {
-        last10.forEach(h => {
-            taiXiuLine += h.tai ? '🔵' : '🔴';
-            chanLeLine += (h.total % 2 === 0) ? '🟣' : '🟡';
-        });
-    } else {
-        taiXiuLine = '🔵🔴🔵🔴🔵🔴🔵🔴🔵🔴';
-        chanLeLine = '🟣🟡🟣🟡🟣🟡🟣🟡🟣🟡';
-    }
+    let taiXiuLine = last10.length > 0 ? last10.map(h => h.tai ? '🔵' : '🔴').join('') : '🔵🔴🔵🔴🔵🔴🔵🔴🔵🔴';
+    let chanLeLine = last10.length > 0 ? last10.map(h => h.total % 2 === 0 ? '🟣' : '🟡').join('') : '🟣🟡🟣🟡🟣🟡🟣🟡🟣🟡';
     
     const soiCauEmbed = new EmbedBuilder()
         .setTitle('📊 SOI CẦU TÀI XỈU')
@@ -111,11 +117,7 @@ async function handleTaiXiu(message, client) {
     const tongCuocEmbed = new EmbedBuilder()
         .setTitle('TỔNG CƯỢC')
         .setColor('#3498db')
-        .setDescription(`
-**Tài:** 0 | **Xỉu:** 0
-**Chẵn:** 0 | **Lẻ:** 0
-**Số/Tổng:** 0
-        `);
+        .setDescription('**Tài:** 0 | **Xỉu:** 0\n**Chẵn:** 0 | **Lẻ:** 0\n**Số/Tổng:** 0');
     
     const row = new ActionRowBuilder()
         .addComponents(
@@ -152,11 +154,9 @@ async function handleTaiXiu(message, client) {
                 else otherCount++;
             });
             
-            tongCuocEmbed.setDescription(`
-**Tài:** ${taiCount} | **Xỉu:** ${xiuCount}
-**Chẵn:** ${chanCount} | **Lẻ:** ${leCount}
-**Số/Tổng:** ${otherCount}
-            `);
+            tongCuocEmbed.setDescription(
+                `**Tài:** ${taiCount} | **Xỉu:** ${xiuCount}\n**Chẵn:** ${chanCount} | **Lẻ:** ${leCount}\n**Số/Tổng:** ${otherCount}`
+            );
             
             await sentMessage.edit({ 
                 embeds: [mainEmbed, soiCauEmbed, tongCuocEmbed], 
@@ -170,25 +170,22 @@ async function handleTaiXiu(message, client) {
             if (Object.keys(bettingSession.bets).length === 0) {
                 await sentMessage.edit({ 
                     content: '❌ Không có ai đặt cược!',
-                    embeds: [],
-                    components: []
+                    embeds: [], components: []
                 }).catch(() => {});
                 cleanupSession();
                 return;
             }
             
-            await animateResult(sentMessage, client);
+            await animateResult(sentMessage, client, gifBuffer);
         }
     }, 1000);
 }
 
-async function animateResult(sentMessage, client) {
+async function animateResult(sentMessage, client, gifBuffer) {
     try {
+        const { dice1, dice2, dice3, total } = bettingSession.rollResult;
         const currentJackpot = database.jackpot || 0;
         let isJackpot = false;
-        
-        const rollResult = rollDice();
-        const { dice1, dice2, dice3, total } = rollResult;
         
         const isTriple = checkJackpot(dice1, dice2, dice3);
         if (isTriple) {
@@ -199,59 +196,44 @@ async function animateResult(sentMessage, client) {
         const result = checkResult(total);
         const phienNumber = bettingSession.phienNumber;
 
-        // ===== THÔNG BÁO ĐANG LẮC =====
-        const loadingEmbed = new EmbedBuilder()
-            .setTitle(`🎲 PHIÊN #${phienNumber} - ĐANG LẮC TÔ...`)
-            .setColor('#f39c12')
-            .setDescription('👀 **Hồi hộp chờ kết quả!**\n\n🎬 *Tô đang hé dần từng con xúc xắc...*')
-            .setFooter({ text: 'Kết quả hiện sau ~20 giây' });
-
-        await sentMessage.edit({
-            embeds: [loadingEmbed],
-            files: [],
-            components: []
-        }).catch(() => {});
-
-        // ===== TẠO VÀ GỬI GIF =====
-        let gifBuffer = null;
-        try {
-            gifBuffer = createBowlSlideGif(dice1, dice2, dice3);
-        } catch (gifErr) {
-            console.error('❌ GIF error:', gifErr.message);
-        }
-
+        // ===== GỬI GIF (đã tạo sẵn rồi, gửi ngay) =====
         if (gifBuffer && Buffer.isBuffer(gifBuffer) && gifBuffer.length > 0) {
             const gifEmbed = new EmbedBuilder()
-                .setTitle(`🎲 PHIÊN #${phienNumber}`)
+                .setTitle(`🎲 PHIÊN #${phienNumber} - ĐANG LẮC TÔ`)
                 .setColor('#f39c12')
-                .setDescription('🫙 **Tô đang hé từng con xúc xắc...**')
-                .setImage('attachment://taixiu.gif')
-                .setFooter({ text: 'Kết quả chính thức hiện sau GIF' });
+                .setDescription('🫙 **Tô đang hé từng con xúc xắc...**\n\n*Kết quả chính thức hiện sau GIF*')
+                .setImage('attachment://taixiu.gif');
 
-            await sentMessage.channel.send({
+            await sentMessage.edit({
                 embeds: [gifEmbed],
-                files: [new AttachmentBuilder(gifBuffer, { name: 'taixiu.gif' })]
+                files: [new AttachmentBuilder(gifBuffer, { name: 'taixiu.gif' })],
+                components: []
             }).catch(() => {});
 
-            // Chờ animation chạy xong
+            // Chờ GIF chạy xong
             await sleep(20500);
+
         } else {
-            // Fallback: animation tĩnh cũ
+            // Fallback: frame tĩnh
             const { createBowlLift } = require('../utils/canvas');
+            await sentMessage.edit({
+                embeds: [new EmbedBuilder()
+                    .setTitle(`🎲 PHIÊN #${phienNumber} - ĐANG LẮC TÔ`)
+                    .setColor('#f39c12')
+                    .setDescription('🫙 **Đang lắc...**')],
+                files: [], components: []
+            }).catch(() => {});
+
             for (let i = 0; i <= 100; i += 25) {
                 const frame = createBowlLift(dice1, dice2, dice3, i);
                 if (frame) {
                     await sentMessage.edit({
-                        embeds: [new EmbedBuilder()
-                            .setTitle(`🎲 PHIÊN #${phienNumber} - TÔ ĐANG NÂNG...`)
-                            .setColor('#f39c12')
-                            .setImage('attachment://lift.png')],
                         files: [new AttachmentBuilder(frame, { name: 'lift.png' })]
                     }).catch(() => {});
                 }
                 await sleep(400);
             }
-            await sleep(1000);
+            await sleep(800);
         }
 
         // ===== TÍNH KẾT QUẢ =====
@@ -293,8 +275,7 @@ async function animateResult(sentMessage, client) {
             const vipIcon    = getVipIcon(user.vipLevel);
             const vipDisplay = vipIcon ? `${vipIcon} | ` : '';
             const betTypeMap = { tai: 'Tài', xiu: 'Xỉu', chan: 'Chẵn', le: 'Lẻ' };
-            const betTypeDisplay = betTypeMap[bet.type]
-                || (bet.type === 'number' ? `Số ${bet.value}` : `Tổng ${bet.value}`);
+            const betTypeDisplay = betTypeMap[bet.type] || (bet.type === 'number' ? `Số ${bet.value}` : `Tổng ${bet.value}`);
             
             if (win) {
                 let winAmount = Math.floor(bet.amount * winMultiplier);
@@ -306,11 +287,7 @@ async function animateResult(sentMessage, client) {
                 if (titleBetBonus > 0) winAmount += Math.floor(winAmount * titleBetBonus / 100);
                 
                 user.balance += winAmount;
-                
-                if (isJackpot) {
-                    winnerBets[userId]  = bet.amount;
-                    totalWinnerBets    += bet.amount;
-                }
+                if (isJackpot) { winnerBets[userId] = bet.amount; totalWinnerBets += bet.amount; }
                 participants.push(`${vipDisplay}<@${userId}> | ${betTypeDisplay}: ${formatNumber(bet.amount)} | ✅ (+${formatNumber(winAmount)})`);
             } else {
                 participants.push(`${vipDisplay}<@${userId}> | ${betTypeDisplay}: ${formatNumber(bet.amount)} | ❌`);
