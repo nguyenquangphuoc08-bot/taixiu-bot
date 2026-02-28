@@ -1,4 +1,4 @@
-// index.js - ĐÃ THÊM ADMIN GIVETITLE HANDLER
+// index.js - ĐÃ FIX RESTORE FILE
 
 process.removeAllListeners('warning');
 
@@ -50,6 +50,11 @@ client.once('ready', async () => {
 // ===== MESSAGE =====
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
+
+    // ===== XỬ LÝ RESTORE FILE (TRƯỚC KHI CHECK LỆNH) =====
+    if (message.attachments.size > 0 && message.content.toLowerCase().includes('restore confirm')) {
+        return handleRestoreFile(message);
+    }
 
     try {
         const { updateQuest } = require('./services/quest');
@@ -154,10 +159,10 @@ client.on('interactionCreate', async (interaction) => {
                     return interaction.reply({ content: '❌ Chỉ admin!', ephemeral: true });
                 }
                 
-                const value = interaction.values[0]; // givetitle_userId_titleId
+                const value = interaction.values[0];
                 const parts = value.split('_');
                 const targetUserId = parts[1];
-                const titleId = parts.slice(2).join('_'); // xử lý titleId có dấu _
+                const titleId = parts.slice(2).join('_');
                 
                 const { TITLE_ITEMS } = require('./commands/shop');
                 const title = TITLE_ITEMS[titleId];
@@ -209,7 +214,6 @@ client.on('interactionCreate', async (interaction) => {
                 const amountInput = interaction.fields.getTextInputValue('bet_amount');
                 const amount = parseAmount(amountInput);
 
-                // ===== CHẶN CƯỢC 2 LẦN =====
                 if (session.bets[userId]) {
                     return interaction.editReply('❌ Bạn đã đặt cược rồi! Mỗi phiên chỉ được cược 1 lần.');
                 }
@@ -234,7 +238,6 @@ client.on('interactionCreate', async (interaction) => {
                 const numberInput = interaction.fields.getTextInputValue('number_value');
                 const amountInput = interaction.fields.getTextInputValue('bet_amount');
 
-                // ===== CHẶN CƯỢC 2 LẦN =====
                 if (session.bets[userId]) {
                     return interaction.editReply('❌ Bạn đã đặt cược rồi! Mỗi phiên chỉ được cược 1 lần.');
                 }
@@ -266,7 +269,6 @@ client.on('interactionCreate', async (interaction) => {
                 const totalInput = interaction.fields.getTextInputValue('total_value');
                 const amountInput = interaction.fields.getTextInputValue('bet_amount');
 
-                // ===== CHẶN CƯỢC 2 LẦN =====
                 if (session.bets[userId]) {
                     return interaction.editReply('❌ Bạn đã đặt cược rồi! Mỗi phiên chỉ được cược 1 lần.');
                 }
@@ -323,7 +325,6 @@ http.createServer((req, res) => {
     res.end('BOT ONLINE');
 }).listen(process.env.PORT || 10000);
 
-// ===== BACKUP KHI TẮT BOT =====
 process.on('SIGINT', async () => {
     console.log('⚠️ Bot đang tắt...');
     try {
