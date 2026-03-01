@@ -124,7 +124,7 @@ client.on('messageCreate', async (message) => {
                 description: '**Quyền hạn quản trị viên**',
                 fields: [
                     { name: '👥 Lệnh Người Chơi', value: '```\n.tx, .mcoin, .info, .setbg, .sc, .tang, .dd\n.daily, .claimall, .mshop, .code\n```', inline: false },
-                    { name: '🎁 Quản Lý Giftcode', value: '```\n.giftcode [tiền] [giờ]\n.code [tên] [tiền] [giờ]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
+                    { name: '🎁 Quản Lý Giftcode', value: '```\n.code [tên] [tiền] [lượt] [giờ]\n  VD: .code TANTHU 5m\n  VD: .code TANTHU 5m 50 48\n  VD: .code TANTHU 5m unlimit unlimit\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
                     { name: '👑 Quản Lý VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n```', inline: false },
                     { name: '💰 Quản Lý Tiền', value: '```\n.donate @user [số]\n.resetquest @user\n```', inline: false },
                     { name: '🔧 Quản Lý Database', value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```', inline: false }
@@ -355,4 +355,3 @@ process.on('SIGTERM', async () => {
 });
 
 client.login(TOKEN);
-
