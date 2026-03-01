@@ -1,4 +1,4 @@
-// commands/user.js - ĐÃ SỬA
+// commands/user.js - ĐÃ THÊM .INFO VÀ MESSAGE REWARDS
 
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { database, getUser, saveDB } = require('../utils/database');
@@ -108,7 +108,6 @@ async function handleTang(message, args) {
         return message.reply('❌ Sử dụng: `.tang @user [số]`');
     }
     
-    // ===== BỎ GIỚI HẠN TỐI THIỂU - CHỈ CẦN > 0 =====
     if (!amount || amount <= 0) {
         return message.reply('❌ Số tiền phải lớn hơn 0!');
     }
@@ -157,21 +156,20 @@ async function handleDiemDanh(message) {
     
     const user = getUser(userId);
     
-    let reward = 3000000;
+    const base = 100000; // 100K
+    let reward = base;
     let bonusText = '';
     
-    // ===== VIP BONUS =====
     const vipDailyBonus = user.vipBonus?.dailyBonus || 0;
     if (vipDailyBonus > 0) {
-        const vipBonusAmount = Math.floor(reward * vipDailyBonus / 100);
+        const vipBonusAmount = Math.floor(base * vipDailyBonus / 100);
         reward += vipBonusAmount;
         bonusText += `⭐ VIP: +${formatNumber(vipBonusAmount)} (${vipDailyBonus}%)\n`;
     }
     
-    // ===== TITLE BONUS =====
     const titleDailyBonus = user.titleBonus?.dailyBonus || 0;
     if (titleDailyBonus > 0) {
-        const titleBonusAmount = Math.floor(3000000 * titleDailyBonus / 100);
+        const titleBonusAmount = Math.floor(base * titleDailyBonus / 100);
         reward += titleBonusAmount;
         bonusText += `👑 ${user.vipTitle}: +${formatNumber(titleBonusAmount)} (${titleDailyBonus}%)\n`;
     }
@@ -196,9 +194,129 @@ async function handleDiemDanh(message) {
     await message.reply({ embeds: [embed] });
 }
 
+async function handleInfo(message) {
+    const userId = message.author.id;
+    const user = getUser(userId);
+    
+    if (!user.messageStats) {
+        user.messageStats = {
+            today: 0,
+            week: 0,
+            month: 0,
+            lastReward: 0,
+            weeklyRewardClaimed: false
+        };
+    }
+    
+    const allUsers = Object.values(database.users);
+    const todayRank = allUsers.filter(u => (u.messageStats?.today || 0) > user.messageStats.today).length + 1;
+    const weekRank = allUsers.filter(u => (u.messageStats?.week || 0) > user.messageStats.week).length + 1;
+    const monthRank = allUsers.filter(u => (u.messageStats?.month || 0) > user.messageStats.month).length + 1;
+    
+    const embed = new EmbedBuilder()
+        .setColor('#FF69B4')
+        .setAuthor({ 
+            name: message.client.user.username, 
+            iconURL: message.client.user.displayAvatarURL() 
+        })
+        .setThumbnail(message.author.displayAvatarURL({ dynamic: true, size: 256 }))
+        .setTitle(`📊 THỐNG KÊ HOẠT ĐỘNG`)
+        .setDescription(`**${message.author.username}**`)
+        .addFields(
+            { 
+                name: '📅 HÔM NAY', 
+                value: `\`\`\`ansi
+💬 Tin nhắn: \u001b[1;36m${user.messageStats.today}\u001b[0m
+💎 Hạng:     \u001b[1;33m#${todayRank}\u001b[0m
+\`\`\``, 
+                inline: true 
+            },
+            { 
+                name: '📆 TUẦN NÀY', 
+                value: `\`\`\`ansi
+💬 Tin nhắn: \u001b[1;36m${user.messageStats.week}\u001b[0m
+💎 Hạng:     \u001b[1;33m#${weekRank}\u001b[0m
+\`\`\``, 
+                inline: true 
+            },
+            { 
+                name: '📊 THÁNG NÀY', 
+                value: `\`\`\`ansi
+💬 Tin nhắn: \u001b[1;36m${user.messageStats.month}\u001b[0m
+💎 Hạng:     \u001b[1;33m#${monthRank}\u001b[0m
+\`\`\``, 
+                inline: true 
+            }
+        )
+        .setFooter({ 
+            text: 'mxtbot.com', 
+            iconURL: message.client.user.displayAvatarURL() 
+        })
+        .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+}
+
+function updateMessageStats(userId, channel) {
+    const user = getUser(userId);
+    
+    if (!user.messageStats) {
+        user.messageStats = {
+            today: 0,
+            week: 0,
+            month: 0,
+            lastReward: 0,
+            weeklyRewardClaimed: false
+        };
+    }
+    
+    user.messageStats.today++;
+    user.messageStats.week++;
+    user.messageStats.month++;
+    
+    // THƯỞNG MỖI 20 TIN NHẮN
+    if (user.messageStats.today > 0 && user.messageStats.today % 20 === 0 && user.messageStats.lastReward !== user.messageStats.today) {
+        const reward = Math.floor(Math.random() * 9000000 + 1000000); // 1-10 triệu
+        user.balance += reward;
+        user.messageStats.lastReward = user.messageStats.today;
+        
+        saveDB();
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🎉 THƯỞNG HOẠT ĐỘNG!')
+            .setColor('#f39c12')
+            .setDescription(`Bạn nhận **${formatNumber(reward)} Mcoin** vì đã gửi **${user.messageStats.today} tin nhắn** hôm nay!`)
+            .setFooter({ text: 'Tiếp tục chat để nhận thêm thưởng!' });
+        
+        channel.send({ content: `<@${userId}>`, embeds: [embed] }).catch(() => {});
+        return;
+    }
+    
+    // THƯỞNG TUẦN (1000 TIN NHẮN)
+    if (user.messageStats.week >= 1000 && !user.messageStats.weeklyRewardClaimed) {
+        const reward = Math.floor(Math.random() * 100000000 + 100000000); // 100-200 triệu
+        user.balance += reward;
+        user.messageStats.weeklyRewardClaimed = true;
+        
+        saveDB();
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🏆 THƯỞNG TUẦN SIÊU TO!')
+            .setColor('#e74c3c')
+            .setDescription(`Chúc mừng! Bạn nhận **${formatNumber(reward)} Mcoin** vì đã gửi **${user.messageStats.week} tin nhắn** tuần này!`)
+            .setFooter({ text: 'Bạn thật tuyệt vời!' });
+        
+        channel.send({ content: `<@${userId}>`, embeds: [embed] }).catch(() => {});
+    }
+    
+    saveDB();
+}
+
 module.exports = {
     handleMcoin,
     handleSetBg,
     handleTang,
-    handleDiemDanh
+    handleDiemDanh,
+    handleInfo,
+    updateMessageStats
 };
