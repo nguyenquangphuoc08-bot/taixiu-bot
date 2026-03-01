@@ -137,7 +137,7 @@ const TITLE_ITEMS = {
     title_devuong: {
         id: 'title_devuong',
         name: 'Đế Vương',
-        price: 1500000000,
+        price: 10000000000,
         titleName: 'Đế Vương',
         dailyBonus: 13,
         betBonus: 5,
@@ -146,7 +146,7 @@ const TITLE_ITEMS = {
     title_daithanh: {
         id: 'title_daithanh',
         name: 'Đại Thánh',
-        price: 5000000000,
+        price: 15000000000,
         titleName: 'Đại Thánh',
         dailyBonus: 16,
         betBonus: 5,
@@ -155,9 +155,9 @@ const TITLE_ITEMS = {
     title_chienthan: {
         id: 'title_chienthan',
         name: 'Chiến Thần',
-        price: 10000000000,
+        price: 360000000000,
         titleName: 'Chiến Thần',
-        dailyBonus: 20,
+        dailyBonus: 200,
         betBonus: 10,
         jackpotBonus: 10     // +10% jackpot
     }
