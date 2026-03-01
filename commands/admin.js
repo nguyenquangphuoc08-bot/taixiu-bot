@@ -1,484 +1,421 @@
-// commands/game.js - JACKPOT FIX
+// commands/admin.js - HỖ TRỢ UNLIMITED GIFTCODE
 
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
-const { database, saveDB, getUser } = require('../utils/database');
-const { rollDice, checkResult, checkJackpot } = require('../utils/game');
-const { createDiceImageSafe, createHistoryChart, createBowlLift } = require('../utils/canvas');
-const { updateQuest } = require('../services/quest');
-const { VIP_ITEMS } = require('./shop');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { database, saveDB, DB_PATH, getUser } = require('../utils/database');
+const giftcode = require('../giftcode');
+const fs = require('fs');
+const https = require('https');
 
-let bettingSession = null;
-let forceJackpotNext = false; // .nohu flag
+const { ADMIN_ID } = require('../config');
 
-if (!database.phienCounter) {
-    database.phienCounter = 0;
-    saveDB();
+function parseAmount(str) {
+    str = str.toLowerCase().trim();
+    if (str.endsWith('k')) return parseFloat(str) * 1000;
+    if (str.endsWith('m')) return parseFloat(str) * 1000000;
+    if (str.endsWith('b')) return parseFloat(str) * 1000000000;
+    return parseInt(str);
 }
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+// ========================================
+// 🎁 GIFTCODE COMMANDS
+// ========================================
 
-function cleanupSession() {
-    bettingSession = null;
-    database.activeBettingSession = null;
-    saveDB();
-}
+async function handleCreateGiftcode(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
 
-function formatNumber(num) {
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-}
+    let customReward = null;
+    let customHours = 2;
 
-function getVipIcon(vipLevel) {
-    if (!vipLevel || vipLevel === 0) return '';
-    const vipItem = VIP_ITEMS[`vip${vipLevel}`];
-    return vipItem ? vipItem.icon : '⭐';
-}
-
-// ============================================
-// TÍNH XÁC SUẤT NỔ HŨ DỰA THEO SỐ HŨ
-// ============================================
-function getJackpotChance(jackpot) {
-    if (jackpot >= 3_000_000_000) return 100;  // >= 3B → 100%
-    if (jackpot >= 1_000_000_000) return 70;   // >= 1B → 70%
-    return 5;                                   // Bình thường → 5%
-}
-
-// ============================================
-// ROLL XÚC XẮC CÓ WEIGHT THEO HŨ
-// Hũ > 1B: tăng xác suất ra cặp đôi / bộ ba
-// ============================================
-function rollDiceWeighted(jackpot) {
-    // Nếu hũ < 1B, roll bình thường
-    if (jackpot < 1_000_000_000) {
-        return rollDice();
+    if (args[1]) {
+        customReward = parseInt(args[1]);
+        if (isNaN(customReward) || customReward < 1000000)
+            return message.reply('❌ Số tiền phải >= 1,000,000 Mcoin!');
     }
 
-    // Hũ >= 1B: có xác suất ra cặp đôi hoặc bộ ba
-    // >= 1B: tăng xác suất ra cặp / bộ ba
-    const tripleChance = 20;  // 20% bộ ba
-    const pairChance = 40;    // 40% cặp đôi
-
-    const rand = Math.random() * 100;
-    const face = () => Math.floor(Math.random() * 6) + 1;
-
-    if (rand < tripleChance) {
-        // Bộ ba
-        const d = face();
-        return { dice1: d, dice2: d, dice3: d, total: d * 3 };
-    } else if (rand < tripleChance + pairChance) {
-        // Cặp đôi
-        const d = face();
-        const d3 = face();
-        // Shuffle vị trí ngẫu nhiên
-        const arr = [d, d, d3].sort(() => Math.random() - 0.5);
-        return { dice1: arr[0], dice2: arr[1], dice3: arr[2], total: arr[0] + arr[1] + arr[2] };
-    } else {
-        return rollDice();
-    }
-}
-
-// ============================================
-// LỆNH ADMIN: .nohu
-// ============================================
-async function handleNoHu(message, ADMIN_ID) {
-    if (message.author.id !== ADMIN_ID) {
-        return message.reply('❌ Chỉ admin mới dùng được lệnh này!');
-    }
-    forceJackpotNext = true;
-    return message.reply('✅ Đã kích hoạt! **Ván TX tiếp theo sẽ nổ hũ 100%** 🎰');
-}
-
-async function handleTaiXiu(message, client) {
-    if (bettingSession) {
-        return message.reply('⏳ Đang có phiên cược!');
+    if (args[2]) {
+        customHours = parseInt(args[2]);
+        if (isNaN(customHours) || customHours < 1 || customHours > 720)
+            return message.reply('❌ Số giờ phải từ 1 đến 720!');
     }
 
-    database.phienCounter++;
-    const phienNumber = database.phienCounter;
-    saveDB();
-
-    const jackpotDisplay = formatNumber(database.jackpot || 0);
-
-    const jackpotEmbed = new EmbedBuilder()
-        .setTitle('🎰 HŨ TÀI XỈU')
-        .setColor('#FFD700')
-        .setDescription(`💰 **${jackpotDisplay}** Mcoin`)
-        .setFooter({ text: 'Nổ khi ra bộ ba' });
-
-    await message.channel.send({ embeds: [jackpotEmbed] });
-
-    bettingSession = {
-        channelId: message.channel.id,
-        bets: {},
-        startTime: Date.now(),
-        duration: 30000,
-        messageId: null,
-        phienNumber: phienNumber
-    };
-
-    database.activeBettingSession = {
-        channelId: message.channel.id,
-        bets: {},
-        startTime: Date.now()
-    };
-    saveDB();
-
-    const mainEmbed = new EmbedBuilder()
-        .setTitle(`TÀI XỈU #${phienNumber}`)
-        .setColor('#f39c12')
-        .setDescription(`
-**Tỉ lệ cược**
-
-• **Tài - Xỉu:** x1.9
-• **Chẵn - Lẻ:** x1.9
-• **Cược số:** x1.9/x2.8/x3.6
-• **Cược tổng:**
-  **9 hoặc 12:** x4.5
-  **3 hoặc 18:** x10.8
-  **Còn lại:** x6.2
-
-• **Nổ hũ:** Ra bộ ba
-        `)
-        .addFields({ name: '⏰ Thời gian còn lại', value: '**30** giây', inline: false })
-        .setFooter({ text: 'Chọn cửa và đặt cược' });
-
-    const last10 = database.history.slice(-10);
-    let taiXiuLine = '';
-    let chanLeLine = '';
-
-    if (last10.length > 0) {
-        last10.forEach(h => {
-            taiXiuLine += h.tai ? '🔵' : '🔴';
-            chanLeLine += (h.total % 2 === 0) ? '🟣' : '🟡';
-        });
-    } else {
-        taiXiuLine = '🔵🔴🔵🔴🔵🔴🔵🔴🔵🔴';
-        chanLeLine = '🟣🟡🟣🟡🟣🟡🟣🟡🟣🟡';
-    }
-
-    const soiCauEmbed = new EmbedBuilder()
-        .setTitle('📊 SOI CẦU TÀI XỈU')
-        .setColor('#9b59b6')
-        .setDescription(`${taiXiuLine}\n━━━━━━━━━━━━━━━━━━━\n${chanLeLine}`);
-
-    const tongCuocEmbed = new EmbedBuilder()
-        .setTitle('TỔNG CƯỢC')
-        .setColor('#3498db')
-        .setDescription(`
-**Tài:** 0 | **Xỉu:** 0
-**Chẵn:** 0 | **Lẻ:** 0
-**Số/Tổng:** 0
-        `);
-
-    const row = new ActionRowBuilder()
-        .addComponents(
-            new ButtonBuilder()
-                .setCustomId('open_bet_menu')
-                .setLabel('⚡ Chọn cửa và đặt cược tại đây!')
-                .setStyle(ButtonStyle.Success)
-        );
-
-    const sentMessage = await message.reply({
-        embeds: [mainEmbed, soiCauEmbed, tongCuocEmbed],
-        components: [row]
-    });
-
-    bettingSession.messageId = sentMessage.id;
-
-    let timeLeft = 30;
-    const countdown = setInterval(async () => {
-        timeLeft -= 1;
-
-        if (timeLeft > 0) {
-            mainEmbed.spliceFields(0, 1, {
-                name: `⏰ Thời gian còn lại`,
-                value: `**${timeLeft}** giây`,
-                inline: false
-            });
-
-            let taiCount = 0, xiuCount = 0, chanCount = 0, leCount = 0, otherCount = 0;
-            Object.values(bettingSession.bets).forEach(bet => {
-                if (bet.type === 'tai') taiCount++;
-                else if (bet.type === 'xiu') xiuCount++;
-                else if (bet.type === 'chan') chanCount++;
-                else if (bet.type === 'le') leCount++;
-                else otherCount++;
-            });
-
-            tongCuocEmbed.setDescription(`
-**Tài:** ${taiCount} | **Xỉu:** ${xiuCount}
-**Chẵn:** ${chanCount} | **Lẻ:** ${leCount}
-**Số/Tổng:** ${otherCount}
-            `);
-
-            await sentMessage.edit({
-                embeds: [mainEmbed, soiCauEmbed, tongCuocEmbed],
-                components: [row]
-            }).catch(() => {});
-        } else {
-            clearInterval(countdown);
-            row.components.forEach(btn => btn.setDisabled(true));
-            await sentMessage.edit({ components: [row] }).catch(() => {});
-
-            if (Object.keys(bettingSession.bets).length === 0) {
-                await sentMessage.edit({
-                    content: '❌ Không có ai đặt cược!',
-                    embeds: [],
-                    components: []
-                }).catch(() => {});
-                cleanupSession();
-                return;
-            }
-
-            await animateResult(sentMessage, client);
-        }
-    }, 1000);
-}
-
-async function animateResult(sentMessage, client) {
-    try {
-        const currentJackpot = database.jackpot || 0;
-        const phienNumber = bettingSession.phienNumber;
-
-        // ============================================
-        // ROLL XÚC XẮC (có weight theo hũ)
-        // ============================================
-        const rollResult = rollDiceWeighted(currentJackpot);
-        const { dice1, dice2, dice3, total } = rollResult;
-        const isTriple = checkJackpot(dice1, dice2, dice3);
-
-        // ============================================
-        // TÍNH NỔ HŨ
-        // ============================================
-        let isJackpot = false;
-        if (forceJackpotNext) {
-            // Admin dùng .nohu → nổ 100% ván này
-            isJackpot = true;
-            forceJackpotNext = false;
-        } else if (isTriple) {
-            const chance = getJackpotChance(currentJackpot);
-            isJackpot = Math.random() * 100 < chance;
-        }
-
-        const result = checkResult(total);
-
-        // ===== ANIMATION =====
-        const frame1 = createBowlLift(dice1, dice2, dice3, 0);
-        if (frame1) {
-            const embed2 = new EmbedBuilder()
-                .setTitle(`🎲 PHIÊN #${phienNumber} - TÔ ĐANG NÂNG...`)
-                .setColor('#f39c12')
-                .setDescription('👀 **Chuẩn bị xem kết quả!**')
-                .setImage('attachment://lift.png')
-                .setTimestamp();
-
-            await sentMessage.edit({
-                embeds: [embed2],
-                files: [new AttachmentBuilder(frame1, { name: 'lift.png' })],
-                components: []
-            }).catch(() => {});
-        }
-        await sleep(500);
-
-        for (let i = 25; i <= 100; i += 25) {
-            const frame = createBowlLift(dice1, dice2, dice3, i);
-            if (frame) {
-                await sentMessage.edit({
-                    files: [new AttachmentBuilder(frame, { name: 'lift.png' })]
-                }).catch(() => {});
-            }
-            await sleep(400);
-        }
-        await sleep(1000);
-
-        database.history.push({ total, dice1, dice2, dice3, tai: result.tai, timestamp: Date.now() });
-        if (database.history.length > 50) database.history.shift();
-
-        let participants = [];
-        let jackpotWinners = [];      // userId[]
-        let jackpotWinnerNames = [];  // string[] để hiển thị
-
-        for (const [userId, bet] of Object.entries(bettingSession.bets)) {
-            const user = getUser(userId);
-            let win = false;
-            let winMultiplier = 0;
-
-            updateQuest(userId, 2);
-            updateQuest(userId, 1, bet.amount);
-
-            // ===== TÍCH LŨY HŨ: 5% mỗi cược =====
-            database.jackpot = (database.jackpot || 0) + Math.floor(bet.amount * 0.05);
-
-            if (bet.type === 'tai' && result.tai)   { win = true; winMultiplier = 1.9; user.tai++; }
-            else if (bet.type === 'xiu' && result.xiu) { win = true; winMultiplier = 1.9; user.xiu++; }
-            else if (bet.type === 'chan' && result.chan) { win = true; winMultiplier = 1.9; user.chan++; }
-            else if (bet.type === 'le' && result.le)   { win = true; winMultiplier = 1.9; user.le++; }
-            else if (bet.type === 'number') {
-                let count = 0;
-                if (dice1 === bet.value) count++;
-                if (dice2 === bet.value) count++;
-                if (dice3 === bet.value) count++;
-                if (count > 0) {
-                    win = true;
-                    if (count === 1) winMultiplier = 1.9;
-                    else if (count === 2) winMultiplier = 2.8;
-                    else winMultiplier = 3.6;
-                    user.numberWins = (user.numberWins || 0) + 1;
-                }
-            } else if (bet.type === 'total' && total === bet.value) {
-                win = true;
-                if (total >= 9 && total <= 12) winMultiplier = 4.5;
-                else if (total === 3 || total === 18) winMultiplier = 10.8;
-                else winMultiplier = 6.2;
-                user.totalWins = (user.totalWins || 0) + 1;
-            }
-
-            const vipIcon = getVipIcon(user.vipLevel);
-            const vipDisplay = vipIcon ? `${vipIcon} | ` : '';
-
-            let betTypeDisplay = '';
-            if (bet.type === 'tai') betTypeDisplay = 'Tài';
-            else if (bet.type === 'xiu') betTypeDisplay = 'Xỉu';
-            else if (bet.type === 'chan') betTypeDisplay = 'Chẵn';
-            else if (bet.type === 'le') betTypeDisplay = 'Lẻ';
-            else if (bet.type === 'number') betTypeDisplay = `Số ${bet.value}`;
-            else if (bet.type === 'total') betTypeDisplay = `Tổng ${bet.value}`;
-
-            if (win) {
-                let winAmount = Math.floor(bet.amount * winMultiplier);
-
-                // VIP BONUS
-                if (user.vipLevel > 0 && user.vipBonus) {
-                    const totalVipBonus = (user.vipBonus.betBonus || 0) + (user.vipBonus.extraBonus || 0);
-                    winAmount += Math.floor(winAmount * totalVipBonus / 100);
-                }
-                // TITLE BONUS
-                const titleBetBonus = user.titleBonus?.betBonus || 0;
-                if (titleBetBonus > 0) {
-                    winAmount += Math.floor(winAmount * titleBetBonus / 100);
-                }
-
-                user.balance += winAmount;
-
-                // Thêm vào danh sách nhận hũ (chỉ người THẮNG)
-                if (isJackpot) jackpotWinners.push(userId);
-
-                participants.push(`${vipDisplay}<@${userId}> | ${betTypeDisplay}: ${formatNumber(bet.amount)} | ✅ (+${formatNumber(winAmount)})`);
-            } else {
-                participants.push(`${vipDisplay}<@${userId}> | ${betTypeDisplay}: ${formatNumber(bet.amount)} | ❌`);
-            }
-        }
-
-        // ============================================
-        // CHIA HŨ ĐỀU CHO NGƯỜI THẮNG
-        // ============================================
-        if (isJackpot && jackpotWinners.length > 0) {
-            const jackpotPool = database.jackpot || 0;
-            const share = Math.floor(jackpotPool / jackpotWinners.length);
-
-            for (const userId of jackpotWinners) {
-                const user = getUser(userId);
-                let jackpotReward = share;
-
-                // TITLE BONUS JACKPOT (Chiến Thần +10%)
-                const jackpotBonus = user.titleBonus?.jackpotBonus || 0;
-                if (jackpotBonus > 0) {
-                    jackpotReward += Math.floor(jackpotReward * jackpotBonus / 100);
-                }
-
-                user.balance += jackpotReward;
-                user.jackpotWins = (user.jackpotWins || 0) + 1;
-                jackpotWinnerNames.push(`<@${userId}>: +${formatNumber(jackpotReward)} 🎰`);
-            }
-
-            database.jackpot = 0;
-        }
-
-        saveDB();
-
-        const diceBuffer = createDiceImageSafe(dice1, dice2, dice3);
-        const hasWinners = participants.some(p => p.includes('✅'));
-        const embedColor = isJackpot ? '#FFD700' : (hasWinners ? '#2ecc71' : '#e74c3c');
-
-        const resultEmbed = new EmbedBuilder()
-            .setTitle(`${isJackpot ? '🎰 NỔ HŨ!! ' : ''}KẾT QUẢ TÀI XỈU #${phienNumber}`)
-            .setColor(embedColor);
-
-        if (diceBuffer && Buffer.isBuffer(diceBuffer) && diceBuffer.length > 0) {
-            resultEmbed.setDescription(`
-⇒ **Kết quả: ${dice1} + ${dice2} + ${dice3} = ${total}**
-
-**Chung cuộc: ${result.tai ? 'TÀI' : 'XỈU'} - ${result.chan ? 'CHẴN' : 'LẺ'}**
-            `);
-            resultEmbed.setImage('attachment://dice.png');
-        } else {
-            resultEmbed.setDescription(`
-🎲 **${dice1}  ${dice2}  ${dice3}**
-
-⇒ **Tổng: ${total}**
-**${result.tai ? 'TÀI' : 'XỈU'} - ${result.chan ? 'CHẴN' : 'LẺ'}**
-            `);
-        }
-
-        if (isJackpot && jackpotWinnerNames.length > 0) {
-            resultEmbed.addFields({
-                name: `🎰 NỔ HŨ! Chia đều cho ${jackpotWinners.length} người thắng`,
-                value: jackpotWinnerNames.join('\n'),
-                inline: false
-            });
-        }
-
-        resultEmbed.addFields(
-            { name: 'HŨ', value: `💰 ${formatNumber(database.jackpot || 0)}`, inline: false },
-            { name: 'DANH SÁCH THAM GIA', value: participants.length > 0 ? participants.join('\n') : 'Chưa có ai.', inline: false }
-        );
-        resultEmbed.setTimestamp();
-
-        await sentMessage.channel.send({
-            embeds: [resultEmbed],
-            files: diceBuffer ? [new AttachmentBuilder(diceBuffer, { name: 'dice.png' })] : []
-        });
-
-        await sentMessage.edit({
-            components: [new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('open_bet_menu')
-                    .setLabel('⚡ Hết thời gian!')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(true)
-            )]
-        }).catch(() => {});
-
-        cleanupSession();
-
-    } catch (error) {
-        console.error('❌ Error:', error.message);
-        cleanupSession();
-    }
-}
-
-async function handleSoiCau(message) {
-    const chartBuffer = createHistoryChart(database.history);
-    if (!chartBuffer) return message.reply('❌ Không thể tạo biểu đồ');
+    const newCode = giftcode.createGiftcode(message.author.id, customReward, customHours);
 
     const embed = new EmbedBuilder()
-        .setTitle('📊 Thống kê 20 phiên gần nhất')
-        .setColor('#2b2d31')
-        .setImage('attachment://history.png')
+        .setTitle('🎁 GIFTCODE MỚI ĐÃ TẠO!')
+        .setColor('#f39c12')
+        .setDescription(`**Code:** \`${newCode.code}\`\n**Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin\n**Số lượt:** ${newCode.maxUses} lượt\n**Thời hạn:** ${newCode.duration} giờ`)
         .setTimestamp();
 
-    await message.reply({ embeds: [embed], files: [new AttachmentBuilder(chartBuffer, { name: 'history.png' })] });
+    await message.reply({ embeds: [embed] });
 }
 
-function getBettingSession() { return bettingSession; }
-function setBettingSession(session) { bettingSession = session; }
+async function handleCode(message, args) {
+    const code = args[1]?.toUpperCase();
+
+    // ===== ADMIN TẠO CODE =====
+    if (message.author.id === ADMIN_ID && code && args[2]) {
+        const amountStr = args[2];
+        let maxUses = args[3] ? (args[3].toLowerCase() === 'unlimit' ? -1 : parseInt(args[3])) : 100;
+        let customHours = args[4] ? (args[4].toLowerCase() === 'unlimit' ? -1 : parseInt(args[4])) : 24;
+
+        const amount = parseAmount(amountStr);
+
+        if (isNaN(amount) || amount < 1000000) return message.reply('❌ Số tiền phải >= 1,000,000 Mcoin!');
+        if (maxUses !== -1 && (isNaN(maxUses) || maxUses < 1)) return message.reply('❌ Số lượt phải >= 1 hoặc "unlimit"!');
+        if (customHours !== -1 && (isNaN(customHours) || customHours < 1 || customHours > 720)) return message.reply('❌ Số giờ phải từ 1-720 hoặc "unlimit"!');
+
+        const newCode = giftcode.createGiftcodeCustom(message.author.id, code, amount, maxUses, customHours);
+        if (!newCode.success) return message.reply(`❌ ${newCode.message}`);
+
+        const usesText = maxUses === -1 ? 'Unlimited' : `${maxUses} lượt`;
+        const timeText = customHours === -1 ? 'Vô hạn' : `${customHours} giờ`;
+
+        const embed = new EmbedBuilder()
+            .setTitle('🎁 GIFTCODE MỚI ĐÃ TẠO!')
+            .setColor('#f39c12')
+            .setDescription(`**Code:** \`${newCode.code}\`\n**Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin\n**Số lượt:** ${usesText}\n**Thời hạn:** ${timeText}`)
+            .setTimestamp();
+
+        return message.reply({ embeds: [embed] });
+    }
+
+    // ===== HIỆN DANH SÁCH CODE =====
+    if (!code) {
+        const { ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
+        const activeCodes = giftcode.listActiveCodes();
+
+        if (activeCodes.length === 0) return message.reply('📭 Không có code nào!');
+
+        let codeList = '';
+        const buttons = [];
+
+        activeCodes.forEach((gc, index) => {
+            const usesLeft = gc.maxUses === -1 ? '∞' : (gc.maxUses - gc.usedBy.length);
+            codeList += `**${index + 1}. \`${gc.code}\`** - ${gc.reward.toLocaleString('en-US')} Mcoin (${usesLeft} lượt)\n`;
+            if (buttons.length < 25) {
+                buttons.push(
+                    new ButtonBuilder()
+                        .setCustomId(`copy_code_${gc.code}`)
+                        .setLabel(gc.code)
+                        .setStyle(ButtonStyle.Secondary)
+                        .setEmoji('📋')
+                );
+            }
+        });
+
+        const embed = new EmbedBuilder()
+            .setTitle('🎁 CODE MCOIN')
+            .setColor('#9b59b6')
+            .setDescription(codeList + '\n📋 **Bấm nút để copy code!**')
+            .setTimestamp();
+
+        const rows = [];
+        for (let i = 0; i < buttons.length; i += 5) {
+            rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
+        }
+
+        return message.reply({ embeds: [embed], components: rows.slice(0, 5) });
+    }
+
+    // ===== NHẬP CODE =====
+    const result = giftcode.redeemGiftcode(code, message.author.id);
+    if (!result.success) return message.reply(result.message);
+
+    const user = getUser(message.author.id);
+    user.balance += result.reward;
+    saveDB();
+
+    await message.reply(`✅ Nhận được ${result.reward.toLocaleString('en-US')} Mcoin!`);
+}
+
+async function handleDeleteCode(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    const code = args[1]?.toUpperCase();
+    if (!code) return message.reply('❌ Sử dụng: .delcode <CODE>');
+    const result = giftcode.deleteGiftcode(code);
+    if (!result.success) return message.reply(`❌ ${result.message}`);
+    await message.reply(`✅ Đã xóa code ${code}!`);
+}
+
+async function handleDeleteAllCodes(message) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    const result = giftcode.deleteAllCodes();
+    await message.reply(`✅ Đã xóa ${result.count} code!`);
+}
+
+// ========================================
+// 👑 VIP & DANH HIỆU
+// ========================================
+
+async function handleGiveVip(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+
+    const targetUser = message.mentions.users.first();
+    const vipLevel = parseInt(args[2]);
+
+    if (!targetUser || !vipLevel || vipLevel < 1 || vipLevel > 10)
+        return message.reply('❌ Sử dụng: .givevip @user [1-10]');
+
+    const { VIP_ITEMS } = require('./shop');
+    const vipItem = VIP_ITEMS[`vip${vipLevel}`];
+    if (!vipItem) return message.reply('❌ VIP level không hợp lệ!');
+
+    const user = getUser(targetUser.id);
+    user.vipLevel = vipLevel;
+    user.vipBonus = {
+        dailyBonus: vipItem.dailyBonus,
+        betBonus: vipItem.betBonus,
+        extraBonus: vipItem.extraBonus || 0
+    };
+    saveDB();
+
+    await message.reply(`✅ Đã cấp ${vipItem.name} cho <@${targetUser.id}>!`);
+}
+
+async function handleRemoveVip(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+
+    const targetUser = message.mentions.users.first();
+    if (!targetUser) return message.reply('❌ Sử dụng: .removevip @user');
+
+    const user = getUser(targetUser.id);
+    user.vipLevel = 0;
+    user.vipBonus = null;
+    saveDB();
+
+    await message.reply(`✅ Đã xóa VIP của <@${targetUser.id}>!`);
+}
+
+async function handleGiveTitle(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+
+    const targetUser = message.mentions.users.first();
+    if (!targetUser) return message.reply('❌ Sử dụng: .givetitle @user');
+
+    const { TITLE_ITEMS } = require('./shop');
+    const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
+
+    const options = Object.values(TITLE_ITEMS).map(title => {
+        let bonusText = `+${title.dailyBonus}% dd`;
+        if (title.betBonus > 0) bonusText += `, +${title.betBonus}% thắng`;
+        if (title.jackpotBonus > 0) bonusText += `, +${title.jackpotBonus}% jackpot`;
+        return { label: title.titleName, description: bonusText, value: `givetitle_${targetUser.id}_${title.id}` };
+    });
+
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('admin_givetitle')
+        .setPlaceholder('Chọn danh hiệu để cấp...')
+        .addOptions(options);
+
+    const embed = new EmbedBuilder()
+        .setTitle('👑 CẤP DANH HIỆU')
+        .setColor('#e91e63')
+        .setDescription(`Chọn danh hiệu để cấp cho <@${targetUser.id}>:`)
+        .setFooter({ text: 'Chọn từ menu bên dưới' });
+
+    await message.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(selectMenu)] });
+}
+
+// ========================================
+// 🎰 NỔ HŨ ADMIN
+// ========================================
+
+async function handleNoHu(message) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+
+    const { setForceJackpot } = require('./game');
+    setForceJackpot(true);
+
+    const embed = new EmbedBuilder()
+        .setTitle('🎰 ĐÃ KÍCH HOẠT NỔ HŨ!')
+        .setColor('#FFD700')
+        .setDescription('✅ **Ván TX tiếp theo sẽ nổ hũ 100%!**\n\n⚠️ Tự động tắt sau khi nổ.')
+        .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
+}
+
+// ========================================
+// 💰 DONATE
+// ========================================
+
+async function handleDonate(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+
+    const targetUser = message.mentions.users.first();
+    if (!targetUser) return message.reply('❌ Sử dụng: .donate @user [số tiền]\nVD: .donate @ai 100m');
+
+    const amountStr = args[2]?.toLowerCase().trim();
+    if (!amountStr) return message.reply('❌ Nhập số tiền! VD: 100m, 5b');
+
+    const amount = parseAmount(amountStr);
+    if (isNaN(amount) || amount <= 0) return message.reply('❌ Số tiền không hợp lệ!');
+
+    const user = getUser(targetUser.id);
+    const oldBalance = user.balance;
+    user.balance += amount;
+    saveDB();
+
+    const embed = new EmbedBuilder()
+        .setTitle('💰 ADMIN TẶNG TIỀN!')
+        .setColor('#2ecc71')
+        .setDescription(`Admin tặng **${amount.toLocaleString('en-US')} Mcoin** cho <@${targetUser.id}>!\n\n💰 Số dư cũ: ${oldBalance.toLocaleString('en-US')}\n✨ Số dư mới: **${user.balance.toLocaleString('en-US')}**`)
+        .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
+
+    try { await targetUser.send(`🎁 Admin tặng bạn **${amount.toLocaleString('en-US')} Mcoin**!`); } catch {}
+}
+
+// ========================================
+// 🔄 RESET QUEST
+// ========================================
+
+async function handleResetQuest(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+
+    const targetUser = message.mentions.users.first();
+    if (!targetUser) return message.reply('❌ Sử dụng: `.resetquest @user`');
+
+    const user = getUser(targetUser.id);
+    const { initDailyQuests } = require('../services/quest');
+    user.dailyQuests = initDailyQuests();
+    saveDB();
+
+    const embed = new EmbedBuilder()
+        .setTitle('🔄 RESET NHIỆM VỤ THÀNH CÔNG!')
+        .setColor('#2ecc71')
+        .setDescription(`Đã reset nhiệm vụ của <@${targetUser.id}>!\n\nNgười chơi có thể gõ \`.daily\` để xem nhiệm vụ mới.`)
+        .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
+}
+
+// ========================================
+// 📤 SENDCODE
+// ========================================
+
+async function handleSendCode(message, GIFTCODE_CHANNEL_ID) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+
+    try {
+        const reward = Math.floor(Math.random() * 99000000 + 1000000);
+        const newCode = giftcode.createGiftcode(message.author.id, reward, 2);
+        const channel = await message.client.channels.fetch(GIFTCODE_CHANNEL_ID);
+
+        const embed = new EmbedBuilder()
+            .setTitle('🎁 GIFTCODE MỚI!')
+            .setColor('#f39c12')
+            .setDescription(`Code: \`${newCode.code}\`\nThưởng: ${newCode.reward.toLocaleString('en-US')} Mcoin\nGõ: \`.code ${newCode.code}\``)
+            .setTimestamp();
+
+        await channel.send({ content: '@everyone', embeds: [embed] });
+        await message.reply(`✅ Đã phát code ${newCode.code}!`);
+    } catch (e) {
+        return message.reply(`❌ Lỗi: ${e.message}`);
+    }
+}
+
+// ========================================
+// 🗄️ DATABASE
+// ========================================
+
+async function handleDbInfo(message) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+
+    const totalUsers = Object.keys(database.users).length;
+    const totalBalance = Object.values(database.users).reduce((sum, u) => sum + u.balance, 0);
+
+    const embed = new EmbedBuilder()
+        .setTitle('🗄️ DATABASE INFO')
+        .setColor('#3498db')
+        .addFields(
+            { name: 'Người chơi', value: `${totalUsers}`, inline: true },
+            { name: 'Tổng tiền', value: `${totalBalance.toLocaleString('en-US')}`, inline: true },
+            { name: 'Hũ', value: `${(database.jackpot || 0).toLocaleString('en-US')}`, inline: true }
+        )
+        .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
+}
+
+async function handleBackup(message) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    const backup = JSON.stringify(database, null, 2);
+    const attachment = new AttachmentBuilder(Buffer.from(backup), { name: `backup_${Date.now()}.json` });
+    await message.reply({ content: '📦 Backup database:', files: [attachment] });
+}
+
+async function handleBackupNow(message) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    try {
+        const backup = JSON.stringify(database, null, 2);
+        const attachment = new AttachmentBuilder(Buffer.from(backup), { name: `manual_${Date.now()}.json` });
+        await message.reply({ files: [attachment] });
+    } catch (e) {
+        return message.reply(`❌ Lỗi: ${e.message}`);
+    }
+}
+
+async function handleRestore(message) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    return message.reply('📥 Gửi file .json + gõ "restore confirm"');
+}
+
+async function handleRestoreFile(message) {
+    if (message.author.id !== ADMIN_ID) return;
+    if (!message.content.toLowerCase().includes('restore confirm')) return;
+    if (message.attachments.size === 0) return;
+
+    const attachment = message.attachments.first();
+    if (!attachment.name.endsWith('.json')) return message.reply('❌ File phải là .json!');
+
+    const processingMsg = await message.reply('⏳ Đang restore...');
+
+    try {
+        const backupData = await new Promise((resolve, reject) => {
+            https.get(attachment.url, (res) => {
+                let data = '';
+                if (res.statusCode !== 200) { reject(new Error(`HTTP Error: ${res.statusCode}`)); return; }
+                res.setEncoding('utf8');
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                    try { resolve(JSON.parse(data)); }
+                    catch (e) { reject(new Error('JSON không hợp lệ')); }
+                });
+            }).on('error', e => reject(new Error(`Lỗi tải: ${e.message}`)));
+        });
+
+        if (!backupData.users) return processingMsg.edit('❌ Thiếu cấu trúc users!');
+
+        Object.assign(database, backupData);
+        saveDB();
+
+        await processingMsg.edit('✅ Restore thành công!');
+    } catch (error) {
+        return processingMsg.edit(`❌ Lỗi: ${error.message}`);
+    }
+}
+
+// ========================================
+// EXPORTS
+// ========================================
 
 module.exports = {
-    handleTaiXiu,
-    handleSoiCau,
+    handleCreateGiftcode,
+    handleCode,
+    handleDeleteCode,
+    handleDeleteAllCodes,
+    handleSendCode,
+    handleGiveVip,
+    handleRemoveVip,
+    handleGiveTitle,
     handleNoHu,
-    getBettingSession,
-    setBettingSession,
-    cleanupSession,
+    handleDonate,
+    handleResetQuest,
+    handleDbInfo,
+    handleBackup,
+    handleBackupNow,
+    handleRestore,
+    handleRestoreFile
 };
