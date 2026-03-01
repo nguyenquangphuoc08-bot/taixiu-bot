@@ -1,4 +1,4 @@
-// commands/admin.js - FULL CODE (ĐÃ THÊM RESET QUEST)
+// commands/admin.js - HỖ TRỢ UNLIMITED GIFTCODE
 
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, DB_PATH, getUser } = require('../utils/database');
@@ -8,13 +8,22 @@ const https = require('https');
 
 const { ADMIN_ID } = require('../config');
 
+// Parse amount helper
+function parseAmount(str) {
+    str = str.toLowerCase().trim();
+    if (str.endsWith('k')) return parseFloat(str) * 1000;
+    if (str.endsWith('m')) return parseFloat(str) * 1000000;
+    if (str.endsWith('b')) return parseFloat(str) * 1000000000;
+    return parseInt(str);
+}
+
 // ========================================
 // 🎁 GIFTCODE COMMANDS
 // ========================================
 
 async function handleCreateGiftcode(message, args) {
     if (message.author.id !== ADMIN_ID) {
-        return message.reply('❌ Chỉ admin mới tạo được giftcode!');
+        return message.reply('❌ Chỉ admin!');
     }
     
     let customReward = null;
@@ -54,51 +63,34 @@ async function handleCreateGiftcode(message, args) {
 async function handleCode(message, args) {
     const code = args[1]?.toUpperCase();
     
-    // ===== ADMIN TẠO CODE CUSTOM =====
-    if (message.author.id === ADMIN_ID && code && !args[2]) {
-        // Chỉ có code, chưa có số tiền → kiểm tra xem có phải tạo code không
-        const activeCodes = giftcode.listActiveCodes();
-        const existingCode = activeCodes.find(gc => gc.code === code);
-        
-        if (!existingCode) {
-            // Code chưa tồn tại, có thể admin đang muốn tạo
-            return message.reply(`💡 Để tạo code tên "${code}", gõ: \`.code ${code} [tiền] [giờ]\`\nVD: \`.code ${code} 5m 2\``);
-        }
-    }
-    
+    // ===== ADMIN TẠO CODE =====
     if (message.author.id === ADMIN_ID && code && args[2]) {
-        // Admin tạo code custom: .code AENAMMOIVUIVE 5m 2
-        let amountStr = args[2]?.toLowerCase().trim();
-        let customHours = args[3] ? parseInt(args[3]) : 2;
+        const amountStr = args[2];
+        let maxUses = args[3] ? (args[3].toLowerCase() === 'unlimit' ? -1 : parseInt(args[3])) : 100;
+        let customHours = args[4] ? (args[4].toLowerCase() === 'unlimit' ? -1 : parseInt(args[4])) : 24;
         
-        if (!amountStr) {
-            return message.reply('❌ Nhập số tiền! VD: .code AENAMMOIVUIVE 5m 2');
-        }
-        
-        let amount = 0;
-        if (amountStr.endsWith('k')) {
-            amount = parseFloat(amountStr) * 1000;
-        } else if (amountStr.endsWith('m')) {
-            amount = parseFloat(amountStr) * 1000000;
-        } else if (amountStr.endsWith('b')) {
-            amount = parseFloat(amountStr) * 1000000000;
-        } else {
-            amount = parseInt(amountStr);
-        }
+        const amount = parseAmount(amountStr);
         
         if (isNaN(amount) || amount < 1000000) {
             return message.reply('❌ Số tiền phải >= 1,000,000 Mcoin!');
         }
         
-        if (isNaN(customHours) || customHours < 1 || customHours > 720) {
-            return message.reply('❌ Số giờ phải từ 1 đến 720!');
+        if (maxUses !== -1 && (isNaN(maxUses) || maxUses < 1)) {
+            return message.reply('❌ Số lượt phải >= 1 hoặc "unlimit"!');
         }
         
-        const newCode = giftcode.createGiftcodeCustom(message.author.id, code, amount, customHours);
+        if (customHours !== -1 && (isNaN(customHours) || customHours < 1 || customHours > 720)) {
+            return message.reply('❌ Số giờ phải từ 1-720 hoặc "unlimit"!');
+        }
+        
+        const newCode = giftcode.createGiftcodeCustom(message.author.id, code, amount, maxUses, customHours);
         
         if (!newCode.success) {
             return message.reply(`❌ ${newCode.message}`);
         }
+        
+        const usesText = maxUses === -1 ? 'Unlimited' : `${maxUses} lượt`;
+        const timeText = customHours === -1 ? 'Vô hạn' : `${customHours} giờ`;
         
         const embed = new EmbedBuilder()
             .setTitle('🎁 GIFTCODE MỚI ĐÃ TẠO!')
@@ -106,8 +98,8 @@ async function handleCode(message, args) {
             .setDescription(`
 **Code:** \`${newCode.code}\`
 **Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin
-**Số lượt:** ${newCode.maxUses} lượt
-**Thời hạn:** ${newCode.duration} giờ
+**Số lượt:** ${usesText}
+**Thời hạn:** ${timeText}
             `)
             .setTimestamp();
         
@@ -127,10 +119,9 @@ async function handleCode(message, args) {
         const buttons = [];
         
         activeCodes.forEach((gc, index) => {
-            const usesLeft = gc.maxUses - gc.usedBy.length;
+            const usesLeft = gc.maxUses === -1 ? '∞' : (gc.maxUses - gc.usedBy.length);
             codeList += `**${index + 1}. \`${gc.code}\`** - ${gc.reward.toLocaleString('en-US')} Mcoin (${usesLeft} lượt)\n`;
             
-            // Thêm nút copy (Discord giới hạn 5 button/row, 25 button/message)
             if (buttons.length < 25) {
                 buttons.push(
                     new ButtonBuilder()
@@ -148,7 +139,6 @@ async function handleCode(message, args) {
             .setDescription(codeList + '\n📋 **Bấm nút để copy code!**')
             .setTimestamp();
         
-        // Chia buttons thành nhiều row (5 button/row)
         const rows = [];
         for (let i = 0; i < buttons.length; i += 5) {
             rows.push(
@@ -156,7 +146,7 @@ async function handleCode(message, args) {
             );
         }
         
-        return message.reply({ embeds: [embed], components: rows.slice(0, 5) }); // Discord giới hạn 5 rows
+        return message.reply({ embeds: [embed], components: rows.slice(0, 5) });
     }
     
     // ===== NHẬP CODE =====
@@ -269,7 +259,6 @@ async function handleGiveTitle(message, args) {
     const { TITLE_ITEMS } = require('./shop');
     const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
     
-    // Hiện bảng chọn danh hiệu
     const options = Object.values(TITLE_ITEMS).map(title => {
         let bonusText = `+${title.dailyBonus}% dd`;
         if (title.betBonus > 0) bonusText += `, +${title.betBonus}% thắng`;
@@ -317,16 +306,7 @@ async function handleDonate(message, args) {
         return message.reply('❌ Nhập số tiền! VD: 100m, 5b');
     }
     
-    let amount = 0;
-    if (amountStr.endsWith('k')) {
-        amount = parseFloat(amountStr) * 1000;
-    } else if (amountStr.endsWith('m')) {
-        amount = parseFloat(amountStr) * 1000000;
-    } else if (amountStr.endsWith('b')) {
-        amount = parseFloat(amountStr) * 1000000000;
-    } else {
-        amount = parseInt(amountStr);
-    }
+    const amount = parseAmount(amountStr);
     
     if (isNaN(amount) || amount <= 0) {
         return message.reply('❌ Số tiền không hợp lệ!');
