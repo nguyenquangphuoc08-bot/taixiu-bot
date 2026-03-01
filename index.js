@@ -8,7 +8,7 @@ const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./c
 const { saveDB, getUser } = require('./utils/database');
 const { autoBackup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
-const { handleTaiXiu, handleSoiCau, getBettingSession, cleanupSession } = require('./commands/game');
+const { handleTaiXiu, handleSoiCau, handleNoHu, getBettingSession, cleanupSession } = require("./commands/game");
 const { handleMcoin, handleSetBg, handleTang, handleDiemDanh, handleInfo, updateMessageStats } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { handleDbInfo, handleBackup, handleBackupNow, handleRestore, handleRestoreFile,
@@ -94,6 +94,7 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.givetitle') return handleGiveTitle(message, args);
         if (cmd === '.donate')    return handleDonate(message, args);
         if (cmd === '.resetquest')return handleResetQuest(message, args);
+        if (cmd === '.nohu') return handleNoHu(message, ADMIN_ID);
         if (cmd === '.restart' && message.author.id === ADMIN_ID) process.exit(0);
 
         if (cmd === '.help') {
@@ -123,7 +124,7 @@ client.on('messageCreate', async (message) => {
                 fields: [
                     { name: '👥 Lệnh Người Chơi', value: '```\n.tx, .mcoin, .info, .setbg, .sc, .tang\n.dd, .daily, .claimall, .mshop, .vipbonus, .code\n```', inline: false },
                     { name: '🎁 Quản Lý Giftcode', value: '```\n.giftcode [tên] [tiền] [lượt] [giờ]\n  VD: .giftcode TANTHU 5m\n  VD: .giftcode TANTHU 5m 50 48\n  VD: .giftcode TANTHU 5m unlimit unlimit\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
-                    { name: '👑 Quản Lý VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n```', inline: false },
+                    { name: '👑 Quản Lý VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n.nohu       → Ván tiếp theo nổ hũ 100%\n```', inline: false },
                     { name: '💰 Quản Lý Tiền & Quest', value: '```\n.donate @user [số]\n.resetquest @user\n```', inline: false },
                     { name: '🔧 Quản Lý Database', value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```', inline: false }
                 ],
