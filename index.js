@@ -8,11 +8,11 @@ const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./c
 const { saveDB, getUser } = require('./utils/database');
 const { autoBackup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
-const { handleTaiXiu, handleSoiCau, handleNoHu, getBettingSession, cleanupSession } = require("./commands/game");
+const { handleTaiXiu, handleSoiCau, getBettingSession, cleanupSession } = require("./commands/game");
 const { handleMcoin, handleSetBg, handleTang, handleDiemDanh, handleInfo, updateMessageStats } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { handleDbInfo, handleBackup, handleBackupNow, handleRestore, handleRestoreFile,
-        handleSendCode, handleGiveVip, handleRemoveVip, handleGiveTitle,
+        handleSendCode, handleGiveVip, handleRemoveVip, handleGiveTitle, handleNoHu,
         handleCreateGiftcode, handleCode, handleDeleteCode, handleDeleteAllCodes, handleDonate, handleResetQuest } = require('./commands/admin');
 const { handleMShop, buyVipPackage, buyTitle } = require('./commands/shop');
 const { handleButtonClick } = require('./handlers/buttonHandler');
@@ -94,7 +94,7 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.givetitle') return handleGiveTitle(message, args);
         if (cmd === '.donate')    return handleDonate(message, args);
         if (cmd === '.resetquest')return handleResetQuest(message, args);
-        if (cmd === '.nohu') return handleNoHu(message, ADMIN_ID);
+        if (cmd === '.nohu') return handleNoHu(message);
         if (cmd === '.restart' && message.author.id === ADMIN_ID) process.exit(0);
 
         if (cmd === '.help') {
