@@ -226,10 +226,14 @@ async function handleNoHu(message) {
     const { setForceJackpot } = require('./game');
     setForceJackpot(true);
 
+    const { database } = require('../utils/database');
+    const currentJackpot = database.jackpot || 0;
+    const chanceText = currentJackpot >= 3_000_000_000 ? '100%' : currentJackpot >= 1_000_000_000 ? '70%' : '5%';
+
     const embed = new EmbedBuilder()
-        .setTitle('🎰 ĐÃ KÍCH HOẠT NỔ HŨ!')
+        .setTitle('🎲 ĐÃ KÍCH HOẠT .NOHU!')
         .setColor('#FFD700')
-        .setDescription('✅ **Ván TX tiếp theo sẽ nổ hũ 100%!**\n\n⚠️ Tự động tắt sau khi nổ.')
+        .setDescription(`✅ **Ván TX tiếp theo xúc xắc sẽ ra bộ ba (111/222/.../666)!**\n\n🎰 Xác suất nổ hũ: **${chanceText}** (dựa theo hũ hiện tại)\n💰 Hũ hiện tại: **${currentJackpot.toLocaleString('en-US')}**\n\n⚠️ Tự động tắt sau ván đó.`)
         .setTimestamp();
 
     await message.reply({ embeds: [embed] });
