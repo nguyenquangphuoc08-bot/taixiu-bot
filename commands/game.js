@@ -53,28 +53,26 @@ function getJackpotChance(jackpot) {
 // Hũ > 1B: tăng xác suất ra cặp đôi / bộ ba
 // ============================================
 function rollDiceWeighted(jackpot) {
-    // Nếu hũ < 1B, roll bình thường
+    const face = () => Math.floor(Math.random() * 6) + 1;
+
+    // Dưới 1B → random hoàn toàn, không có weight
     if (jackpot < 1_000_000_000) {
         return rollDice();
     }
 
-    // Hũ >= 1B: có xác suất ra cặp đôi hoặc bộ ba
-    // >= 1B: tăng xác suất ra cặp / bộ ba
-    const tripleChance = 20;  // 20% bộ ba
-    const pairChance = 40;    // 40% cặp đôi
+    // Từ 1B trở lên → tăng xác suất ra cặp đôi / bộ ba
+    const tripleChance = 20; // 20% bộ ba
+    const pairChance = 40;   // 40% cặp đôi
+    // 40% còn lại → random bình thường
 
     const rand = Math.random() * 100;
-    const face = () => Math.floor(Math.random() * 6) + 1;
 
     if (rand < tripleChance) {
-        // Bộ ba
         const d = face();
         return { dice1: d, dice2: d, dice3: d, total: d * 3 };
     } else if (rand < tripleChance + pairChance) {
-        // Cặp đôi
         const d = face();
         const d3 = face();
-        // Shuffle vị trí ngẫu nhiên
         const arr = [d, d, d3].sort(() => Math.random() - 0.5);
         return { dice1: arr[0], dice2: arr[1], dice3: arr[2], total: arr[0] + arr[1] + arr[2] };
     } else {
