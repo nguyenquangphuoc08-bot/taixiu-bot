@@ -1,4 +1,5 @@
-// giftcode.js - Quản lý giftcode (ĐÃ THÊM CUSTOM CODE)
+// giftcode.js - HỖ TRỢ UNLIMITED
+
 const fs = require('fs');
 const path = require('path');
 
@@ -34,14 +35,14 @@ function generateCode() {
 }
 
 // ===== TẠO CODE TÙY CHỈNH =====
-function createGiftcodeCustom(creatorId, customCode, customReward, customHours = 2) {
+function createGiftcodeCustom(creatorId, customCode, customReward, maxUses = 100, customHours = 24) {
     const giftcodes = loadGiftcodes();
     
     if (giftcodes.find(gc => gc.code === customCode)) {
         return { success: false, message: 'Code đã tồn tại!' };
     }
     
-    const expiresAt = Date.now() + (customHours * 60 * 60 * 1000);
+    const expiresAt = customHours === -1 ? -1 : Date.now() + (customHours * 60 * 60 * 1000);
     
     const newCode = {
         code: customCode,
@@ -50,7 +51,7 @@ function createGiftcodeCustom(creatorId, customCode, customReward, customHours =
         createdAt: Date.now(),
         expiresAt: expiresAt,
         duration: customHours,
-        maxUses: 10,
+        maxUses: maxUses, // -1 = unlimited
         usedBy: []
     };
     
@@ -96,17 +97,20 @@ function redeemGiftcode(code, userId) {
     
     const giftcode = giftcodes[codeIndex];
     
-    if (Date.now() > giftcode.expiresAt) {
+    // Kiểm tra hết hạn (trừ unlimited time)
+    if (giftcode.expiresAt !== -1 && Date.now() > giftcode.expiresAt) {
         giftcodes.splice(codeIndex, 1);
         saveGiftcodes(giftcodes);
         return { success: false, message: '⏰ Code đã hết hạn!' };
     }
     
+    // Kiểm tra đã dùng
     if (giftcode.usedBy.includes(userId)) {
         return { success: false, message: '❌ Bạn đã dùng code này rồi!' };
     }
     
-    if (giftcode.usedBy.length >= giftcode.maxUses) {
+    // Kiểm tra hết lượt (trừ unlimited uses)
+    if (giftcode.maxUses !== -1 && giftcode.usedBy.length >= giftcode.maxUses) {
         giftcodes.splice(codeIndex, 1);
         saveGiftcodes(giftcodes);
         return { success: false, message: '🔒 Code đã hết lượt!' };
@@ -114,7 +118,8 @@ function redeemGiftcode(code, userId) {
     
     giftcode.usedBy.push(userId);
     
-    if (giftcode.usedBy.length >= giftcode.maxUses) {
+    // Xóa nếu hết lượt (không áp dụng cho unlimited)
+    if (giftcode.maxUses !== -1 && giftcode.usedBy.length >= giftcode.maxUses) {
         giftcodes.splice(codeIndex, 1);
     } else {
         giftcodes[codeIndex] = giftcode;
@@ -122,17 +127,20 @@ function redeemGiftcode(code, userId) {
     
     saveGiftcodes(giftcodes);
     
+    const usesLeft = giftcode.maxUses === -1 ? 'Unlimited' : (giftcode.maxUses - giftcode.usedBy.length);
+    
     return {
         success: true,
         reward: giftcode.reward,
-        usesLeft: giftcode.maxUses - giftcode.usedBy.length
+        usesLeft: usesLeft
     };
 }
 
 function listActiveCodes() {
     let giftcodes = loadGiftcodes();
     const now = Date.now();
-    giftcodes = giftcodes.filter(gc => gc.expiresAt > now);
+    // Giữ lại code unlimited time hoặc chưa hết hạn
+    giftcodes = giftcodes.filter(gc => gc.expiresAt === -1 || gc.expiresAt > now);
     saveGiftcodes(giftcodes);
     return giftcodes;
 }
@@ -141,7 +149,7 @@ function cleanExpiredCodes() {
     let giftcodes = loadGiftcodes();
     const now = Date.now();
     const before = giftcodes.length;
-    giftcodes = giftcodes.filter(gc => gc.expiresAt > now);
+    giftcodes = giftcodes.filter(gc => gc.expiresAt === -1 || gc.expiresAt > now);
     const after = giftcodes.length;
     if (before !== after) {
         saveGiftcodes(giftcodes);
