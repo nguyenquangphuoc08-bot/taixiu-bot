@@ -237,7 +237,15 @@ async function animateResult(sentMessage, client) {
         // ============================================
         // ROLL XÚC XẮC (có weight theo hũ)
         // ============================================
-        const rollResult = rollDiceWeighted(currentJackpot);
+        let rollResult;
+        if (forceJackpotNext) {
+            // Admin .nohu → bắt buộc ra bộ ba (111~666)
+            const d = Math.floor(Math.random() * 6) + 1;
+            rollResult = { dice1: d, dice2: d, dice3: d, total: d * 3 };
+            forceJackpotNext = false;
+        } else {
+            rollResult = rollDiceWeighted(currentJackpot);
+        }
         const { dice1, dice2, dice3, total } = rollResult;
         const isTriple = checkJackpot(dice1, dice2, dice3);
 
@@ -245,11 +253,7 @@ async function animateResult(sentMessage, client) {
         // TÍNH NỔ HŨ
         // ============================================
         let isJackpot = false;
-        if (forceJackpotNext) {
-            // Admin dùng .nohu → nổ 100% ván này
-            isJackpot = true;
-            forceJackpotNext = false;
-        } else if (isTriple) {
+        if (isTriple) {
             const chance = getJackpotChance(currentJackpot);
             isJackpot = Math.random() * 100 < chance;
         }
