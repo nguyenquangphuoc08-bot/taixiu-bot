@@ -1,8 +1,7 @@
-// commands/quest.js - ĐẦY ĐỦ
-
+// commands/quest.js
 const { EmbedBuilder } = require('discord.js');
 const { getUser, saveDB } = require('../utils/database');
-const { checkAllQuestsCompleted } = require('../services/quest');
+const { checkAllQuestsCompleted, initDailyQuests, shouldReset } = require('../services/quest');
 
 function formatNumber(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -10,99 +9,97 @@ function formatNumber(num) {
 
 async function handleDaily(message) {
     const user = getUser(message.author.id);
-    
-    if (!user.dailyQuests || !user.dailyQuests.quests) {
-        const { initDailyQuests } = require('../services/quest');
+
+    if (!user.dailyQuests || !user.dailyQuests.quests || shouldReset(user.dailyQuests.lastReset)) {
         user.dailyQuests = initDailyQuests();
         saveDB();
     }
-    
+
     const quests = user.dailyQuests.quests;
-    
-    const embed = new EmbedBuilder()
-        .setTitle(`📋 Nhiệm vụ hằng ngày của ${message.author.username}`)
-        .setColor('#9b59b6');
-    
+
+    // Thời gian reset tiếp theo (0h ngày mai)
+    const now = Date.now();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    const timeLeft = tomorrow.getTime() - now;
+    const hours = Math.floor(timeLeft / (60 * 60 * 1000));
+    const minutes = Math.floor((timeLeft % (60 * 60 * 1000)) / (60 * 1000));
+
     let questText = '';
     let completedCount = 0;
-    
     quests.forEach(q => {
         const icon = q.completed ? '✅' : '🔲';
-        const progress = `(${q.current}/${q.target})`;
-        
-        questText += `${icon} **${q.name}** ${progress}\n`;
-        
+        questText += `${icon} **${q.name}** (${q.current}/${q.target}) — 💰 ${formatNumber(q.reward)}\n`;
         if (q.completed) completedCount++;
     });
-    
-    embed.setDescription(questText);
-    
+
     const totalQuestReward = quests.reduce((sum, q) => sum + q.reward, 0);
     const bonusReward = 1000000;
-    
-    let rewardText = `• **${formatNumber(totalQuestReward)}** 💰 cho tất cả nhiệm vụ.\n`;
-    rewardText += `• Hoàn thành tất cả thưởng thêm **${formatNumber(bonusReward)}** 💰.`;
-    
-    embed.addFields({
-        name: '🎁 Phần thưởng:',
-        value: rewardText,
-        inline: false
-    });
-    
-    if (checkAllQuestsCompleted(message.author.id)) {
-        embed.addFields({
-            name: '🎉 HOÀN THÀNH!',
-            value: `Gõ \`.claimall\` để nhận thưởng!`,
-            inline: false
-        });
+    const allDone = checkAllQuestsCompleted(message.author.id);
+
+    const embed = new EmbedBuilder()
+        .setTitle('📋 NHIỆM VỤ HẰNG NGÀY')
+        .setColor('#9b59b6')
+        .setThumbnail(message.author.displayAvatarURL({ extension: 'png', size: 256 }))
+        .setDescription(`**${message.author.username}** | 🔄 Reset sau: **${hours}h ${minutes}p**\n\n${questText}`)
+        .addFields(
+            {
+                name: '🎁 Tổng thưởng',
+                value: `• Hoàn thành từng nhiệm vụ: **${formatNumber(totalQuestReward)}**\n• Hoàn thành tất cả: **+${formatNumber(bonusReward)} bonus**\n• Tổng cộng: **${formatNumber(totalQuestReward + bonusReward)}**`,
+                inline: false
+            }
+        )
+        .setFooter({ text: `Hoàn thành: ${completedCount}/5 ${allDone ? '— Gõ .claimall để nhận!' : ''}` })
+        .setTimestamp();
+
+    if (allDone) {
+        embed.addFields({ name: '🎉 ĐÃ HOÀN THÀNH TẤT CẢ!', value: 'Gõ `.claimall` để nhận thưởng!', inline: false });
     }
-    
-    embed.setFooter({ 
-        text: `Hoàn thành: ${completedCount}/5` 
-    });
-    
+
     await message.reply({ embeds: [embed] });
 }
 
 async function handleClaimAll(message) {
     const user = getUser(message.author.id);
-    
-    if (!checkAllQuestsCompleted(message.author.id)) {
-        return message.reply('❌ Chưa hoàn thành tất cả!');
+
+    // Reset nếu qua 0h
+    if (!user.dailyQuests || shouldReset(user.dailyQuests.lastReset)) {
+        user.dailyQuests = initDailyQuests();
+        saveDB();
+        return message.reply('🔄 Nhiệm vụ vừa được reset lúc 0h! Hãy hoàn thành nhiệm vụ mới nhé.');
     }
-    
+
+    if (!checkAllQuestsCompleted(message.author.id)) {
+        const quests = user.dailyQuests.quests;
+        const remaining = quests.filter(q => !q.completed).map(q => `🔲 ${q.name} (${q.current}/${q.target})`).join('\n');
+        return message.reply(`❌ Chưa hoàn thành tất cả!\n\n**Còn lại:**\n${remaining}`);
+    }
+
     const quests = user.dailyQuests.quests;
     const questReward = quests.reduce((sum, q) => sum + q.reward, 0);
     const bonusReward = 1000000;
     const totalReward = questReward + bonusReward;
-    
-    user.balance += totalReward;
-    
-    const { initDailyQuests } = require('../services/quest');
-    user.dailyQuests = initDailyQuests();
-    
-    saveDB();
-    
-    const embed = new EmbedBuilder()
-        .setTitle('🎉 NHẬN THƯỞNG THÀNH CÔNG!')
-        .setColor('#2ecc71')
-        .setDescription(`
-Chúc mừng!
 
-💰 **Thưởng nhiệm vụ:** ${formatNumber(questReward)}
-🎁 **Thưởng hoàn thành:** ${formatNumber(bonusReward)}
-        `)
-        .addFields({
-            name: '💎 Số dư mới',
-            value: formatNumber(user.balance)
-        })
-        .setFooter({ text: 'Nhiệm vụ mới sau 24h' })
+    user.balance += totalReward;
+    user.dailyQuests = initDailyQuests();
+    saveDB();
+
+    const embed = new EmbedBuilder()
+        .setTitle('🎉 NHẬN THƯỞNG NHIỆM VỤ THÀNH CÔNG!')
+        .setColor('#2ecc71')
+        .setThumbnail(message.author.displayAvatarURL({ extension: 'png', size: 256 }))
+        .setDescription('Chúc mừng bạn đã hoàn thành tất cả nhiệm vụ hôm nay!')
+        .addFields(
+            { name: '💰 Thưởng nhiệm vụ',   value: formatNumber(questReward),           inline: true },
+            { name: '🎁 Bonus hoàn thành',   value: formatNumber(bonusReward),           inline: true },
+            { name: '🏆 Tổng nhận',          value: `**${formatNumber(totalReward)}**`,  inline: true },
+            { name: '💎 Số dư mới',          value: formatNumber(user.balance),          inline: false }
+        )
+        .setFooter({ text: 'Nhiệm vụ mới sẽ reset lúc 0h ngày mai!' })
         .setTimestamp();
-    
+
     await message.reply({ embeds: [embed] });
 }
 
-module.exports = {
-    handleDaily,
-    handleClaimAll
-};
+module.exports = { handleDaily, handleClaimAll };
