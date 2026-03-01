@@ -87,7 +87,7 @@ const VIP_ITEMS = {
         id: 'vip9',
         name: '👑💎 VIP 9',
         icon: '👑💎',
-        price: 18000000000,
+        price: 20000000000,
         dailyBonus: 90,
         betBonus: 45,
         extraBonus: 50
@@ -96,7 +96,7 @@ const VIP_ITEMS = {
         id: 'vip10',
         name: '🔥👑 VIP 10',
         icon: '🔥👑',
-        price: 20000000000,
+        price: 50000000000,
         dailyBonus: 100,
         betBonus: 50,
         extraBonus: 50
@@ -110,7 +110,7 @@ const TITLE_ITEMS = {
     title_tanhu: {
         id: 'title_tanhu',
         name: 'Tân Thủ',
-        price: 10000000,
+        price: 100000000,
         titleName: 'Tân Thủ',
         dailyBonus: 5,       // +5% điểm danh
         betBonus: 0,         // +0% thắng
@@ -119,7 +119,7 @@ const TITLE_ITEMS = {
     title_caothu: {
         id: 'title_caothu',
         name: 'Cao Thủ',
-        price: 200000000,
+        price: 2000000000,
         titleName: 'Cao Thủ',
         dailyBonus: 10,
         betBonus: 0,
@@ -128,7 +128,7 @@ const TITLE_ITEMS = {
     title_banthan: {
         id: 'title_banthan',
         name: 'Bán Thần',
-        price: 500000000,
+        price: 5000000000,
         titleName: 'Bán Thần',
         dailyBonus: 10,
         betBonus: 5,
