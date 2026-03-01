@@ -1,4 +1,4 @@
-// index.js - ĐÃ FIX RESTORE FILE
+// index.js - ĐÃ THÊM .INFO VÀ MESSAGE REWARDS
 
 process.removeAllListeners('warning');
 
@@ -9,7 +9,7 @@ const { saveDB, getUser } = require('./utils/database');
 const { autoBackup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
 const { handleTaiXiu, handleSoiCau, getBettingSession, cleanupSession } = require('./commands/game');
-const { handleMcoin, handleSetBg, handleTang, handleDiemDanh } = require('./commands/user');
+const { handleMcoin, handleSetBg, handleTang, handleDiemDanh, handleInfo, updateMessageStats } = require('./commands/user');
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { handleDbInfo, handleBackup, handleBackupNow, handleRestore, handleRestoreFile,
         handleSendCode, handleGiveVip, handleRemoveVip, handleGiveTitle,
@@ -56,6 +56,11 @@ client.on('messageCreate', async (message) => {
         return handleRestoreFile(message);
     }
 
+    // ===== CẬP NHẬT MESSAGE STATS + THƯỞNG =====
+    try {
+        updateMessageStats(message.author.id, message.channel);
+    } catch (err) {}
+
     try {
         const { updateQuest } = require('./services/quest');
         updateQuest(message.author.id, 4);
@@ -71,6 +76,7 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.tx') return handleTaiXiu(message, client);
         if (cmd === '.sc') return handleSoiCau(message);
         if (cmd === '.mcoin') return handleMcoin(message);
+        if (cmd === '.info') return handleInfo(message);
         if (cmd === '.setbg') return handleSetBg(message, args);
         if (cmd === '.tang') return handleTang(message, args);
         if (cmd === '.dd') return handleDiemDanh(message);
@@ -102,10 +108,11 @@ client.on('messageCreate', async (message) => {
                 description: '**Chào mừng bạn đến với hệ thống Tài Xỉu!**',
                 fields: [
                     { name: '🎲 Game', value: '```\n.tx       → Bắt đầu phiên cược Tài Xỉu\n.sc       → Xem lịch sử kết quả\n```', inline: false },
-                    { name: '👤 Tài Khoản', value: '```\n.mcoin    → Xem profile & số dư\n.setbg    → Đặt ảnh nền\n.dd       → Điểm danh (8h/lần)\n```', inline: false },
+                    { name: '👤 Tài Khoản', value: '```\n.mcoin    → Xem profile & số dư\n.info     → Thống kê hoạt động\n.setbg    → Đặt ảnh nền\n.dd       → Điểm danh (8h/lần)\n```', inline: false },
                     { name: '🎁 Nhiệm Vụ & Quà', value: '```\n.daily    → Nhiệm vụ hằng ngày\n.claimall → Nhận hết thưởng\n```', inline: false },
                     { name: '💸 Giao Dịch', value: '```\n.tang @user [số] → Tặng tiền\n.mshop           → Cửa hàng VIP & danh hiệu\n```', inline: false },
-                    { name: '🎁 Giftcode', value: '```\n.code          → Xem danh sách code\n.code <MÃ>     → Nhập code nhận quà\n```', inline: false }
+                    { name: '🎁 Giftcode', value: '```\n.code          → Xem danh sách code\n.code <MÃ>     → Nhập code nhận quà\n```', inline: false },
+                    { name: '🎉 Thưởng Tự Động', value: '```\n• Mỗi 20 tin nhắn: 1-10 triệu\n• 1000 tin nhắn/tuần: 100-200 triệu\n```', inline: false }
                 ],
                 footer: { text: '🎮 Chúc bạn may mắn!' },
                 timestamp: new Date()
@@ -116,8 +123,8 @@ client.on('messageCreate', async (message) => {
                 title: '⚙️ BẢNG LỆNH ADMIN',
                 description: '**Quyền hạn quản trị viên**',
                 fields: [
-                    { name: '👥 Lệnh Người Chơi', value: '```\n.tx, .mcoin, .setbg, .sc, .tang, .dd\n.daily, .claimall, .mshop, .code\n```', inline: false },
-                    { name: '🎁 Quản Lý Giftcode', value: '```\n.giftcode [tiền] [giờ]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
+                    { name: '👥 Lệnh Người Chơi', value: '```\n.tx, .mcoin, .info, .setbg, .sc, .tang, .dd\n.daily, .claimall, .mshop, .code\n```', inline: false },
+                    { name: '🎁 Quản Lý Giftcode', value: '```\n.giftcode [tiền] [giờ]\n.code [tên] [tiền] [giờ]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
                     { name: '👑 Quản Lý VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n```', inline: false },
                     { name: '💰 Quản Lý Tiền', value: '```\n.donate @user [số]\n.resetquest @user\n```', inline: false },
                     { name: '🔧 Quản Lý Database', value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```', inline: false }
