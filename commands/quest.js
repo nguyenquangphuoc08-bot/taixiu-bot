@@ -1,7 +1,7 @@
 // commands/quest.js
 const { EmbedBuilder } = require('discord.js');
 const { getUser, saveDB } = require('../utils/database');
-const { checkAllQuestsCompleted, initDailyQuests, shouldReset } = require('../services/quest');
+const { checkAllQuestsCompleted, initDailyQuests, shouldReset, getTimeLeftToMidnightVN } = require('../services/quest');
 
 function formatNumber(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -17,14 +17,7 @@ async function handleDaily(message) {
 
     const quests = user.dailyQuests.quests;
 
-    // Thời gian reset tiếp theo (0h ngày mai)
-    const now = Date.now();
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    const timeLeft = tomorrow.getTime() - now;
-    const hours = Math.floor(timeLeft / (60 * 60 * 1000));
-    const minutes = Math.floor((timeLeft % (60 * 60 * 1000)) / (60 * 1000));
+    const timeLeftStr = getTimeLeftToMidnightVN();
 
     let questText = '';
     let completedCount = 0;
@@ -42,7 +35,7 @@ async function handleDaily(message) {
         .setTitle('📋 NHIỆM VỤ HẰNG NGÀY')
         .setColor('#9b59b6')
         .setThumbnail(message.author.displayAvatarURL({ extension: 'png', size: 256 }))
-        .setDescription(`**${message.author.username}** | 🔄 Reset sau: **${hours}h ${minutes}p**\n\n${questText}`)
+        .setDescription(`**${message.author.username}** | 🔄 Reset lúc 0h VN (còn **${timeLeftStr}**)\n\n${questText}`)
         .addFields(
             {
                 name: '🎁 Tổng thưởng',
@@ -50,7 +43,7 @@ async function handleDaily(message) {
                 inline: false
             }
         )
-        .setFooter({ text: `Hoàn thành: ${completedCount}/5 ${allDone ? '— Gõ .claimall để nhận!' : ''}` })
+        .setFooter({ text: `Hoàn thành: ${completedCount}/5 ${allDone ? '— Gõ .claimall để nhận!' : ''} | Reset 0h giờ VN` })
         .setTimestamp();
 
     if (allDone) {
@@ -103,3 +96,4 @@ async function handleClaimAll(message) {
 }
 
 module.exports = { handleDaily, handleClaimAll };
+
