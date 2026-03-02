@@ -14,11 +14,27 @@ function initDailyQuests() {
     };
 }
 
-// Kiểm tra đã qua 0h chưa (reset theo ngày thực, không phải 24h rolling)
+// Lấy mốc 0h theo giờ VN (UTC+7)
+function getTodayStartVN() {
+    const vnOffset = 7 * 60;
+    const utc = Date.now() + new Date().getTimezoneOffset() * 60000;
+    const vnNow = new Date(utc + vnOffset * 60000);
+    vnNow.setHours(0, 0, 0, 0);
+    return vnNow.getTime() - vnOffset * 60000;
+}
+
+function getTimeLeftToMidnightVN() {
+    const now = Date.now();
+    const nextMidnight = getTodayStartVN() + 24 * 60 * 60 * 1000;
+    const timeLeft = nextMidnight - now;
+    const hours = Math.floor(timeLeft / (60 * 60 * 1000));
+    const minutes = Math.floor((timeLeft % (60 * 60 * 1000)) / (60 * 1000));
+    return `${hours}h ${minutes}p`;
+}
+
+// Kiểm tra đã qua 0h VN chưa
 function shouldReset(lastReset) {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    return !lastReset || lastReset < todayStart.getTime();
+    return !lastReset || lastReset < getTodayStartVN();
 }
 
 function updateQuest(userId, questId, value = 1) {
@@ -56,4 +72,4 @@ function checkAllQuestsCompleted(userId) {
     return user.dailyQuests.quests.every(q => q.completed);
 }
 
-module.exports = { initDailyQuests, updateQuest, checkAllQuestsCompleted, shouldReset };
+module.exports = { initDailyQuests, updateQuest, checkAllQuestsCompleted, shouldReset, getTodayStartVN, getTimeLeftToMidnightVN };
