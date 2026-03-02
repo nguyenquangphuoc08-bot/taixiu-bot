@@ -10,22 +10,43 @@ function formatNumber(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
+// Lấy mốc 0h theo giờ VN (UTC+7)
+function getTodayStartVN() {
+    const now = new Date();
+    const vnOffset = 7 * 60; // phút
+    const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+    const vnNow = new Date(utc + vnOffset * 60000);
+    vnNow.setHours(0, 0, 0, 0);
+    // Chuyển lại về timestamp UTC
+    return vnNow.getTime() - vnOffset * 60000;
+}
+
+function getTimeLeftToMidnightVN() {
+    const now = Date.now();
+    const todayStart = getTodayStartVN();
+    const nextMidnight = todayStart + 24 * 60 * 60 * 1000;
+    const timeLeft = nextMidnight - now;
+    const hours = Math.floor(timeLeft / (60 * 60 * 1000));
+    const minutes = Math.floor((timeLeft % (60 * 60 * 1000)) / (60 * 1000));
+    return `${hours}h ${minutes}p`;
+}
+
 // ============================================
 // ✏️ CHỈNH SỐ THƯỞNG Ở ĐÂY
 // Nếu min === max → cố định (không random)
 // Nếu min < max   → random trong khoảng đó
 // ============================================
 const VIP_DAILY_REWARDS = {
-    1:  { min: 1_000_000,    max: 1_000_000    },  // VIP 1:  chỉnh ở đây
-    2:  { min: 10_000_000,    max: 20_000_000    },  // VIP 2:  chỉnh ở đây
-    3:  { min: 30_000_000,    max: 50_000_000    },  // VIP 3:  chỉnh ở đây
-    4:  { min: 50_000_000,    max: 100_000_000    },  // VIP 4:  chỉnh ở đây
-    5:  { min: 150_000_000,    max: 150_000_000    },  // VIP 5:  chỉnh ở đây
-    6:  { min: 175_000_000,    max: 200_000_000    },  // VIP 6:  chỉnh ở đây
-    7:  { min: 250_000_000,    max: 250_000_000    },  // VIP 7:  chỉnh ở đây
-    8:  { min: 300_000_000,    max: 300_000_000    },  // VIP 8:  chỉnh ở đây
-    9:  { min: 350_000_000,    max: 350_000_000    },  // VIP 9:  chỉnh ở đây
-    10: { min: 500_000_000,   max: 1_000_000_000 },  // VIP 10: 500M ~ 1B random
+    1:  { min: 10_000_000,    max: 15_000_000    },  // VIP 1:  chỉnh ở đây
+    2:  { min: 20_000_000,    max: 25_000_000    },  // VIP 2:  chỉnh ở đây
+    3:  { min: 30_000_000,    max: 30_000_000    },  // VIP 3:  chỉnh ở đây
+    4:  { min: 40_000_000,    max: 40_000_000    },  // VIP 4:  chỉnh ở đây
+    5:  { min: 70_000_000,    max: 90_000_000    },  // VIP 5:  chỉnh ở đây
+    6:  { min: 100_000_000,    max: 150_000_000    },  // VIP 6:  chỉnh ở đây
+    7:  { min: 200_000_000,    max: 300_000_000    },  // VIP 7:  chỉnh ở đây
+    8:  { min: 300_000_000,    max: 500_000_000    },  // VIP 8:  chỉnh ở đây
+    9:  { min: 500_000_000,    max: 1_000_000_000    },  // VIP 9:  chỉnh ở đây
+    10: { min: 1_000_000_000,   max: 5_000_000_000 },  // VIP 10: 500M ~ 1B random
 };
 // ============================================
 
