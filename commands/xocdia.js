@@ -2,7 +2,7 @@
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
-const { createXDResult } = require('../utils/canvasXD');
+const { createXDLift, createXDResult } = require('../utils/canvasXD');
 const { updateQuest } = require('../services/quest');
 
 let xdSession = null;
@@ -155,12 +155,41 @@ async function animateXDResult(sentMessage) {
         const isTriple = jdice[0] === jdice[1] && jdice[1] === jdice[2];
         const isJackpot = isTriple && Math.random() * 100 < getJackpotChance(jp);
 
-        const loadEmbed = new EmbedBuilder()
+        // Animation bat nang len giong .tx
+        const animEmbed = new EmbedBuilder()
             .setTitle(`🎲 PHIÊN #${num} - ĐANG LẮC...`)
             .setColor('#e74c3c')
-            .setDescription('🔄 **Đĩa đang quay...**');
-        await sentMessage.edit({ embeds: [loadEmbed], components: [] }).catch(() => {});
-        await sleep(1500);
+            .setDescription('🔄 **Đĩa đang xóc...**');
+
+        // Frame 1: bat up kin
+        const frame1 = createXDLift(beads, 0);
+        const msg1 = await sentMessage.channel.send({
+            embeds: [animEmbed],
+            files: [new AttachmentBuilder(frame1, { name: 'xd_anim.png' })]
+        });
+        await sentMessage.edit({ embeds: [], content: '🎲 Đang xóc...', components: [] }).catch(() => {});
+        await sleep(600);
+
+        // Frame 2: bat nang 1/3
+        const frame2 = createXDLift(beads, 33);
+        animEmbed.setDescription('🔄 **Đang mở...**');
+        await msg1.edit({ embeds: [animEmbed.setImage('attachment://xd_anim2.png')], files: [new AttachmentBuilder(frame2, { name: 'xd_anim2.png' })] }).catch(() => {});
+        await sleep(600);
+
+        // Frame 3: bat nang 2/3
+        const frame3 = createXDLift(beads, 66);
+        animEmbed.setDescription('👀 **Sắp lộ rồi...**');
+        await msg1.edit({ embeds: [animEmbed.setImage('attachment://xd_anim3.png')], files: [new AttachmentBuilder(frame3, { name: 'xd_anim3.png' })] }).catch(() => {});
+        await sleep(600);
+
+        // Frame 4: bat bay het
+        const frame4 = createXDLift(beads, 100);
+        animEmbed.setDescription('✨ **Lộ kết quả!**');
+        await msg1.edit({ embeds: [animEmbed.setImage('attachment://xd_anim4.png')], files: [new AttachmentBuilder(frame4, { name: 'xd_anim4.png' })] }).catch(() => {});
+        await sleep(500);
+
+        // Xoa tin nhan animation
+        await msg1.delete().catch(() => {});
 
         if (!database.xdHistory) database.xdHistory = [];
         database.xdHistory.push({ red: result.red, white: result.white, timestamp: Date.now() });
@@ -277,15 +306,18 @@ async function handleXDButton(interaction) {
     if (!xdSession) return interaction.reply({ content: '❌ Không có phiên xóc đĩa!', ephemeral: true });
     if (xdSession.bets[interaction.user.id]) return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', ephemeral: true });
 
+    const userModal = getUser(interaction.user.id);
+    const balanceLabel = userModal.balance.toLocaleString('vi-VN');
+
     const modal = new ModalBuilder()
         .setCustomId(`xd_modal_${betType}`)
         .setTitle(`Đặt cược ${BET_TYPES[betType].label}`);
     const input = new TextInputBuilder()
         .setCustomId('xd_amount')
-        .setLabel('Số tiền cược (VD: 1m, 500k, 1b)')
+        .setLabel(`💰 ${balanceLabel} Mcoin`)
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
-        .setPlaceholder('Nhập số tiền...');
+        .setPlaceholder('Nhập số tiền... (VD: 1m, 500k, 1b)');
     modal.addComponents(new ActionRowBuilder().addComponents(input));
     await interaction.showModal(modal);
 }
