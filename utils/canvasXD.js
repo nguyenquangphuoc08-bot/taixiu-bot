@@ -81,12 +81,10 @@ function drawPlate(ctx, cx, cy, plateRadius) {
 
 // Ve bat up (giong bowl trong .tx)
 function drawCover(ctx, cx, cy, coverRadius) {
-    // Bong
     ctx.shadowColor = 'rgba(0,0,0,0.4)';
     ctx.shadowBlur = 15;
     ctx.shadowOffsetY = 5;
 
-    // Than bat - mau nau giong .tx
     const coverGrad = ctx.createRadialGradient(cx-30, cy-30, 10, cx, cy, coverRadius);
     coverGrad.addColorStop(0, '#A0694F');
     coverGrad.addColorStop(0.5, '#8B5A3C');
@@ -99,12 +97,10 @@ function drawCover(ctx, cx, cy, coverRadius) {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
 
-    // Vien bat
     ctx.strokeStyle = '#A0694F';
     ctx.lineWidth = 6;
     ctx.stroke();
 
-    // Highlight bat
     ctx.fillStyle = 'rgba(255,255,255,0.25)';
     ctx.beginPath();
     ctx.arc(cx - coverRadius*0.3, cy - coverRadius*0.3, coverRadius*0.35, 0, Math.PI * 2);
@@ -118,7 +114,6 @@ function createXDLift(beads, liftPercent = 0) {
         const canvas = createCanvas(W, H);
         const ctx = canvas.getContext('2d');
 
-        // Nen xanh la giong .tx
         ctx.fillStyle = '#2d8a4f';
         ctx.fillRect(0, 0, W, H);
 
@@ -127,10 +122,8 @@ function createXDLift(beads, liftPercent = 0) {
         const plateRadius = 130;
         const coverRadius = 120;
 
-        // Ve dia truoc
         drawPlate(ctx, cx, plateY, plateRadius);
 
-        // Ve 4 hat tren dia (luon hien)
         const beadRadius = 22;
         const spread = 38;
         const positions = [
@@ -143,13 +136,11 @@ function createXDLift(beads, liftPercent = 0) {
             drawBead(ctx, positions[i].x, positions[i].y, beadRadius, color === 'red');
         });
 
-        // Ve bat up - nang dan len theo liftPercent
-        const maxLift = 250; // px nang len toi da
+        const maxLift = 250;
         const liftAmount = (liftPercent / 100) * maxLift;
         const coverY = plateY - liftAmount;
 
         if (liftPercent < 100) {
-            // Bong bat
             ctx.shadowColor = 'rgba(0,0,0,0.3)';
             ctx.shadowBlur = 10;
             ctx.shadowOffsetY = 6;
@@ -178,7 +169,6 @@ function createXDResult(beads) {
         const canvas = createCanvas(W, H);
         const ctx = canvas.getContext('2d');
 
-        // Nen gradient toi
         const bg = ctx.createLinearGradient(0, 0, W, H);
         bg.addColorStop(0, '#1a1a2e');
         bg.addColorStop(0.5, '#16213e');
@@ -212,17 +202,16 @@ function createXDResult(beads) {
             drawBead(ctx, positions[i].x, positions[i].y, beadRadius, color === 'red');
         });
 
-        // Label
         ctx.shadowBlur = 0;
         ctx.textAlign = 'center';
 
         let label = '';
         let labelColor = '#f1c40f';
-        if (red === 4)        { label = '4 Do - BO TU DO!';      labelColor = '#e74c3c'; }
-        else if (white === 4) { label = '4 Trang - BO TU TRANG!'; labelColor = '#ecf0f1'; }
-        else if (red === 3)   { label = '3 Do  1 Trang';          labelColor = '#e67e22'; }
-        else if (white === 3) { label = '3 Trang  1 Do';          labelColor = '#bdc3c7'; }
-        else                  { label = '2 Do  2 Trang - CHAN';    labelColor = '#f1c40f'; }
+        if (red === 4)        { label = '4 Do - Bo Tu Do!';       labelColor = '#e74c3c'; }
+        else if (white === 4) { label = '4 Trang - Bo Tu Trang!';  labelColor = '#f0f0f0'; }
+        else if (red === 3)   { label = '3 Do 1 Trang';            labelColor = '#e67e22'; }
+        else if (white === 3) { label = '3 Trang 1 Do';            labelColor = '#d0d0d0'; }
+        else                  { label = '2 Do 2 Trang - Chan';      labelColor = '#f1c40f'; }
 
         ctx.fillStyle = 'rgba(0,0,0,0.45)';
         ctx.beginPath();
