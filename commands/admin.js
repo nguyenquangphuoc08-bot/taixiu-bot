@@ -1,4 +1,4 @@
-// commands/admin.js - HỖ TRỢ UNLIMITED GIFTCODE
+// commands/admin.js
 
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, DB_PATH, getUser } = require('../utils/database');
@@ -14,6 +14,112 @@ function parseAmount(str) {
     if (str.endsWith('m')) return parseFloat(str) * 1000000;
     if (str.endsWith('b')) return parseFloat(str) * 1000000000;
     return parseInt(str);
+}
+
+// ========================================
+// 🚫 BLOCK LỆNH THEO KÊNH
+// ========================================
+
+// database.blockedCommands = { channelId: ['.xd', '.tx', ...] }
+
+async function handleBlock(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+
+    // .block → xem danh sách đang block
+    if (!args[1]) {
+        if (!database.blockedCommands) database.blockedCommands = {};
+        const channelId = message.channel.id;
+        const blocked = database.blockedCommands[channelId] || [];
+
+        if (blocked.length === 0) {
+            return message.reply(`📋 Kênh này chưa block lệnh nào.\n\n**Cách dùng:**\n\`.block .xd .tx .sc\` → Block lệnh\n\`.unblock .xd\` → Bỏ block lệnh\n\`.unblock all\` → Bỏ tất cả`);
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle('🚫 LỆNH BỊ BLOCK TRONG KÊNH NÀY')
+            .setColor('#e74c3c')
+            .setDescription(blocked.map(c => `• \`${c}\``).join('\n'))
+            .setFooter({ text: `Kênh: #${message.channel.name}` })
+            .setTimestamp();
+
+        return message.reply({ embeds: [embed] });
+    }
+
+    // .block .xd .tx ... → block các lệnh
+    const cmdsToBlock = args.slice(1).map(c => c.toLowerCase().startsWith('.') ? c.toLowerCase() : '.' + c.toLowerCase());
+
+    if (!database.blockedCommands) database.blockedCommands = {};
+    if (!database.blockedCommands[message.channel.id]) database.blockedCommands[message.channel.id] = [];
+
+    const added = [];
+    const already = [];
+
+    for (const cmd of cmdsToBlock) {
+        if (!database.blockedCommands[message.channel.id].includes(cmd)) {
+            database.blockedCommands[message.channel.id].push(cmd);
+            added.push(cmd);
+        } else {
+            already.push(cmd);
+        }
+    }
+
+    saveDB();
+
+    let msg = '';
+    if (added.length > 0) msg += `✅ Đã block: ${added.map(c => `\`${c}\``).join(', ')}\n`;
+    if (already.length > 0) msg += `⚠️ Đã block rồi: ${already.map(c => `\`${c}\``).join(', ')}`;
+
+    return message.reply(msg || '❌ Không có gì thay đổi!');
+}
+
+async function handleUnblock(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+
+    if (!database.blockedCommands) database.blockedCommands = {};
+    const channelId = message.channel.id;
+
+    if (!args[1]) return message.reply('❌ Sử dụng: `.unblock .xd` hoặc `.unblock all`');
+
+    // .unblock all → bỏ hết
+    if (args[1].toLowerCase() === 'all') {
+        database.blockedCommands[channelId] = [];
+        saveDB();
+        return message.reply('✅ Đã bỏ block tất cả lệnh trong kênh này!');
+    }
+
+    const cmdsToUnblock = args.slice(1).map(c => c.toLowerCase().startsWith('.') ? c.toLowerCase() : '.' + c.toLowerCase());
+
+    if (!database.blockedCommands[channelId]) {
+        return message.reply('📋 Kênh này chưa block lệnh nào!');
+    }
+
+    const removed = [];
+    const notFound = [];
+
+    for (const cmd of cmdsToUnblock) {
+        const idx = database.blockedCommands[channelId].indexOf(cmd);
+        if (idx !== -1) {
+            database.blockedCommands[channelId].splice(idx, 1);
+            removed.push(cmd);
+        } else {
+            notFound.push(cmd);
+        }
+    }
+
+    saveDB();
+
+    let msg = '';
+    if (removed.length > 0) msg += `✅ Đã bỏ block: ${removed.map(c => `\`${c}\``).join(', ')}\n`;
+    if (notFound.length > 0) msg += `⚠️ Không tìm thấy: ${notFound.map(c => `\`${c}\``).join(', ')}`;
+
+    return message.reply(msg || '❌ Không có gì thay đổi!');
+}
+
+// Hàm check block - dùng trong index.js
+function isCommandBlocked(channelId, cmd) {
+    if (!database.blockedCommands) return false;
+    const blocked = database.blockedCommands[channelId] || [];
+    return blocked.includes(cmd.toLowerCase());
 }
 
 // ========================================
@@ -52,7 +158,6 @@ async function handleCreateGiftcode(message, args) {
 async function handleCode(message, args) {
     const code = args[1]?.toUpperCase();
 
-    // ===== ADMIN TẠO CODE =====
     if (message.author.id === ADMIN_ID && code && args[2]) {
         const amountStr = args[2];
         let maxUses = args[3] ? (args[3].toLowerCase() === 'unlimit' ? -1 : parseInt(args[3])) : 100;
@@ -79,7 +184,6 @@ async function handleCode(message, args) {
         return message.reply({ embeds: [embed] });
     }
 
-    // ===== HIỆN DANH SÁCH CODE =====
     if (!code) {
         const { ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
         const activeCodes = giftcode.listActiveCodes();
@@ -117,7 +221,6 @@ async function handleCode(message, args) {
         return message.reply({ embeds: [embed], components: rows.slice(0, 5) });
     }
 
-    // ===== NHẬP CODE =====
     const result = giftcode.redeemGiftcode(code, message.author.id);
     if (!result.success) return message.reply(result.message);
 
@@ -233,7 +336,7 @@ async function handleNoHu(message) {
     const embed = new EmbedBuilder()
         .setTitle('🎲 ĐÃ KÍCH HOẠT .NOHU!')
         .setColor('#FFD700')
-        .setDescription(`✅ **Ván TX tiếp theo xúc xắc sẽ ra bộ ba (111/222/.../666)!**\n\n🎰 Xác suất nổ hũ: **${chanceText}** (dựa theo hũ hiện tại)\n💰 Hũ hiện tại: **${currentJackpot.toLocaleString('en-US')}**\n\n⚠️ Tự động tắt sau ván đó.`)
+        .setDescription(`✅ **Ván TX tiếp theo xúc xắc sẽ ra bộ ba!**\n\n🎰 Xác suất nổ hũ: **${chanceText}**\n💰 Hũ hiện tại: **${currentJackpot.toLocaleString('en-US')}**\n\n⚠️ Tự động tắt sau ván đó.`)
         .setTimestamp();
 
     await message.reply({ embeds: [embed] });
@@ -336,7 +439,8 @@ async function handleDbInfo(message) {
         .addFields(
             { name: 'Người chơi', value: `${totalUsers}`, inline: true },
             { name: 'Tổng tiền', value: `${totalBalance.toLocaleString('en-US')}`, inline: true },
-            { name: 'Hũ', value: `${(database.jackpot || 0).toLocaleString('en-US')}`, inline: true }
+            { name: 'Hũ TX', value: `${(database.jackpot || 0).toLocaleString('en-US')}`, inline: true },
+            { name: 'Hũ XD', value: `${(database.xdJackpot || 0).toLocaleString('en-US')}`, inline: true }
         )
         .setTimestamp();
 
@@ -421,5 +525,9 @@ module.exports = {
     handleBackup,
     handleBackupNow,
     handleRestore,
-    handleRestoreFile
+    handleRestoreFile,
+    handleBlock,
+    handleUnblock,
+    isCommandBlocked
 };
+
