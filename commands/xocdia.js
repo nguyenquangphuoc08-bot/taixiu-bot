@@ -42,7 +42,7 @@ function getResult(beads) {
     return {
         red, white,
         isChan:     red === 2,
-        isLe:       red !== 2,
+        isLe:       red === 1 || red === 3,  // Le: dung 1 hoac 3 hat do
         isBonDo:    red === 4,
         isBonTrang: white === 4,
         isBaDo:     red === 3,
@@ -350,7 +350,7 @@ async function handleXDModal(interaction) {
     if (!BET_TYPES[betType]) return;
     if (!interaction.deferred && !interaction.replied) await interaction.deferReply({ ephemeral: true });
     if (!xdSession) return interaction.editReply('❌ Phiên đã kết thúc!');
-    if (xdSession.bets[interaction.user.id]) return interaction.editReply('❌ Bạn đã đặt cược rồi!');
+    // Khong can check o day, da check trong handleXDButton roi
 
     const amount = parseAmount(interaction.fields.getTextInputValue('xd_amount'));
     if (!amount || amount < 1000) return interaction.editReply('❌ Tối thiểu 1,000 Mcoin!');
