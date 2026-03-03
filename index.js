@@ -13,7 +13,8 @@ const { handleMcoin, handleSetBg, handleTang, handleDiemDanh, handleInfo, update
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { handleDbInfo, handleBackup, handleBackupNow, handleRestore, handleRestoreFile,
         handleSendCode, handleGiveVip, handleRemoveVip, handleGiveTitle, handleNoHu,
-        handleCreateGiftcode, handleCode, handleDeleteCode, handleDeleteAllCodes, handleDonate, handleResetQuest } = require('./commands/admin');
+        handleCreateGiftcode, handleCode, handleDeleteCode, handleDeleteAllCodes, handleDonate, handleResetQuest,
+        handleBlock, handleUnblock, isCommandBlocked } = require('./commands/admin');
 const { handleMShop } = require('./commands/shop');
 const { handleButtonClick } = require('./handlers/buttonHandler');
 const { handleVipBonus } = require('./services/vipbonus');
@@ -62,6 +63,12 @@ client.on('messageCreate', async (message) => {
     const cmd = args[0].toLowerCase();
 
     try {
+        // .block và .unblock luôn chạy được (admin)
+        if (cmd === '.block')   return handleBlock(message, args);
+        if (cmd === '.unblock') return handleUnblock(message, args);
+
+        // Check lệnh có bị block trong kênh này không
+        if (isCommandBlocked(message.channel.id, cmd)) return;
         if (cmd === '.ping')       return message.reply(`🏓 Pong ${client.ws.ping}ms`);
         if (cmd === '.tx')         return handleTaiXiu(message, client);
         if (cmd === '.xd')         return handleXocDia(message);
@@ -118,6 +125,7 @@ client.on('messageCreate', async (message) => {
                 fields: [
                     { name: '🎁 Quản Lý Giftcode', value: '```\n.giftcode [tên] [tiền] [lượt] [giờ]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
                     { name: '👑 Quản Lý VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n.nohu  → Ván TX tiếp theo ra bộ ba\n```', inline: false },
+                    { name: '🚫 Block Lệnh', value: '```\n.block .xd .tx   → Block lệnh trong kênh\n.block           → Xem lệnh đang block\n.unblock .xd     → Bỏ block lệnh\n.unblock all     → Bỏ tất cả\n```', inline: false },
                     { name: '💰 Quản Lý Tiền & Quest', value: '```\n.donate @user [số]\n.resetquest @user\n```', inline: false },
                     { name: '🔧 Database', value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```', inline: false }
                 ],
