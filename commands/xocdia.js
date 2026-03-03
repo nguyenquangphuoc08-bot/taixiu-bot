@@ -8,8 +8,8 @@ const { updateQuest } = require('../services/quest');
 let xdSession = null;
 
 const BET_TYPES = {
-    chan:       { label: 'Chẵn (2Đ2T)',     multi: 2.0  },
-    le:         { label: 'Lẻ (1 hoặc 3Đ)', multi: 2.0  },
+    chan:       { label: 'Chẵn',     multi: 2.0  },
+    le:         { label: 'Lẻ', multi: 2.0  },
     bon_do:     { label: '4🔴',             multi: 20.0 },
     bon_trang:  { label: '4⚪',             multi: 20.0 },
     ba_do:      { label: '3🔴 1⚪',         multi: 4.0  },
@@ -64,6 +64,17 @@ function cleanupXDSession() { xdSession = null; }
 // ============================================
 // LENH .XD
 // ============================================
+
+function getXDSoiCau() {
+    if (!database.xdHistory || database.xdHistory.length === 0) return '_(Chưa có dữ liệu)_';
+    const last = database.xdHistory.slice(-20);
+    return last.map(h => {
+        const red = h.red;
+        if (red % 2 === 0) return '🔴'; // Chan
+        return '⚪';                      // Le
+    }).join('');
+}
+
 async function handleXocDia(message) {
     if (xdSession) return message.reply('⏳ Đang có phiên xóc đĩa!');
 
@@ -81,6 +92,7 @@ async function handleXocDia(message) {
         .setTitle(`🎲 XÓC ĐĨA #${num}`)
         .setColor('#e74c3c')
         .setDescription(
+            `📊 **SOI CẦU:** ${getXDSoiCau()} _(🔴 Chẵn | ⚪ Lẻ)_\n\n` +
             `**TỈ LỆ CƯỢC**\n` +
             `• **Chẵn / Lẻ:** x2\n` +
             `• **3🔴1⚪ / 3⚪1🔴:** x4\n` +
