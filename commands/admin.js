@@ -9,11 +9,13 @@ const https = require('https');
 const { ADMIN_ID } = require('../config');
 
 function parseAmount(str) {
-    str = str.toLowerCase().trim();
+    if (!str) return NaN;
+    str = str.toString().toLowerCase().trim().replace(/[,._]/g, '');
     if (str.endsWith('k')) return parseFloat(str) * 1000;
     if (str.endsWith('m')) return parseFloat(str) * 1000000;
-    if (str.endsWith('b')) return parseFloat(str) * 1000000000;
-    return parseInt(str);
+    if (str.endsWith('b') || str.endsWith('t')) return parseFloat(str) * 1000000000;
+    const n = parseFloat(str);
+    return isNaN(n) ? NaN : n;
 }
 
 // ========================================
