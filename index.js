@@ -17,6 +17,7 @@ const { handleDbInfo, handleBackup, handleBackupNow, handleRestore, handleRestor
 const { handleMShop, buyVipPackage, buyTitle } = require('./commands/shop');
 const { handleButtonClick } = require('./handlers/buttonHandler');
 const { handleVipBonus } = require('./services/vipbonus');
+const { handleXocDia, handleXDButton, handleXDModal } = require('./commands/xocdia');
 
 if (!TOKEN) process.exit(1);
 
@@ -70,6 +71,7 @@ client.on('messageCreate', async (message) => {
     try {
         if (cmd === '.ping')      return message.reply(`🏓 Pong ${client.ws.ping}ms`);
         if (cmd === '.tx')        return handleTaiXiu(message, client);
+        if (cmd === '.xd')        return handleXocDia(message);
         if (cmd === '.sc')        return handleSoiCau(message);
         if (cmd === '.mcoin')     return handleMcoin(message);
         if (cmd === '.info')      return handleInfo(message);
@@ -105,7 +107,7 @@ client.on('messageCreate', async (message) => {
                 title: '📋 HƯỚNG DẪN SỬ DỤNG BOT',
                 description: '**Chào mừng bạn đến với hệ thống Tài Xỉu!**',
                 fields: [
-                    { name: '🎲 Game', value: '```\n.tx          → Bắt đầu phiên cược Tài Xỉu\n.sc          → Xem lịch sử kết quả\n```', inline: false },
+                    { name: '🎲 Game', value: '```\n.tx   → Tài Xỉu (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n.xd   → Xóc Đĩa (Chẵn/Lẻ/3🔴1⚪/4🔴)\\.sc   → Xem lịch sử kết quả\n```', inline: false },
                     { name: '👤 Tài Khoản', value: '```\n.mcoin       → Xem profile & số dư\n.info        → Thống kê hoạt động\n.setbg       → Đặt ảnh nền profile\n.dd          → Điểm danh (8h/lần)\n```', inline: false },
                     { name: '🎁 Nhiệm Vụ & Quà', value: '```\n.daily       → Xem nhiệm vụ hằng ngày\n.claimall    → Nhận hết thưởng nhiệm vụ\n```', inline: false },
                     { name: '👑 VIP', value: '```\n.mshop       → Mua VIP & danh hiệu\n.vipbonus    → Nhận thưởng VIP hằng ngày\n```', inline: false },
@@ -271,3 +273,4 @@ process.on('SIGTERM', async () => {
 });
 
 client.login(TOKEN);
+
