@@ -5,7 +5,7 @@ process.removeAllListeners('warning');
 const http = require('http');
 const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
-const { saveDB, getUser } = require('./utils/database');
+const { saveDB, getUser, resetDailyTop } = require('./utils/database');
 const { autoBackup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
 const { handleTaiXiu, handleSoiCau, getBettingSession, cleanupSession } = require("./commands/game");
@@ -14,11 +14,12 @@ const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { handleDbInfo, handleBackup, handleBackupNow, handleRestore, handleRestoreFile,
         handleSendCode, handleGiveVip, handleRemoveVip, handleGiveTitle, handleNoHu,
         handleCreateGiftcode, handleCode, handleDeleteCode, handleDeleteAllCodes, handleDonate, handleResetQuest,
-        handleBlock, handleUnblock, isCommandBlocked } = require('./commands/admin');
+        handleBlock, handleUnblock, isCommandBlocked, handleNoXocDia } = require('./commands/admin');
 const { handleMShop } = require('./commands/shop');
 const { handleButtonClick } = require('./handlers/buttonHandler');
 const { handleVipBonus } = require('./services/vipbonus');
-const { handleXocDia, handleXDButton, handleXDModal } = require('./commands/xocdia');
+const { handleXocDia, handleXDButton, handleXDModal, setForceXDJackpot } = require('./commands/xocdia');
+const { handleTop } = require('./commands/top');
 
 if (!TOKEN) process.exit(1);
 
@@ -43,6 +44,15 @@ client.once('ready', async () => {
     try { await restoreInterruptedSession(client); } catch {}
 });
 
+// Reset 0h VN moi phut
+setInterval(() => {
+    const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    if (vnNow.getUTCHours() === 0 && vnNow.getUTCMinutes() === 0) {
+        console.log('🏆 Phat thuong top & reset...');
+        resetDailyTop(client).catch(err => console.error('resetDailyTop error:', err));
+    }
+}, 60000);
+
 // ===== MESSAGE =====
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
@@ -63,16 +73,18 @@ client.on('messageCreate', async (message) => {
     const cmd = args[0].toLowerCase();
 
     try {
-        // .block và .unblock luôn chạy được (admin)
+        // .block va .unblock luon chay duoc (admin)
         if (cmd === '.block')   return handleBlock(message, args);
         if (cmd === '.unblock') return handleUnblock(message, args);
 
-        // Check lệnh có bị block trong kênh này không
+        // Check lenh co bi block trong kenh nay khong
         if (isCommandBlocked(message.channel.id, cmd)) return;
+
         if (cmd === '.ping')       return message.reply(`🏓 Pong ${client.ws.ping}ms`);
         if (cmd === '.tx')         return handleTaiXiu(message, client);
         if (cmd === '.xd')         return handleXocDia(message);
         if (cmd === '.sc')         return handleSoiCau(message);
+        if (cmd === '.top')        return handleTop(message);
         if (cmd === '.mcoin')      return handleMcoin(message);
         if (cmd === '.info')       return handleInfo(message);
         if (cmd === '.setbg')      return handleSetBg(message, args);
@@ -97,6 +109,7 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.donate')     return handleDonate(message, args);
         if (cmd === '.resetquest') return handleResetQuest(message, args);
         if (cmd === '.nohu')       return handleNoHu(message);
+        if (cmd === '.noxocdia')   return handleNoXocDia(message);
         if (cmd === '.restart' && message.author.id === ADMIN_ID) process.exit(0);
 
         if (cmd === '.help') {
@@ -107,13 +120,14 @@ client.on('messageCreate', async (message) => {
                 title: '📋 HƯỚNG DẪN SỬ DỤNG BOT',
                 description: '**Chào mừng bạn đến với hệ thống Tài Xỉu!**',
                 fields: [
-                    { name: '🎲 Game', value: '```\n.tx  → Tài Xỉu (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n.xd  → Xóc Đĩa (Chẵn/Lẻ/3🔴1⚪/4🔴)\n.sc  → Xem lịch sử kết quả\n```', inline: false },
+                    { name: '🎲 Game', value: '```\n.tx   → Tài Xỉu (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n.xd   → Xóc Đĩa (Chẵn/Lẻ/3🔴1⚪/4🔴)\n.sc   → Xem lịch sử kết quả\n.top  → Bảng xếp hạng thắng hôm nay\n```', inline: false },
                     { name: '👤 Tài Khoản', value: '```\n.mcoin       → Xem profile & số dư\n.info        → Thống kê hoạt động\n.setbg       → Đặt ảnh nền profile\n.dd          → Điểm danh hằng ngày\n```', inline: false },
                     { name: '🎁 Nhiệm Vụ & Quà', value: '```\n.daily       → Xem nhiệm vụ hằng ngày\n.claimall    → Nhận hết thưởng nhiệm vụ\n```', inline: false },
                     { name: '👑 VIP', value: '```\n.mshop       → Mua VIP & danh hiệu\n.vipbonus    → Nhận thưởng VIP hằng ngày\n```', inline: false },
                     { name: '💸 Giao Dịch', value: '```\n.tang @user [số] → Tặng tiền cho người khác\n```', inline: false },
                     { name: '🎁 Giftcode', value: '```\n.code            → Xem danh sách giftcode\n.code <MÃ>       → Nhập code nhận quà\n```', inline: false },
-                    { name: '🎉 Thưởng Tự Động', value: '```\n• Mỗi 20 tin nhắn:     1 - 10 triệu\n• 1000 tin nhắn/tuần:  100 - 200 triệu\n```', inline: false }
+                    { name: '🎉 Thưởng Tự Động', value: '```\n• Mỗi 20 tin nhắn:     1 - 10 triệu\n• 1000 tin nhắn/tuần:  100 - 200 triệu\n```', inline: false },
+                    { name: '🏆 Top Thắng', value: '```\nTop 1 TX/XD: +100m | Top 2: +50m\nTop 3: +30m | Top 4-5: +15m\nReset & phát thưởng lúc 0h VN\n```', inline: false }
                 ],
                 footer: { text: '🎮 Chúc bạn may mắn! | Reset nhiệm vụ lúc 0h mỗi ngày' },
                 timestamp: new Date()
@@ -124,7 +138,7 @@ client.on('messageCreate', async (message) => {
                 title: '⚙️ BẢNG LỆNH ADMIN',
                 fields: [
                     { name: '🎁 Quản Lý Giftcode', value: '```\n.giftcode [tên] [tiền] [lượt] [giờ]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
-                    { name: '👑 Quản Lý VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n.nohu  → Ván TX tiếp theo ra bộ ba\n```', inline: false },
+                    { name: '👑 Quản Lý VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n.nohu       → Ván TX tiếp theo ra bộ ba\n.noxocdia   → Ván XD tiếp theo ra bộ ba\n```', inline: false },
                     { name: '🚫 Block Lệnh', value: '```\n.block .xd .tx   → Block lệnh trong kênh\n.block           → Xem lệnh đang block\n.unblock .xd     → Bỏ block lệnh\n.unblock all     → Bỏ tất cả\n```', inline: false },
                     { name: '💰 Quản Lý Tiền & Quest', value: '```\n.donate @user [số]\n.resetquest @user\n```', inline: false },
                     { name: '🔧 Database', value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```', inline: false }
@@ -149,16 +163,13 @@ client.on('messageCreate', async (message) => {
 // ===== INTERACTION =====
 client.on('interactionCreate', async (interaction) => {
     try {
-        // ===== BUTTON & SELECT MENU =====
         if (interaction.isButton() || interaction.isStringSelectMenu()) {
 
-            // Copy code button
             if (interaction.isButton() && interaction.customId.startsWith('copy_code_')) {
                 const code = interaction.customId.replace('copy_code_', '');
                 return interaction.reply({ content: `.code ${code}`, ephemeral: true });
             }
 
-            // Admin give title
             if (interaction.isStringSelectMenu() && interaction.customId === 'admin_givetitle') {
                 if (interaction.user.id !== ADMIN_ID) {
                     return interaction.reply({ content: '❌ Chỉ admin!', ephemeral: true });
@@ -179,7 +190,7 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.update({ content: `✅ Đã cấp **${title.titleName}** cho <@${targetUserId}>!`, embeds: [], components: [] });
             }
 
-            // ===== XD BUTTONS - check TRƯỚC handleButtonClick =====
+            // XD Buttons
             if (interaction.isButton() && interaction.customId.startsWith('xd_')) {
                 return await handleXDButton(interaction);
             }
@@ -188,10 +199,8 @@ client.on('interactionCreate', async (interaction) => {
             return await handleButtonClick(interaction, getBettingSession());
         }
 
-        // ===== MODAL SUBMIT =====
         if (interaction.isModalSubmit()) {
-
-            // ===== XD MODAL - check TRƯỚC TX modal =====
+            // XD Modal
             if (interaction.customId.startsWith('xd_modal_')) {
                 return await handleXDModal(interaction);
             }
