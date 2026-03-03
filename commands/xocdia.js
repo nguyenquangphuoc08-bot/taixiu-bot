@@ -6,6 +6,9 @@ const { createXDLift, createXDResult } = require('../utils/canvasXD');
 const { updateQuest } = require('../services/quest');
 
 let xdSession = null;
+let forceXDJackpot = false;
+
+function setForceXDJackpot(val) { forceXDJackpot = val; }
 
 const BET_TYPES = {
     chan:       { label: 'Chẵn',     multi: 2.0  },
@@ -165,7 +168,12 @@ async function animateXDResult(sentMessage) {
 
         const beads = rollBeads();
         const result = getResult(beads);
-        const jdice = rollJackpotDice();
+        let jdice = rollJackpotDice();
+        if (forceXDJackpot) {
+            const n = Math.floor(Math.random() * 6) + 1;
+            jdice = [n, n, n];
+            forceXDJackpot = false;
+        }
         const isTriple = jdice[0] === jdice[1] && jdice[1] === jdice[2];
         const isJackpot = isTriple && Math.random() * 100 < getJackpotChance(jp);
 
@@ -241,6 +249,7 @@ async function animateXDResult(sentMessage) {
                     const tb = user.titleBonus?.betBonus || 0;
                     if (tb > 0) winAmt += Math.floor(winAmt * tb / 100);
                     user.balance += winAmt;
+                    user.xdWinningsToday = (user.xdWinningsToday || 0) + winAmt;
                     userWon = true;
                     userLines.push(`${lbl}: ${fmt(amount)} ✅ (+${fmt(winAmt)})`);
                 } else {
@@ -264,6 +273,7 @@ async function animateXDResult(sentMessage) {
                 const jb = u.titleBonus?.jackpotBonus || 0;
                 if (jb > 0) r += Math.floor(r * jb / 100);
                 u.balance += r;
+                u.xdWinningsToday = (u.xdWinningsToday || 0) + r;
                 u.jackpotWins = (u.jackpotWins || 0) + 1;
                 jpWinNames.push(`<@${uid}>: +${fmt(r)} 🎰`);
             }
