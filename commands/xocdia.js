@@ -41,8 +41,8 @@ function getResult(beads) {
     const white = 4 - red;
     return {
         red, white,
-        isChan:     red === 2,
-        isLe:       red === 1 || red === 3,  // Le: dung 1 hoac 3 hat do
+        isChan:     red % 2 === 0,  // Chan: 0, 2, 4 hat do
+        isLe:       red % 2 === 1,  // Le: 1, 3 hat do
         isBonDo:    red === 4,
         isBonTrang: white === 4,
         isBaDo:     red === 3,
@@ -170,25 +170,25 @@ async function animateXDResult(sentMessage) {
             files: [new AttachmentBuilder(frame1, { name: 'xd_anim.png' })]
         });
         await sentMessage.edit({ embeds: [], content: '🎲 Đang xóc...', components: [] }).catch(() => {});
-        await sleep(600);
+        await sleep(1500);
 
         // Frame 2: bat nang 1/3
         const frame2 = createXDLift(beads, 33);
         animEmbed.setDescription('🔄 **Đang mở...**');
         await msg1.edit({ embeds: [animEmbed.setImage('attachment://xd_anim2.png')], files: [new AttachmentBuilder(frame2, { name: 'xd_anim2.png' })] }).catch(() => {});
-        await sleep(600);
+        await sleep(1500);
 
         // Frame 3: bat nang 2/3
         const frame3 = createXDLift(beads, 66);
         animEmbed.setDescription('👀 **Sắp lộ rồi...**');
         await msg1.edit({ embeds: [animEmbed.setImage('attachment://xd_anim3.png')], files: [new AttachmentBuilder(frame3, { name: 'xd_anim3.png' })] }).catch(() => {});
-        await sleep(600);
+        await sleep(1500);
 
-        // Frame 4: bat bay het
+        // Frame 4: bat bay het - giu lai 2s de thay ro
         const frame4 = createXDLift(beads, 100);
         animEmbed.setDescription('✨ **Lộ kết quả!**');
         await msg1.edit({ embeds: [animEmbed.setImage('attachment://xd_anim4.png')], files: [new AttachmentBuilder(frame4, { name: 'xd_anim4.png' })] }).catch(() => {});
-        await sleep(500);
+        await sleep(2000);
 
         // Xoa tin nhan animation
         await msg1.delete().catch(() => {});
