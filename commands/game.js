@@ -1,4 +1,4 @@
-// commands/game.js - JACKPOT FIX
+// commands/game.js - JACKPOT FIX + TOP TRACKING
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, getUser } = require('../utils/database');
@@ -8,7 +8,7 @@ const { updateQuest } = require('../services/quest');
 const { VIP_ITEMS } = require('./shop');
 
 let bettingSession = null;
-let forceJackpotNext = false; // .nohu flag
+let forceJackpotNext = false;
 
 function setForceJackpot(val) {
     forceJackpotNext = val;
@@ -39,32 +39,21 @@ function getVipIcon(vipLevel) {
     return vipItem ? vipItem.icon : '⭐';
 }
 
-// ============================================
-// TÍNH XÁC SUẤT NỔ HŨ DỰA THEO SỐ HŨ
-// ============================================
 function getJackpotChance(jackpot) {
-    if (jackpot >= 3_000_000_000) return 100;  // >= 3B → 100%
-    if (jackpot >= 1_000_000_000) return 70;   // >= 1B → 70%
-    return 5;                                   // Bình thường → 5%
+    if (jackpot >= 3_000_000_000) return 100;
+    if (jackpot >= 1_000_000_000) return 70;
+    return 5;
 }
 
-// ============================================
-// ROLL XÚC XẮC CÓ WEIGHT THEO HŨ
-// Hũ > 1B: tăng xác suất ra cặp đôi / bộ ba
-// ============================================
 function rollDiceWeighted(jackpot) {
     const face = () => Math.floor(Math.random() * 6) + 1;
 
-    // Dưới 1B → random hoàn toàn, không có weight
     if (jackpot < 1_000_000_000) {
         return rollDice();
     }
 
-    // Từ 1B trở lên → tăng xác suất ra cặp đôi / bộ ba
-    const tripleChance = 20; // 20% bộ ba
-    const pairChance = 40;   // 40% cặp đôi
-    // 40% còn lại → random bình thường
-
+    const tripleChance = 20;
+    const pairChance = 40;
     const rand = Math.random() * 100;
 
     if (rand < tripleChance) {
@@ -232,12 +221,8 @@ async function animateResult(sentMessage, client) {
         const currentJackpot = database.jackpot || 0;
         const phienNumber = bettingSession.phienNumber;
 
-        // ============================================
-        // ROLL XÚC XẮC (có weight theo hũ)
-        // ============================================
         let rollResult;
         if (forceJackpotNext) {
-            // Admin .nohu → bắt buộc ra bộ ba (111~666)
             const d = Math.floor(Math.random() * 6) + 1;
             rollResult = { dice1: d, dice2: d, dice3: d, total: d * 3 };
             forceJackpotNext = false;
@@ -247,9 +232,6 @@ async function animateResult(sentMessage, client) {
         const { dice1, dice2, dice3, total } = rollResult;
         const isTriple = checkJackpot(dice1, dice2, dice3);
 
-        // ============================================
-        // TÍNH NỔ HŨ
-        // ============================================
         let isJackpot = false;
         if (isTriple) {
             const chance = getJackpotChance(currentJackpot);
@@ -258,7 +240,7 @@ async function animateResult(sentMessage, client) {
 
         const result = checkResult(total);
 
-        // ===== ANIMATION =====
+        // ANIMATION
         const frame1 = createBowlLift(dice1, dice2, dice3, 0);
         if (frame1) {
             const embed2 = new EmbedBuilder()
@@ -291,8 +273,8 @@ async function animateResult(sentMessage, client) {
         if (database.history.length > 50) database.history.shift();
 
         let participants = [];
-        let jackpotWinners = [];      // userId[]
-        let jackpotWinnerNames = [];  // string[] để hiển thị
+        let jackpotWinners = [];
+        let jackpotWinnerNames = [];
 
         for (const [userId, bet] of Object.entries(bettingSession.bets)) {
             const user = getUser(userId);
@@ -302,13 +284,12 @@ async function animateResult(sentMessage, client) {
             updateQuest(userId, 2);
             updateQuest(userId, 1, bet.amount);
 
-            // ===== TÍCH LŨY HŨ: 5% mỗi cược =====
             database.jackpot = (database.jackpot || 0) + Math.floor(bet.amount * 0.05);
 
-            if (bet.type === 'tai' && result.tai)   { win = true; winMultiplier = 1.9; user.tai++; }
-            else if (bet.type === 'xiu' && result.xiu) { win = true; winMultiplier = 1.9; user.xiu++; }
+            if (bet.type === 'tai' && result.tai)        { win = true; winMultiplier = 1.9; user.tai++; }
+            else if (bet.type === 'xiu' && result.xiu)  { win = true; winMultiplier = 1.9; user.xiu++; }
             else if (bet.type === 'chan' && result.chan) { win = true; winMultiplier = 1.9; user.chan++; }
-            else if (bet.type === 'le' && result.le)   { win = true; winMultiplier = 1.9; user.le++; }
+            else if (bet.type === 'le' && result.le)    { win = true; winMultiplier = 1.9; user.le++; }
             else if (bet.type === 'number') {
                 let count = 0;
                 if (dice1 === bet.value) count++;
@@ -343,20 +324,19 @@ async function animateResult(sentMessage, client) {
             if (win) {
                 let winAmount = Math.floor(bet.amount * winMultiplier);
 
-                // VIP BONUS
                 if (user.vipLevel > 0 && user.vipBonus) {
                     const totalVipBonus = (user.vipBonus.betBonus || 0) + (user.vipBonus.extraBonus || 0);
                     winAmount += Math.floor(winAmount * totalVipBonus / 100);
                 }
-                // TITLE BONUS
                 const titleBetBonus = user.titleBonus?.betBonus || 0;
                 if (titleBetBonus > 0) {
                     winAmount += Math.floor(winAmount * titleBetBonus / 100);
                 }
 
                 user.balance += winAmount;
+                // Track top thang TX
+                user.txWinningsToday = (user.txWinningsToday || 0) + winAmount;
 
-                // Thêm vào danh sách nhận hũ (chỉ người THẮNG)
                 if (isJackpot) jackpotWinners.push(userId);
 
                 participants.push(`${vipDisplay}<@${userId}> | ${betTypeDisplay}: ${formatNumber(bet.amount)} | ✅ (+${formatNumber(winAmount)})`);
@@ -365,9 +345,6 @@ async function animateResult(sentMessage, client) {
             }
         }
 
-        // ============================================
-        // CHIA HŨ ĐỀU CHO NGƯỜI THẮNG
-        // ============================================
         if (isJackpot && jackpotWinners.length > 0) {
             const jackpotPool = database.jackpot || 0;
             const share = Math.floor(jackpotPool / jackpotWinners.length);
@@ -376,13 +353,14 @@ async function animateResult(sentMessage, client) {
                 const user = getUser(userId);
                 let jackpotReward = share;
 
-                // TITLE BONUS JACKPOT (Chiến Thần +10%)
                 const jackpotBonus = user.titleBonus?.jackpotBonus || 0;
                 if (jackpotBonus > 0) {
                     jackpotReward += Math.floor(jackpotReward * jackpotBonus / 100);
                 }
 
                 user.balance += jackpotReward;
+                // Track top thang TX (jackpot)
+                user.txWinningsToday = (user.txWinningsToday || 0) + jackpotReward;
                 user.jackpotWins = (user.jackpotWins || 0) + 1;
                 jackpotWinnerNames.push(`<@${userId}>: +${formatNumber(jackpotReward)} 🎰`);
             }
@@ -477,3 +455,4 @@ module.exports = {
     setBettingSession,
     cleanupSession,
 };
+
