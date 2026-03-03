@@ -117,7 +117,9 @@ async function handleXocDia(message) {
             mainEmbed.spliceFields(0, 1, { name: '⏰ Thời gian còn lại', value: `**${t}** giây`, inline: false });
 
             const c = { chan: 0, le: 0, bon_do: 0, bon_trang: 0, ba_do: 0, ba_trang: 0 };
-            Object.values(xdSession.bets).forEach(b => { if (c[b.type] !== undefined) c[b.type]++; });
+            Object.values(xdSession.bets).forEach(userBets => {
+                Object.keys(userBets).forEach(t => { if (c[t] !== undefined) c[t]++; });
+            });
 
             tongEmbed.setDescription(
                 `**Chẵn:** ${c.chan} | **Lẻ:** ${c.le}\n` +
@@ -131,7 +133,7 @@ async function handleXocDia(message) {
             [row1, row2].forEach(r => r.components.forEach(b => b.setDisabled(true)));
             await sent.edit({ components: [row1, row2] }).catch(() => {});
 
-            if (Object.keys(xdSession.bets).length === 0) {
+            if (Object.keys(xdSession.bets).length === 0 || Object.values(xdSession.bets).every(b => Object.keys(b).length === 0)) {
                 await sent.edit({ content: '❌ Không có ai đặt cược!', embeds: [], components: [] }).catch(() => {});
                 cleanupXDSession();
                 return;
@@ -198,36 +200,46 @@ async function animateXDResult(sentMessage) {
         let participants = [];
         let jackpotWinners = [];
 
-        for (const [userId, bet] of Object.entries(xdSession.bets)) {
+        for (const [userId, userBets] of Object.entries(xdSession.bets)) {
             const user = getUser(userId);
-            database.xdJackpot = (database.xdJackpot || 0) + Math.floor(bet.amount * 0.05);
-            updateQuest(userId, 2);
-            updateQuest(userId, 1, bet.amount);
+            let userLines = [];
+            let userWon = false;
+            let totalBet = 0;
 
-            let win = false;
-            if      (bet.type === 'chan'      && result.isChan)     win = true;
-            else if (bet.type === 'le'        && result.isLe)       win = true;
-            else if (bet.type === 'bon_do'    && result.isBonDo)    win = true;
-            else if (bet.type === 'bon_trang' && result.isBonTrang) win = true;
-            else if (bet.type === 'ba_do'     && result.isBaDo)     win = true;
-            else if (bet.type === 'ba_trang'  && result.isBaTrang)  win = true;
+            for (const [betType, amount] of Object.entries(userBets)) {
+                database.xdJackpot = (database.xdJackpot || 0) + Math.floor(amount * 0.05);
+                totalBet += amount;
 
-            const multi = BET_TYPES[bet.type].multi;
-            const lbl = BET_TYPES[bet.type].label;
+                let win = false;
+                if      (betType === 'chan'      && result.isChan)     win = true;
+                else if (betType === 'le'        && result.isLe)       win = true;
+                else if (betType === 'bon_do'    && result.isBonDo)    win = true;
+                else if (betType === 'bon_trang' && result.isBonTrang) win = true;
+                else if (betType === 'ba_do'     && result.isBaDo)     win = true;
+                else if (betType === 'ba_trang'  && result.isBaTrang)  win = true;
 
-            if (win) {
-                let winAmt = Math.floor(bet.amount * multi);
-                if (user.vipLevel > 0 && user.vipBonus) {
-                    winAmt += Math.floor(winAmt * ((user.vipBonus.betBonus || 0) + (user.vipBonus.extraBonus || 0)) / 100);
+                const multi = BET_TYPES[betType].multi;
+                const lbl = BET_TYPES[betType].label;
+
+                if (win) {
+                    let winAmt = Math.floor(amount * multi);
+                    if (user.vipLevel > 0 && user.vipBonus) {
+                        winAmt += Math.floor(winAmt * ((user.vipBonus.betBonus || 0) + (user.vipBonus.extraBonus || 0)) / 100);
+                    }
+                    const tb = user.titleBonus?.betBonus || 0;
+                    if (tb > 0) winAmt += Math.floor(winAmt * tb / 100);
+                    user.balance += winAmt;
+                    userWon = true;
+                    userLines.push(`${lbl}: ${fmt(amount)} ✅ (+${fmt(winAmt)})`);
+                } else {
+                    userLines.push(`${lbl}: ${fmt(amount)} ❌`);
                 }
-                const tb = user.titleBonus?.betBonus || 0;
-                if (tb > 0) winAmt += Math.floor(winAmt * tb / 100);
-                user.balance += winAmt;
-                if (isJackpot) jackpotWinners.push(userId);
-                participants.push(`<@${userId}> | ${lbl}: ${fmt(bet.amount)} | ✅ (+${fmt(winAmt)})`);
-            } else {
-                participants.push(`<@${userId}> | ${lbl}: ${fmt(bet.amount)} | ❌`);
             }
+
+            updateQuest(userId, 2);
+            updateQuest(userId, 1, totalBet);
+            if (userWon && isJackpot && !jackpotWinners.includes(userId)) jackpotWinners.push(userId);
+            participants.push(`<@${userId}> | ` + userLines.join(' | '));
         }
 
         // Chia hu
@@ -304,7 +316,18 @@ async function handleXDButton(interaction) {
     const betType = interaction.customId.replace('xd_', '');
     if (!BET_TYPES[betType]) return;
     if (!xdSession) return interaction.reply({ content: '❌ Không có phiên xóc đĩa!', ephemeral: true });
-    if (xdSession.bets[interaction.user.id]) return interaction.reply({ content: '❌ Bạn đã đặt cược rồi!', ephemeral: true });
+    const userId = interaction.user.id;
+    const existingBets = xdSession.bets[userId] || {};
+
+    // Chan va Le xung dot nhau
+    if (betType === 'chan' && existingBets['le']) 
+        return interaction.reply({ content: '❌ Bạn đã cược **Lẻ** rồi, không thể cược Chẵn!', ephemeral: true });
+    if (betType === 'le' && existingBets['chan']) 
+        return interaction.reply({ content: '❌ Bạn đã cược **Chẵn** rồi, không thể cược Lẻ!', ephemeral: true });
+
+    // Khong cho dat trung cua
+    if (existingBets[betType]) 
+        return interaction.reply({ content: `❌ Bạn đã cược **${BET_TYPES[betType].label}** rồi!`, ephemeral: true });
 
     const userModal = getUser(interaction.user.id);
     const balanceLabel = userModal.balance.toLocaleString('vi-VN');
@@ -337,8 +360,13 @@ async function handleXDModal(interaction) {
 
     user.balance -= amount;
     saveDB();
-    xdSession.bets[interaction.user.id] = { type: betType, amount };
-    return interaction.editReply(`✅ Đã cược **${BET_TYPES[betType].label}** - ${fmt(amount)} Mcoin`);
+    if (!xdSession.bets[interaction.user.id]) xdSession.bets[interaction.user.id] = {};
+    xdSession.bets[interaction.user.id][betType] = amount;
+
+    const betList = Object.entries(xdSession.bets[interaction.user.id])
+        .map(([t, a]) => `${BET_TYPES[t].label}: ${fmt(a)}`)
+        .join(' | ');
+    return interaction.editReply(`✅ Cược của bạn: ${betList}`);
 }
 
 function getXDSession() { return xdSession; }
