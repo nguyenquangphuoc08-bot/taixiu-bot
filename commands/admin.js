@@ -131,27 +131,55 @@ function isCommandBlocked(channelId, cmd) {
 async function handleCreateGiftcode(message, args) {
     if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
 
-    let customReward = null;
-    let customHours = 2;
+    // .giftcode [TÊN] [TIỀN] [LƯỢT] [GIỜ]
+    // Detect: args[1] là tên hay tiền?
+    // Nếu args[1] parse ra số hợp lệ => không có tên, args[1]=tiền
+    // Nếu args[1] không phải số => là tên code, args[2]=tiền
 
-    if (args[1]) {
-        customReward = parseInt(args[1]);
-        if (isNaN(customReward) || customReward < 1000000)
-            return message.reply('❌ Số tiền phải >= 1,000,000 Mcoin!');
+    let codeName = null;
+    let amountStr = null;
+    let maxUses = 100;
+    let customHours = 24;
+
+    const firstVal = parseAmount(args[1]);
+    if (!isNaN(firstVal) && firstVal >= 1000000) {
+        // .giftcode 2b [lượt] [giờ]
+        amountStr = args[1];
+        if (args[2]) maxUses = args[2].toLowerCase() === 'unlimit' ? -1 : parseInt(args[2]);
+        if (args[3]) customHours = args[3].toLowerCase() === 'unlimit' ? -1 : parseInt(args[3]);
+    } else if (args[1] && args[2]) {
+        // .giftcode TÊNCODE 2b [lượt] [giờ]
+        codeName = args[1].toUpperCase();
+        amountStr = args[2];
+        if (args[3]) maxUses = args[3].toLowerCase() === 'unlimit' ? -1 : parseInt(args[3]);
+        if (args[4]) customHours = args[4].toLowerCase() === 'unlimit' ? -1 : parseInt(args[4]);
+    } else {
+        return message.reply('❌ Cú pháp: `.giftcode [TÊN] [TIỀN] [LƯỢT] [GIỜ]`\nVD: `.giftcode THANG3 2b 100 24`\nVD: `.giftcode 2b 50 48`');
     }
 
-    if (args[2]) {
-        customHours = parseInt(args[2]);
-        if (isNaN(customHours) || customHours < 1 || customHours > 720)
-            return message.reply('❌ Số giờ phải từ 1 đến 720!');
+    const amount = parseAmount(amountStr);
+    if (isNaN(amount) || amount < 1000000)
+        return message.reply('❌ Số tiền phải >= 1,000,000 Mcoin!');
+    if (maxUses !== -1 && (isNaN(maxUses) || maxUses < 1))
+        return message.reply('❌ Số lượt không hợp lệ!');
+    if (customHours !== -1 && (isNaN(customHours) || customHours < 1 || customHours > 720))
+        return message.reply('❌ Số giờ phải từ 1-720!');
+
+    let newCode;
+    if (codeName) {
+        newCode = giftcode.createGiftcodeCustom(message.author.id, codeName, amount, maxUses, customHours);
+        if (!newCode.success) return message.reply(`❌ ${newCode.message}`);
+    } else {
+        newCode = giftcode.createGiftcode(message.author.id, amount, customHours === -1 ? 999999 : customHours);
     }
 
-    const newCode = giftcode.createGiftcode(message.author.id, customReward, customHours);
+    const usesText = (newCode.maxUses === -1 || newCode.maxUses >= 999999) ? 'Unlimited' : `${newCode.maxUses} lượt`;
+    const timeText = (customHours === -1 || customHours >= 999999) ? 'Vô hạn' : `${customHours} giờ`;
 
     const embed = new EmbedBuilder()
         .setTitle('🎁 GIFTCODE MỚI ĐÃ TẠO!')
         .setColor('#f39c12')
-        .setDescription(`**Code:** \`${newCode.code}\`\n**Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin\n**Số lượt:** ${newCode.maxUses} lượt\n**Thời hạn:** ${newCode.duration} giờ`)
+        .setDescription(`**Code:** \`${newCode.code}\`\n**Phần thưởng:** ${amount.toLocaleString('en-US')} Mcoin\n**Số lượt:** ${usesText}\n**Thời hạn:** ${timeText}`)
         .setTimestamp();
 
     await message.reply({ embeds: [embed] });
