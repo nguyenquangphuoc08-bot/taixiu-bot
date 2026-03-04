@@ -169,13 +169,15 @@ async function animateXDResult(sentMessage) {
         const beads = rollBeads();
         const result = getResult(beads);
         let jdice = rollJackpotDice();
+        let forcedJackpot = false;
         if (forceXDJackpot) {
             const n = Math.floor(Math.random() * 6) + 1;
             jdice = [n, n, n];
             forceXDJackpot = false;
+            forcedJackpot = true;
         }
         const isTriple = jdice[0] === jdice[1] && jdice[1] === jdice[2];
-        const isJackpot = isTriple && Math.random() * 100 < getJackpotChance(jp);
+        const isJackpot = forcedJackpot || (isTriple && Math.random() * 100 < getJackpotChance(jp));
 
         // Animation bat nang len giong .tx
         const animEmbed = new EmbedBuilder()
@@ -392,5 +394,4 @@ async function handleXDModal(interaction) {
 }
 
 function getXDSession() { return xdSession; }
-module.exports = { handleXocDia, handleXDButton, handleXDModal, getXDSession };
-
+module.exports = { handleXocDia, handleXDButton, handleXDModal, getXDSession, setForceXDJackpot };
