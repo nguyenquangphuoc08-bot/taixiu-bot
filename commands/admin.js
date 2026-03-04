@@ -423,6 +423,67 @@ async function handleRestoreFile(message) {
 }
 
 // ========================================
+// 🚫 BLOCK LỆNH THEO KÊNH
+// ========================================
+
+async function handleBlock(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!database.blockedCommands) database.blockedCommands = {};
+    const channelId = message.channel.id;
+
+    if (!args[1]) {
+        const blocked = database.blockedCommands[channelId] || [];
+        if (blocked.length === 0) return message.reply(`📋 Kênh này chưa block lệnh nào.\n\n**Cách dùng:**\n\`.block .xd .tx\` → Block lệnh\n\`.unblock .xd\` → Bỏ block\n\`.unblock all\` → Bỏ tất cả`);
+        return message.reply(`🚫 **Đang block:** ${blocked.map(c => `\`${c}\``).join(', ')}`);
+    }
+
+    const cmds = args.slice(1).map(c => c.toLowerCase().startsWith('.') ? c.toLowerCase() : '.' + c.toLowerCase());
+    if (!database.blockedCommands[channelId]) database.blockedCommands[channelId] = [];
+    const added = [], already = [];
+    for (const cmd of cmds) {
+        if (!database.blockedCommands[channelId].includes(cmd)) { database.blockedCommands[channelId].push(cmd); added.push(cmd); }
+        else already.push(cmd);
+    }
+    saveDB();
+    let msg = '';
+    if (added.length) msg += `✅ Đã block: ${added.map(c => `\`${c}\``).join(', ')}\n`;
+    if (already.length) msg += `⚠️ Đã block rồi: ${already.map(c => `\`${c}\``).join(', ')}`;
+    return message.reply(msg || '❌ Không có gì thay đổi!');
+}
+
+async function handleUnblock(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!database.blockedCommands) database.blockedCommands = {};
+    const channelId = message.channel.id;
+    if (!args[1]) return message.reply('❌ Sử dụng: `.unblock .xd` hoặc `.unblock all`');
+
+    if (args[1].toLowerCase() === 'all') {
+        database.blockedCommands[channelId] = [];
+        saveDB();
+        return message.reply('✅ Đã bỏ block tất cả lệnh trong kênh này!');
+    }
+
+    const cmds = args.slice(1).map(c => c.toLowerCase().startsWith('.') ? c.toLowerCase() : '.' + c.toLowerCase());
+    if (!database.blockedCommands[channelId]) return message.reply('📋 Kênh này chưa block lệnh nào!');
+    const removed = [], notFound = [];
+    for (const cmd of cmds) {
+        const idx = database.blockedCommands[channelId].indexOf(cmd);
+        if (idx !== -1) { database.blockedCommands[channelId].splice(idx, 1); removed.push(cmd); }
+        else notFound.push(cmd);
+    }
+    saveDB();
+    let msg = '';
+    if (removed.length) msg += `✅ Đã bỏ block: ${removed.map(c => `\`${c}\``).join(', ')}\n`;
+    if (notFound.length) msg += `⚠️ Không tìm thấy: ${notFound.map(c => `\`${c}\``).join(', ')}`;
+    return message.reply(msg || '❌ Không có gì thay đổi!');
+}
+
+function isCommandBlocked(channelId, cmd) {
+    if (!database.blockedCommands) return false;
+    return (database.blockedCommands[channelId] || []).includes(cmd.toLowerCase());
+}
+
+// ========================================
 // EXPORTS
 // ========================================
 
