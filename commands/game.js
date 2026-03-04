@@ -222,10 +222,12 @@ async function animateResult(sentMessage, client) {
         const phienNumber = bettingSession.phienNumber;
 
         let rollResult;
+        let forcedJackpot = false;
         if (forceJackpotNext) {
             const d = Math.floor(Math.random() * 6) + 1;
             rollResult = { dice1: d, dice2: d, dice3: d, total: d * 3 };
             forceJackpotNext = false;
+            forcedJackpot = true;
         } else {
             rollResult = rollDiceWeighted(currentJackpot);
         }
@@ -233,7 +235,9 @@ async function animateResult(sentMessage, client) {
         const isTriple = checkJackpot(dice1, dice2, dice3);
 
         let isJackpot = false;
-        if (isTriple) {
+        if (forcedJackpot) {
+            isJackpot = true;
+        } else if (isTriple) {
             const chance = getJackpotChance(currentJackpot);
             isJackpot = Math.random() * 100 < chance;
         }
@@ -455,4 +459,3 @@ module.exports = {
     setBettingSession,
     cleanupSession,
 };
-
