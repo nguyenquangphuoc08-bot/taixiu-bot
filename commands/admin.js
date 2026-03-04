@@ -1,4 +1,4 @@
-// commands/admin.js
+// commands/admin.js - HỖ TRỢ UNLIMITED GIFTCODE
 
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, DB_PATH, getUser } = require('../utils/database');
@@ -9,119 +9,11 @@ const https = require('https');
 const { ADMIN_ID } = require('../config');
 
 function parseAmount(str) {
-    if (!str) return NaN;
-    str = str.toString().toLowerCase().trim().replace(/[,._]/g, '');
+    str = str.toLowerCase().trim();
     if (str.endsWith('k')) return parseFloat(str) * 1000;
     if (str.endsWith('m')) return parseFloat(str) * 1000000;
-    if (str.endsWith('b') || str.endsWith('t')) return parseFloat(str) * 1000000000;
-    const n = parseFloat(str);
-    return isNaN(n) ? NaN : n;
-}
-
-// ========================================
-// 🚫 BLOCK LỆNH THEO KÊNH
-// ========================================
-
-// database.blockedCommands = { channelId: ['.xd', '.tx', ...] }
-
-async function handleBlock(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
-
-    // .block → xem danh sách đang block
-    if (!args[1]) {
-        if (!database.blockedCommands) database.blockedCommands = {};
-        const channelId = message.channel.id;
-        const blocked = database.blockedCommands[channelId] || [];
-
-        if (blocked.length === 0) {
-            return message.reply(`📋 Kênh này chưa block lệnh nào.\n\n**Cách dùng:**\n\`.block .xd .tx .sc\` → Block lệnh\n\`.unblock .xd\` → Bỏ block lệnh\n\`.unblock all\` → Bỏ tất cả`);
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle('🚫 LỆNH BỊ BLOCK TRONG KÊNH NÀY')
-            .setColor('#e74c3c')
-            .setDescription(blocked.map(c => `• \`${c}\``).join('\n'))
-            .setFooter({ text: `Kênh: #${message.channel.name}` })
-            .setTimestamp();
-
-        return message.reply({ embeds: [embed] });
-    }
-
-    // .block .xd .tx ... → block các lệnh
-    const cmdsToBlock = args.slice(1).map(c => c.toLowerCase().startsWith('.') ? c.toLowerCase() : '.' + c.toLowerCase());
-
-    if (!database.blockedCommands) database.blockedCommands = {};
-    if (!database.blockedCommands[message.channel.id]) database.blockedCommands[message.channel.id] = [];
-
-    const added = [];
-    const already = [];
-
-    for (const cmd of cmdsToBlock) {
-        if (!database.blockedCommands[message.channel.id].includes(cmd)) {
-            database.blockedCommands[message.channel.id].push(cmd);
-            added.push(cmd);
-        } else {
-            already.push(cmd);
-        }
-    }
-
-    saveDB();
-
-    let msg = '';
-    if (added.length > 0) msg += `✅ Đã block: ${added.map(c => `\`${c}\``).join(', ')}\n`;
-    if (already.length > 0) msg += `⚠️ Đã block rồi: ${already.map(c => `\`${c}\``).join(', ')}`;
-
-    return message.reply(msg || '❌ Không có gì thay đổi!');
-}
-
-async function handleUnblock(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
-
-    if (!database.blockedCommands) database.blockedCommands = {};
-    const channelId = message.channel.id;
-
-    if (!args[1]) return message.reply('❌ Sử dụng: `.unblock .xd` hoặc `.unblock all`');
-
-    // .unblock all → bỏ hết
-    if (args[1].toLowerCase() === 'all') {
-        database.blockedCommands[channelId] = [];
-        saveDB();
-        return message.reply('✅ Đã bỏ block tất cả lệnh trong kênh này!');
-    }
-
-    const cmdsToUnblock = args.slice(1).map(c => c.toLowerCase().startsWith('.') ? c.toLowerCase() : '.' + c.toLowerCase());
-
-    if (!database.blockedCommands[channelId]) {
-        return message.reply('📋 Kênh này chưa block lệnh nào!');
-    }
-
-    const removed = [];
-    const notFound = [];
-
-    for (const cmd of cmdsToUnblock) {
-        const idx = database.blockedCommands[channelId].indexOf(cmd);
-        if (idx !== -1) {
-            database.blockedCommands[channelId].splice(idx, 1);
-            removed.push(cmd);
-        } else {
-            notFound.push(cmd);
-        }
-    }
-
-    saveDB();
-
-    let msg = '';
-    if (removed.length > 0) msg += `✅ Đã bỏ block: ${removed.map(c => `\`${c}\``).join(', ')}\n`;
-    if (notFound.length > 0) msg += `⚠️ Không tìm thấy: ${notFound.map(c => `\`${c}\``).join(', ')}`;
-
-    return message.reply(msg || '❌ Không có gì thay đổi!');
-}
-
-// Hàm check block - dùng trong index.js
-function isCommandBlocked(channelId, cmd) {
-    if (!database.blockedCommands) return false;
-    const blocked = database.blockedCommands[channelId] || [];
-    return blocked.includes(cmd.toLowerCase());
+    if (str.endsWith('b')) return parseFloat(str) * 1000000000;
+    return parseInt(str);
 }
 
 // ========================================
@@ -131,55 +23,27 @@ function isCommandBlocked(channelId, cmd) {
 async function handleCreateGiftcode(message, args) {
     if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
 
-    // .giftcode [TÊN] [TIỀN] [LƯỢT] [GIỜ]
-    // Detect: args[1] là tên hay tiền?
-    // Nếu args[1] parse ra số hợp lệ => không có tên, args[1]=tiền
-    // Nếu args[1] không phải số => là tên code, args[2]=tiền
+    let customReward = null;
+    let customHours = 2;
 
-    let codeName = null;
-    let amountStr = null;
-    let maxUses = 100;
-    let customHours = 24;
-
-    const firstVal = parseAmount(args[1]);
-    if (!isNaN(firstVal) && firstVal >= 1000000) {
-        // .giftcode 2b [lượt] [giờ]
-        amountStr = args[1];
-        if (args[2]) maxUses = args[2].toLowerCase() === 'unlimit' ? -1 : parseInt(args[2]);
-        if (args[3]) customHours = args[3].toLowerCase() === 'unlimit' ? -1 : parseInt(args[3]);
-    } else if (args[1] && args[2]) {
-        // .giftcode TÊNCODE 2b [lượt] [giờ]
-        codeName = args[1].toUpperCase();
-        amountStr = args[2];
-        if (args[3]) maxUses = args[3].toLowerCase() === 'unlimit' ? -1 : parseInt(args[3]);
-        if (args[4]) customHours = args[4].toLowerCase() === 'unlimit' ? -1 : parseInt(args[4]);
-    } else {
-        return message.reply('❌ Cú pháp: `.giftcode [TÊN] [TIỀN] [LƯỢT] [GIỜ]`\nVD: `.giftcode THANG3 2b 100 24`\nVD: `.giftcode 2b 50 48`');
+    if (args[1]) {
+        customReward = parseInt(args[1]);
+        if (isNaN(customReward) || customReward < 1000000)
+            return message.reply('❌ Số tiền phải >= 1,000,000 Mcoin!');
     }
 
-    const amount = parseAmount(amountStr);
-    if (isNaN(amount) || amount < 1000000)
-        return message.reply('❌ Số tiền phải >= 1,000,000 Mcoin!');
-    if (maxUses !== -1 && (isNaN(maxUses) || maxUses < 1))
-        return message.reply('❌ Số lượt không hợp lệ!');
-    if (customHours !== -1 && (isNaN(customHours) || customHours < 1 || customHours > 720))
-        return message.reply('❌ Số giờ phải từ 1-720!');
-
-    let newCode;
-    if (codeName) {
-        newCode = giftcode.createGiftcodeCustom(message.author.id, codeName, amount, maxUses, customHours);
-        if (!newCode.success) return message.reply(`❌ ${newCode.message}`);
-    } else {
-        newCode = giftcode.createGiftcode(message.author.id, amount, customHours === -1 ? 999999 : customHours);
+    if (args[2]) {
+        customHours = parseInt(args[2]);
+        if (isNaN(customHours) || customHours < 1 || customHours > 720)
+            return message.reply('❌ Số giờ phải từ 1 đến 720!');
     }
 
-    const usesText = (newCode.maxUses === -1 || newCode.maxUses >= 999999) ? 'Unlimited' : `${newCode.maxUses} lượt`;
-    const timeText = (customHours === -1 || customHours >= 999999) ? 'Vô hạn' : `${customHours} giờ`;
+    const newCode = giftcode.createGiftcode(message.author.id, customReward, customHours);
 
     const embed = new EmbedBuilder()
         .setTitle('🎁 GIFTCODE MỚI ĐÃ TẠO!')
         .setColor('#f39c12')
-        .setDescription(`**Code:** \`${newCode.code}\`\n**Phần thưởng:** ${amount.toLocaleString('en-US')} Mcoin\n**Số lượt:** ${usesText}\n**Thời hạn:** ${timeText}`)
+        .setDescription(`**Code:** \`${newCode.code}\`\n**Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin\n**Số lượt:** ${newCode.maxUses} lượt\n**Thời hạn:** ${newCode.duration} giờ`)
         .setTimestamp();
 
     await message.reply({ embeds: [embed] });
@@ -188,6 +52,7 @@ async function handleCreateGiftcode(message, args) {
 async function handleCode(message, args) {
     const code = args[1]?.toUpperCase();
 
+    // ===== ADMIN TẠO CODE =====
     if (message.author.id === ADMIN_ID && code && args[2]) {
         const amountStr = args[2];
         let maxUses = args[3] ? (args[3].toLowerCase() === 'unlimit' ? -1 : parseInt(args[3])) : 100;
@@ -214,6 +79,7 @@ async function handleCode(message, args) {
         return message.reply({ embeds: [embed] });
     }
 
+    // ===== HIỆN DANH SÁCH CODE =====
     if (!code) {
         const { ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
         const activeCodes = giftcode.listActiveCodes();
@@ -251,6 +117,7 @@ async function handleCode(message, args) {
         return message.reply({ embeds: [embed], components: rows.slice(0, 5) });
     }
 
+    // ===== NHẬP CODE =====
     const result = giftcode.redeemGiftcode(code, message.author.id);
     if (!result.success) return message.reply(result.message);
 
@@ -366,7 +233,28 @@ async function handleNoHu(message) {
     const embed = new EmbedBuilder()
         .setTitle('🎲 ĐÃ KÍCH HOẠT .NOHU!')
         .setColor('#FFD700')
-        .setDescription(`✅ **Ván TX tiếp theo xúc xắc sẽ ra bộ ba!**\n\n🎰 Xác suất nổ hũ: **${chanceText}**\n💰 Hũ hiện tại: **${currentJackpot.toLocaleString('en-US')}**\n\n⚠️ Tự động tắt sau ván đó.`)
+        .setDescription(`✅ **Ván TX tiếp theo xúc xắc sẽ ra bộ ba (111/222/.../666)!**\n\n🎰 Xác suất nổ hũ: **${chanceText}** (dựa theo hũ hiện tại)\n💰 Hũ hiện tại: **${currentJackpot.toLocaleString('en-US')}**\n\n⚠️ Tự động tắt sau ván đó.`)
+        .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
+}
+
+// ========================================
+// 🎲 NỔ HŨ XD ADMIN
+// ========================================
+
+async function handleNoXocDia(message) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+
+    const { setForceXDJackpot } = require('./xocdia');
+    setForceXDJackpot(true);
+
+    const currentJackpot = database.xdJackpot || 0;
+
+    const embed = new EmbedBuilder()
+        .setTitle('🎲 ĐÃ KÍCH HOẠT .NOXOCDIA!')
+        .setColor('#FFD700')
+        .setDescription(`✅ **Ván XD tiếp theo xúc xắc sẽ ra bộ ba!**\n\n💰 Hũ XD hiện tại: **${currentJackpot.toLocaleString('en-US')}**\n\n⚠️ Tự động tắt sau ván đó.`)
         .setTimestamp();
 
     await message.reply({ embeds: [embed] });
@@ -469,8 +357,7 @@ async function handleDbInfo(message) {
         .addFields(
             { name: 'Người chơi', value: `${totalUsers}`, inline: true },
             { name: 'Tổng tiền', value: `${totalBalance.toLocaleString('en-US')}`, inline: true },
-            { name: 'Hũ TX', value: `${(database.jackpot || 0).toLocaleString('en-US')}`, inline: true },
-            { name: 'Hũ XD', value: `${(database.xdJackpot || 0).toLocaleString('en-US')}`, inline: true }
+            { name: 'Hũ', value: `${(database.jackpot || 0).toLocaleString('en-US')}`, inline: true }
         )
         .setTimestamp();
 
@@ -549,15 +436,12 @@ module.exports = {
     handleRemoveVip,
     handleGiveTitle,
     handleNoHu,
+    handleNoXocDia,
     handleDonate,
     handleResetQuest,
     handleDbInfo,
     handleBackup,
     handleBackupNow,
     handleRestore,
-    handleRestoreFile,
-    handleBlock,
-    handleUnblock,
-    isCommandBlocked
+    handleRestoreFile
 };
-
