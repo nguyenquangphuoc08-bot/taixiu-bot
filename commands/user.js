@@ -30,7 +30,7 @@ function getTimeLeftToMidnightVN() {
 async function handleMcoin(message) {
     const user = getUser(message.author.id);
     const avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 256 });
-    const profileBuffer = await createProfileCard(message.author, user, avatarUrl);
+    const profileBuffer = await createProfileCard(message.author, user, avatarUrl, message.client);
     
     if (!profileBuffer) {
         return message.reply('❌ Không thể tạo profile card!');
@@ -269,4 +269,3 @@ module.exports = {
     handleInfo,
     updateMessageStats
 };
-
