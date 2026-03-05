@@ -59,6 +59,12 @@ function getOwnedIds(user) {
 function buildShopComponents(items, page, totalPages, selectCustomId) {
     const pageItems = items.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
 
+    // Guard: neu khong co item thi lay trang cuoi
+    if (pageItems.length === 0) {
+        const lastPage = Math.max(0, totalPages - 1);
+        return buildShopComponents(items, lastPage, totalPages, selectCustomId);
+    }
+
     const options = pageItems.map(item => {
         const isTitle = item.id.startsWith('title_');
         const bonus = isTitle
@@ -171,7 +177,8 @@ async function showVipPage(interaction, page) {
     if (interaction.isModalSubmit()) {
         await interaction.reply({ ...payload, ephemeral: false });
     } else {
-        await interaction.update(payload);
+        await interaction.deferUpdate();
+        await interaction.editReply(payload);
     }
 }
 
@@ -208,7 +215,8 @@ async function showTitlePage(interaction, page) {
     if (interaction.isModalSubmit()) {
         await interaction.reply({ ...payload, ephemeral: false });
     } else {
-        await interaction.update(payload);
+        await interaction.deferUpdate();
+        await interaction.editReply(payload);
     }
 }
 
