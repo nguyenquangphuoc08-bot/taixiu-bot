@@ -1,4 +1,4 @@
-// handlers/buttonHandler.js - HIỆN SỐ DƯ ĐẦY ĐỦ
+// handlers/buttonHandler.js - FIX SHOP BUTTONS
 
 const { 
     ModalBuilder, 
@@ -17,18 +17,51 @@ function formatBalance(balance) {
 
 async function handleButtonClick(interaction, bettingSession) {
     try {
-        // ===== XỬ LÝ BUTTON SHOP =====
-        if (interaction.customId === 'shop_vip') {
-            const { showVipPackages } = require('../commands/shop');
-            return await showVipPackages(interaction);
+        // ===== XỬ LÝ SHOP BUTTONS TRƯỚC (KHÔNG CẦN SESSION) =====
+        
+        // Tab buttons
+        if (interaction.customId === 'shop_tab_vip') {
+            const { showVipPage } = require('../commands/shop');
+            return await showVipPage(interaction, 0);
         }
 
-        if (interaction.customId === 'shop_titles') {
-            const { showTitles } = require('../commands/shop');
-            return await showTitles(interaction);
+        if (interaction.customId === 'shop_tab_titles') {
+            const { showTitlePage } = require('../commands/shop');
+            return await showTitlePage(interaction, 0);
         }
 
-        // ===== XỬ LÝ SELECT MENU SHOP =====
+        // Navigation buttons (prev/next/page)
+        if (interaction.customId.startsWith('shop_prev_')) {
+            const parts = interaction.customId.split('_');
+            const type = parts[2]; // 'buy_vip' hoặc 'buy_title'
+            const currentPage = parseInt(parts[3]);
+            const newPage = currentPage - 1;
+            
+            if (type === 'buy_vip') {
+                const { showVipPage } = require('../commands/shop');
+                return await showVipPage(interaction, newPage);
+            } else {
+                const { showTitlePage } = require('../commands/shop');
+                return await showTitlePage(interaction, newPage);
+            }
+        }
+
+        if (interaction.customId.startsWith('shop_next_')) {
+            const parts = interaction.customId.split('_');
+            const type = parts[2];
+            const currentPage = parseInt(parts[3]);
+            const newPage = currentPage + 1;
+            
+            if (type === 'buy_vip') {
+                const { showVipPage } = require('../commands/shop');
+                return await showVipPage(interaction, newPage);
+            } else {
+                const { showTitlePage } = require('../commands/shop');
+                return await showTitlePage(interaction, newPage);
+            }
+        }
+
+        // Select menu mua VIP/Title
         if (interaction.customId === 'buy_vip') {
             const { buyVipPackage } = require('../commands/shop');
             const vipId = interaction.values[0];
@@ -41,7 +74,18 @@ async function handleButtonClick(interaction, bettingSession) {
             return await buyTitle(interaction, titleId);
         }
 
-        // ===== XỬ LÝ TÀI XỈU =====
+        // Legacy shop buttons
+        if (interaction.customId === 'shop_vip') {
+            const { showVipPackages } = require('../commands/shop');
+            return await showVipPackages(interaction);
+        }
+
+        if (interaction.customId === 'shop_titles') {
+            const { showTitles } = require('../commands/shop');
+            return await showTitles(interaction);
+        }
+
+        // ===== SAU ĐÓ MỚI CHECK SESSION CHO TÀI XỈU =====
         
         if (!bettingSession || bettingSession.channelId !== interaction.channel.id) {
             return interaction.reply({
