@@ -162,11 +162,17 @@ async function showVipPage(interaction, page) {
         new ButtonBuilder().setCustomId('shop_tab_titles').setLabel('⚔️ Danh Hiệu').setStyle(ButtonStyle.Success),
     );
 
-    await interaction.update({
+    const payload = {
         content: `💰 **Số dư:** ${formatNumber(user.balance)} | 👑 VIP ${user.vipLevel || 0}`,
         files: [new AttachmentBuilder(imgBuffer, { name: 'shop.png' })],
         components: [typeRow, navRow, selectRow],
-    });
+    };
+
+    if (interaction.isModalSubmit()) {
+        await interaction.reply({ ...payload, ephemeral: false });
+    } else {
+        await interaction.update(payload);
+    }
 }
 
 // ========================================
@@ -193,11 +199,17 @@ async function showTitlePage(interaction, page) {
         new ButtonBuilder().setCustomId('shop_tab_titles').setLabel('⚔️ Danh Hiệu').setStyle(ButtonStyle.Primary),
     );
 
-    await interaction.update({
+    const payload = {
         content: `💰 **Số dư:** ${formatNumber(user.balance)} | 👑 ${user.vipTitle || 'Chưa có danh hiệu'}`,
         files: [new AttachmentBuilder(imgBuffer, { name: 'shop.png' })],
         components: [typeRow, navRow, selectRow],
-    });
+    };
+
+    if (interaction.isModalSubmit()) {
+        await interaction.reply({ ...payload, ephemeral: false });
+    } else {
+        await interaction.update(payload);
+    }
 }
 
 // Legacy - giu lai de khong break cu
@@ -285,3 +297,4 @@ module.exports = {
     VIP_ITEMS,
     TITLE_ITEMS,
 };
+
