@@ -84,16 +84,16 @@ function buildShopComponents(items, page, totalPages, selectCustomId) {
 
     const navRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId(`shop_prev_${selectCustomId}_${page}`)
+            .setCustomId(`shop_prev_${selectCustomId === 'buy_vip' ? 'vip' : 'title'}_${page}`)
             .setLabel('◀ Trước')
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(page === 0),
         new ButtonBuilder()
-            .setCustomId(`shop_page_${selectCustomId}_${page}`)
+            .setCustomId(`shop_page_${selectCustomId === 'buy_vip' ? 'vip' : 'title'}_${page}`)
             .setLabel(`Nhập trang`)
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
-            .setCustomId(`shop_next_${selectCustomId}_${page}`)
+            .setCustomId(`shop_next_${selectCustomId === 'buy_vip' ? 'vip' : 'title'}_${page}`)
             .setLabel('Sau ▶')
             .setStyle(ButtonStyle.Success)
             .setDisabled(page >= totalPages - 1),
@@ -309,4 +309,3 @@ module.exports = {
     VIP_ITEMS,
     TITLE_ITEMS,
 };
-
