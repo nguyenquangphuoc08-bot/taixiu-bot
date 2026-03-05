@@ -20,35 +20,6 @@ function parseAmount(str) {
 // 🎁 GIFTCODE COMMANDS
 // ========================================
 
-async function handleCreateGiftcode(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
-
-    let customReward = null;
-    let customHours = 2;
-
-    if (args[1]) {
-        customReward = parseInt(args[1]);
-        if (isNaN(customReward) || customReward < 1000000)
-            return message.reply('❌ Số tiền phải >= 1,000,000 Mcoin!');
-    }
-
-    if (args[2]) {
-        customHours = parseInt(args[2]);
-        if (isNaN(customHours) || customHours < 1 || customHours > 720)
-            return message.reply('❌ Số giờ phải từ 1 đến 720!');
-    }
-
-    const newCode = giftcode.createGiftcode(message.author.id, customReward, customHours);
-
-    const embed = new EmbedBuilder()
-        .setTitle('🎁 GIFTCODE MỚI ĐÃ TẠO!')
-        .setColor('#f39c12')
-        .setDescription(`**Code:** \`${newCode.code}\`\n**Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin\n**Số lượt:** ${newCode.maxUses} lượt\n**Thời hạn:** ${newCode.duration} giờ`)
-        .setTimestamp();
-
-    await message.reply({ embeds: [embed] });
-}
-
 async function handleCode(message, args) {
     const code = args[1]?.toUpperCase();
 
@@ -488,7 +459,6 @@ function isCommandBlocked(channelId, cmd) {
 // ========================================
 
 module.exports = {
-    handleCreateGiftcode,
     handleCode,
     handleDeleteCode,
     handleDeleteAllCodes,
@@ -509,3 +479,4 @@ module.exports = {
     handleUnblock,
     isCommandBlocked
 };
+
