@@ -168,17 +168,19 @@ async function showVipPage(interaction, page) {
         new ButtonBuilder().setCustomId('shop_tab_titles').setLabel('⚔️ Danh Hiệu').setStyle(ButtonStyle.Success),
     );
 
-    const payload = {
-        content: `💰 **Số dư:** ${formatNumber(user.balance)} | 👑 VIP ${user.vipLevel || 0}`,
-        files: [new AttachmentBuilder(imgBuffer, { name: 'shop.png' })],
-        components: [typeRow, navRow, selectRow],
-    };
-
     if (interaction.isModalSubmit()) {
-        await interaction.reply({ ...payload, ephemeral: false });
+        await interaction.reply({
+            content: `💰 **Số dư:** ${formatNumber(user.balance)} | 👑 VIP ${user.vipLevel || 0}`,
+            files: [new AttachmentBuilder(imgBuffer, { name: 'shop.png' })],
+            components: [typeRow, navRow, selectRow],
+        });
     } else {
-        await interaction.deferUpdate();
-        await interaction.editReply(payload);
+        await interaction.update({
+            content: `💰 **Số dư:** ${formatNumber(user.balance)} | 👑 VIP ${user.vipLevel || 0}`,
+            attachments: [],
+            files: [new AttachmentBuilder(imgBuffer, { name: 'shop.png' })],
+            components: [typeRow, navRow, selectRow],
+        });
     }
 }
 
@@ -206,17 +208,19 @@ async function showTitlePage(interaction, page) {
         new ButtonBuilder().setCustomId('shop_tab_titles').setLabel('⚔️ Danh Hiệu').setStyle(ButtonStyle.Primary),
     );
 
-    const payload = {
-        content: `💰 **Số dư:** ${formatNumber(user.balance)} | 👑 ${user.vipTitle || 'Chưa có danh hiệu'}`,
-        files: [new AttachmentBuilder(imgBuffer, { name: 'shop.png' })],
-        components: [typeRow, navRow, selectRow],
-    };
-
     if (interaction.isModalSubmit()) {
-        await interaction.reply({ ...payload, ephemeral: false });
+        await interaction.reply({
+            content: `💰 **Số dư:** ${formatNumber(user.balance)} | 👑 ${user.vipTitle || 'Chưa có danh hiệu'}`,
+            files: [new AttachmentBuilder(imgBuffer, { name: 'shop.png' })],
+            components: [typeRow, navRow, selectRow],
+        });
     } else {
-        await interaction.deferUpdate();
-        await interaction.editReply(payload);
+        await interaction.update({
+            content: `💰 **Số dư:** ${formatNumber(user.balance)} | 👑 ${user.vipTitle || 'Chưa có danh hiệu'}`,
+            attachments: [],
+            files: [new AttachmentBuilder(imgBuffer, { name: 'shop.png' })],
+            components: [typeRow, navRow, selectRow],
+        });
     }
 }
 
