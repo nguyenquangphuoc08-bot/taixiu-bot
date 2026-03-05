@@ -3,7 +3,7 @@
 process.removeAllListeners('warning');
 
 const http = require('http');
-const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, ActivityType, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = require('./config');
 const { saveDB, getUser, resetDailyTop } = require('./utils/database');
 const { autoBackup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
@@ -20,6 +20,7 @@ const { handleButtonClick } = require('./handlers/buttonHandler');
 const { handleVipBonus } = require('./services/vipbonus');
 const { handleXocDia, handleXDButton, handleXDModal, setForceXDJackpot } = require('./commands/xocdia');
 const { handleTop } = require('./commands/top');
+const giftcode = require('./giftcode');
 
 if (!TOKEN) process.exit(1);
 
@@ -34,6 +35,27 @@ const client = new Client({
     shardId: 0
 });
 
+// ===== ĐĂNG KÝ SLASH COMMANDS =====
+const slashCommands = [
+    new SlashCommandBuilder()
+        .setName('giftcode')
+        .setDescription('Tạo giftcode mới (Admin only)')
+        .addStringOption(opt => opt.setName('ten').setDescription('Tên code (VD: THANG3)').setRequired(true))
+        .addStringOption(opt => opt.setName('tien').setDescription('Số tiền (VD: 100m, 5b)').setRequired(true))
+        .addStringOption(opt => opt.setName('luot').setDescription('Số lượt (VD: 100 hoặc unlimit)').setRequired(false))
+        .addStringOption(opt => opt.setName('gio').setDescription('Thời hạn giờ (VD: 24 hoặc unlimit)').setRequired(false))
+        .toJSON(),
+];
+
+function parseAmount(input) {
+    if (!input) return null;
+    input = input.toLowerCase().replace(/[,._]/g, '');
+    if (input.endsWith('k')) return parseFloat(input) * 1000;
+    if (input.endsWith('m')) return parseFloat(input) * 1000000;
+    if (input.endsWith('b') || input.endsWith('t')) return parseFloat(input) * 1000000000;
+    return parseInt(input);
+}
+
 client.once('ready', async () => {
     console.log(`✅ Bot online: ${client.user.tag}`);
     client.user.setPresence({
@@ -42,6 +64,21 @@ client.once('ready', async () => {
     });
     try { cleanupSession(); console.log('🧹 Đã xóa phiên cược cũ'); } catch {}
     try { await restoreInterruptedSession(client); } catch {}
+
+    // Đăng ký slash commands
+    try {
+        const rest = new REST({ version: '10' }).setToken(TOKEN);
+        // Đăng ký cho tất cả guild bot đang trong
+        for (const [guildId] of client.guilds.cache) {
+            await rest.put(
+                Routes.applicationGuildCommands(client.user.id, guildId),
+                { body: slashCommands }
+            );
+        }
+        console.log('✅ Slash commands đã đăng ký!');
+    } catch (err) {
+        console.error('❌ Slash command register error:', err);
+    }
 });
 
 // Reset 0h VN moi phut
@@ -73,11 +110,9 @@ client.on('messageCreate', async (message) => {
     const cmd = args[0].toLowerCase();
 
     try {
-        // .block va .unblock luon chay duoc (admin)
         if (cmd === '.block')   return handleBlock(message, args);
         if (cmd === '.unblock') return handleUnblock(message, args);
 
-        // Check lenh co bi block trong kenh nay khong
         if (isCommandBlocked(message.channel.id, cmd)) return;
 
         if (cmd === '.ping')       return message.reply(`🏓 Pong ${client.ws.ping}ms`);
@@ -94,7 +129,6 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.claimall')   return handleClaimAll(message);
         if (cmd === '.mshop')      return handleMShop(message);
         if (cmd === '.vipbonus')   return handleVipBonus(message);
-        if (cmd === '.giftcode')   return handleCreateGiftcode(message, args);
         if (cmd === '.code')       return handleCode(message, args);
         if (cmd === '.delcode')    return handleDeleteCode(message, args);
         if (cmd === '.delallcode') return handleDeleteAllCodes(message);
@@ -137,7 +171,7 @@ client.on('messageCreate', async (message) => {
                 color: 0xff3333,
                 title: '⚙️ BẢNG LỆNH ADMIN',
                 fields: [
-                    { name: '🎁 Quản Lý Giftcode', value: '```\n.giftcode [tên] [tiền] [lượt] [giờ]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
+                    { name: '🎁 Quản Lý Giftcode', value: '```\n/giftcode ten tien [luot] [gio]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
                     { name: '👑 Quản Lý VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n.nohu       → Ván TX tiếp theo ra bộ ba\n.noxocdia   → Ván XD tiếp theo ra bộ ba\n```', inline: false },
                     { name: '🚫 Block Lệnh', value: '```\n.block .xd .tx   → Block lệnh trong kênh\n.block           → Xem lệnh đang block\n.unblock .xd     → Bỏ block lệnh\n.unblock all     → Bỏ tất cả\n```', inline: false },
                     { name: '💰 Quản Lý Tiền & Quest', value: '```\n.donate @user [số]\n.resetquest @user\n```', inline: false },
@@ -163,6 +197,52 @@ client.on('messageCreate', async (message) => {
 // ===== INTERACTION =====
 client.on('interactionCreate', async (interaction) => {
     try {
+
+        // ===== SLASH COMMAND /giftcode =====
+        if (interaction.isChatInputCommand() && interaction.commandName === 'giftcode') {
+            if (interaction.user.id !== ADMIN_ID) {
+                return interaction.reply({ content: '❌ Chỉ admin mới dùng được!', ephemeral: true });
+            }
+
+            const ten    = interaction.options.getString('ten').toUpperCase();
+            const tienStr = interaction.options.getString('tien');
+            const luotStr = interaction.options.getString('luot') || '100';
+            const gioStr  = interaction.options.getString('gio') || '24';
+
+            const tien = parseAmount(tienStr);
+            if (!tien || tien < 1000000) {
+                return interaction.reply({ content: '❌ Số tiền phải >= 1m!', ephemeral: true });
+            }
+
+            const luot = luotStr.toLowerCase() === 'unlimit' ? -1 : parseInt(luotStr);
+            const gio  = gioStr.toLowerCase()  === 'unlimit' ? -1 : parseInt(gioStr);
+
+            if (luot !== -1 && (isNaN(luot) || luot < 1)) {
+                return interaction.reply({ content: '❌ Số lượt không hợp lệ!', ephemeral: true });
+            }
+            if (gio !== -1 && (isNaN(gio) || gio < 1 || gio > 720)) {
+                return interaction.reply({ content: '❌ Số giờ phải 1-720 hoặc unlimit!', ephemeral: true });
+            }
+
+            const result = giftcode.createGiftcodeCustom(interaction.user.id, ten, tien, luot, gio);
+            if (!result.success) {
+                return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
+            }
+
+            const usesText = luot === -1 ? 'Unlimited' : `${luot} lượt`;
+            const timeText = gio  === -1 ? 'Vô hạn'   : `${gio} giờ`;
+
+            const { EmbedBuilder } = require('discord.js');
+            const embed = new EmbedBuilder()
+                .setTitle('🎁 GIFTCODE ĐÃ TẠO!')
+                .setColor('#f39c12')
+                .setDescription(`**Code:** \`${result.code}\`\n**Tiền:** ${tien.toLocaleString('en-US')} Mcoin\n**Lượt:** ${usesText}\n**Thời hạn:** ${timeText}`)
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [embed] });
+        }
+
+        // ===== BUTTONS & SELECT MENUS =====
         if (interaction.isButton() || interaction.isStringSelectMenu()) {
 
             if (interaction.isButton() && interaction.customId.startsWith('copy_code_')) {
@@ -190,22 +270,33 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.update({ content: `✅ Đã cấp **${title.titleName}** cho <@${targetUserId}>!`, embeds: [], components: [] });
             }
 
-            // XD Buttons
             if (interaction.isButton() && interaction.customId.startsWith('xd_')) {
                 return await handleXDButton(interaction);
             }
 
-            // TX buttons & shop
             return await handleButtonClick(interaction, getBettingSession());
         }
 
         if (interaction.isModalSubmit()) {
-            // XD Modal
             if (interaction.customId.startsWith('xd_modal_')) {
                 return await handleXDModal(interaction);
             }
 
-            // TX modals
+            // Shop nhap trang modal
+            if (interaction.customId.startsWith('shop_goto_')) {
+                const tab = interaction.customId.replace('shop_goto_', '');
+                const pageInput = parseInt(interaction.fields.getTextInputValue('page_number')) || 1;
+                const { showVipPage, showTitlePage, VIP_ITEMS, TITLE_ITEMS } = require('./commands/shop');
+                const ITEMS_PER_PAGE = 8;
+                if (tab === 'vip') {
+                    const total = Math.ceil(Object.keys(VIP_ITEMS).length / ITEMS_PER_PAGE);
+                    return await showVipPage(interaction, Math.min(pageInput - 1, total - 1));
+                } else {
+                    const total = Math.ceil(Object.keys(TITLE_ITEMS).length / ITEMS_PER_PAGE);
+                    return await showTitlePage(interaction, Math.min(pageInput - 1, total - 1));
+                }
+            }
+
             if (!interaction.deferred && !interaction.replied) {
                 await interaction.deferReply({ ephemeral: true });
             }
@@ -267,15 +358,6 @@ client.on('interactionCreate', async (interaction) => {
         } catch {}
     }
 });
-
-function parseAmount(input) {
-    if (!input) return null;
-    input = input.toLowerCase().replace(/[,._]/g, '');
-    if (input.endsWith('k')) return parseInt(input) * 1000;
-    else if (input.endsWith('m')) return parseInt(input) * 1000000;
-    else if (input.endsWith('b') || input.endsWith('t')) return parseInt(input) * 1000000000;
-    return parseInt(input);
-}
 
 setInterval(() => autoBackup(client, BACKUP_CHANNEL_ID).catch(() => {}), 12 * 60 * 60 * 1000);
 
