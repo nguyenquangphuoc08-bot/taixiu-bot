@@ -130,22 +130,66 @@ async function createProfileCard(user, userData, avatarUrl, client) {
             // Khung avatar
             const frame = userData.frame ? FRAMES[userData.frame] : null;
             if (frame) {
-                // Shadow glow
+                const cx = 250, cy = 80;
+
+                // Lop 1: glow ngoai cung
                 ctx.shadowColor = frame.shadow;
-                ctx.shadowBlur = 12;
-                ctx.strokeStyle = frame.color;
-                ctx.lineWidth = frame.width;
+                ctx.shadowBlur = 18;
+                ctx.strokeStyle = frame.color + '55';
+                ctx.lineWidth = 8;
                 ctx.beginPath();
-                ctx.arc(250, 80, 47, 0, Math.PI * 2);
+                ctx.arc(cx, cy, 52, 0, Math.PI * 2);
                 ctx.stroke();
-                ctx.shadowColor = 'transparent';
                 ctx.shadowBlur = 0;
-                // Vien ngoai dam hon
-                ctx.strokeStyle = frame.shadow;
-                ctx.lineWidth = 2;
+
+                // Lop 2: vien ngoai gradient
+                const gradOuter = ctx.createLinearGradient(cx - 52, cy - 52, cx + 52, cy + 52);
+                gradOuter.addColorStop(0, frame.color);
+                gradOuter.addColorStop(0.5, frame.shadow);
+                gradOuter.addColorStop(1, frame.color);
+                ctx.strokeStyle = gradOuter;
+                ctx.lineWidth = 3;
                 ctx.beginPath();
-                ctx.arc(250, 80, 50, 0, Math.PI * 2);
+                ctx.arc(cx, cy, 51, 0, Math.PI * 2);
                 ctx.stroke();
+
+                // Lop 3: khoang trong (gap)
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 48, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Lop 4: vien trong
+                const gradInner = ctx.createLinearGradient(cx - 46, cy - 46, cx + 46, cy + 46);
+                gradInner.addColorStop(0, frame.shadow);
+                gradInner.addColorStop(0.5, frame.color);
+                gradInner.addColorStop(1, frame.shadow);
+                ctx.strokeStyle = gradInner;
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 46, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Hat trang tri xung quanh (12 hat)
+                const DOTS = 12;
+                const dotR = 53;
+                for (let d = 0; d < DOTS; d++) {
+                    const angle = (d / DOTS) * Math.PI * 2 - Math.PI / 2;
+                    const dx = cx + Math.cos(angle) * dotR;
+                    const dy = cy + Math.sin(angle) * dotR;
+                    const dotSize = d % 3 === 0 ? 3.5 : 2;
+
+                    ctx.shadowColor = frame.color;
+                    ctx.shadowBlur = 6;
+                    ctx.fillStyle = d % 2 === 0 ? frame.color : frame.shadow;
+                    ctx.beginPath();
+                    ctx.arc(dx, dy, dotSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.shadowBlur = 0;
+                ctx.shadowColor = 'transparent';
+
             } else {
                 // Vien trang mac dinh
                 ctx.strokeStyle = '#ffffff';
@@ -281,3 +325,4 @@ function createDiceImageSafe(dice1,dice2,dice3){
 }
 
 module.exports = { createBowlLift, createRevealDice, drawDiceSafe, createDiceImageSafe, overlayDiceOnBackground, createHistoryChart, createProfileCard, FRAMES };
+
