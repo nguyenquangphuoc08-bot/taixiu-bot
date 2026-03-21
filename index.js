@@ -159,10 +159,11 @@ client.on('messageCreate', async (message) => {
                 title: '📋 HƯỚNG DẪN SỬ DỤNG BOT',
                 description: '**Chào mừng bạn đến với hệ thống Tài Xỉu!**',
                 fields: [
-                    { name: '🎲 Game', value: '```\n.tx   → Tài Xỉu (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n.xd   → Xóc Đĩa (Chẵn/Lẻ/3🔴1⚪/4🔴)\n.sc   → Xem lịch sử kết quả\n.top  → Bảng xếp hạng thắng hôm nay\n```', inline: false },
+                    { name: '🎲 Game', value: '```\n.tx   → Tài Xỉu (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n       Cược Mcoin + KC cùng lúc!\n.xd   → Xóc Đĩa (Chẵn/Lẻ/3🔴1⚪/4🔴)\n.sc   → Xem lịch sử kết quả\n.top  → Bảng xếp hạng thắng hôm nay\n```', inline: false },
                     { name: '👤 Tài Khoản', value: '```\n.mcoin       → Xem profile & số dư\n.info        → Thống kê hoạt động\n.setbg       → Đặt ảnh nền profile\n.dd          → Điểm danh hằng ngày\n```', inline: false },
-                    { name: '🎁 Nhiệm Vụ & Quà', value: '```\n.daily       → Xem nhiệm vụ hằng ngày\n.claimall    → Nhận hết thưởng nhiệm vụ\n```', inline: false },
-                    { name: '👑 VIP', value: '```\n.mshop       → Mua VIP & danh hiệu\n.vipbonus    → Nhận thưởng VIP hằng ngày\n```', inline: false },
+                    { name: '🎁 Nhiệm Vụ & Quà', value: '```\n.daily       → Xem nhiệm vụ hằng ngày\n.claimall    → Nhận hết thưởng nhiệm vụ\n.inv         → Xem túi đồ (Mcoin/KC/Hộp)\n.unbox [n]   → Mở hộp may mắn\n```', inline: false },
+                    { name: '🎒 Hành Trang', value: '```\n.inv          → Xem túi đồ (Mcoin, KC, Hộp)\n.unbox        → Mở hộp may mắn\n.unbox [số]   → Mở nhiều hộp\n.unbox all    → Mở tất cả hộp\n```', inline: false },
+                    { name: '💎 Kim Cương', value: '```\nNhận KC: Top TX/XD mỗi ngày\nTop 1: 300KC | Top 2: 200KC\nTop 3: 100KC | Top 4-5: 50KC\nDùng KC để mua VIP 5+\nCó thể cược KC trong .tx\n```', inline: false },
                     { name: '💸 Giao Dịch', value: '```\n.tang @user [số] → Tặng tiền cho người khác\n```', inline: false },
                     { name: '🎁 Giftcode', value: '```\n.code            → Xem danh sách giftcode\n.code <MÃ>       → Nhập code nhận quà\n```', inline: false },
                     { name: '🎉 Thưởng Tự Động', value: '```\n• Mỗi 20 tin nhắn:     1 - 10 triệu\n• 1000 tin nhắn/tuần:  100 - 200 triệu\n```', inline: false },
@@ -179,7 +180,7 @@ client.on('messageCreate', async (message) => {
                     { name: '🎁 Quản Lý Giftcode', value: '```\n/giftcode ten tien [luot] [gio]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
                     { name: '👑 Quản Lý VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n.nohu       → Ván TX tiếp theo ra bộ ba\n.noxocdia   → Ván XD tiếp theo ra bộ ba\n```', inline: false },
                     { name: '🚫 Block Lệnh', value: '```\n.block .xd .tx   → Block lệnh trong kênh\n.block           → Xem lệnh đang block\n.unblock .xd     → Bỏ block lệnh\n.unblock all     → Bỏ tất cả\n```', inline: false },
-                    { name: '💰 Quản Lý Tiền & Quest', value: '```\n.donate @user [số]\n.resetquest @user\n```', inline: false },
+                    { name: '💰 Quản Lý Tiền & Quest', value: '```\n.donate @user [số]\n.diamond @user [số KC]\n.resetquest @user\n```', inline: false },
                     { name: '🔧 Database', value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```', inline: false }
                 ],
                 footer: { text: '🔒 Chỉ Admin mới thấy bảng này' },
@@ -318,14 +319,27 @@ client.on('interactionCreate', async (interaction) => {
 
             if (interaction.customId.startsWith('bet_modal_')) {
                 const betType = interaction.customId.replace('bet_modal_', '');
-                const amount = parseAmount(interaction.fields.getTextInputValue('bet_amount'));
-                if (session.bets[userId]) return interaction.editReply('❌ Bạn đã đặt cược rồi! Mỗi phiên chỉ được cược 1 lần.');
-                if (!amount || amount < 1000) return interaction.editReply('❌ Số tiền không hợp lệ! Tối thiểu 1,000 Mcoin');
-                if (user.balance < amount) return interaction.editReply(`❌ Bạn chỉ có ${user.balance.toLocaleString()} Mcoin!`);
-                user.balance -= amount;
+                const amountStr = interaction.fields.getTextInputValue('bet_amount').trim();
+                const kcStr = interaction.fields.getTextInputValue('bet_kc').trim();
+                const amount = amountStr ? parseAmount(amountStr) : 0;
+                const kcAmount = kcStr ? parseInt(kcStr) : 0;
+
+                if (session.bets[userId]) return interaction.editReply('❌ Bạn đã đặt cược rồi!');
+                if (!amount && !kcAmount) return interaction.editReply('❌ Phải nhập ít nhất tiền hoặc KC!');
+                if (amount && amount < 1000) return interaction.editReply('❌ Tiền tối thiểu 1,000 Mcoin!');
+                if (kcAmount && kcAmount < 1) return interaction.editReply('❌ KC phải >= 1!');
+                if (amount && user.balance < amount) return interaction.editReply(`❌ Không đủ tiền! Có ${user.balance.toLocaleString()} Mcoin`);
+                if (kcAmount && (user.diamonds || 0) < kcAmount) return interaction.editReply(`❌ Không đủ KC! Có ${user.diamonds || 0} KC`);
+
+                if (amount) user.balance -= amount;
+                if (kcAmount) user.diamonds = (user.diamonds || 0) - kcAmount;
                 saveDB();
-                session.bets[userId] = { type: betType, amount };
-                return interaction.editReply(`✅ Đã cược **${betType.toUpperCase()}** - ${amount.toLocaleString()} Mcoin`);
+                session.bets[userId] = { type: betType, amount: amount || 0, kcAmount: kcAmount || 0 };
+
+                let msg = `✅ Đã cược **${betType.toUpperCase()}**`;
+                if (amount) msg += ` — ${amount.toLocaleString()}💰`;
+                if (kcAmount) msg += ` — ${kcAmount}💎`;
+                return interaction.editReply(msg);
             }
 
             if (interaction.customId === 'modal_bet_number') {
@@ -385,3 +399,4 @@ process.on('SIGTERM', async () => {
 });
 
 client.login(TOKEN);
+
