@@ -13,8 +13,10 @@ const { handleMcoin, handleSetBg, handleTang, handleDiemDanh, handleInfo, update
 const { handleDaily, handleClaimAll } = require('./commands/quest');
 const { handleDbInfo, handleBackup, handleBackupNow, handleRestore, handleRestoreFile,
         handleSendCode, handleGiveVip, handleRemoveVip, handleGiveTitle, handleNoHu,
-        handleCreateGiftcode, handleCode, handleDeleteCode, handleDeleteAllCodes, handleDonate, handleResetQuest,
-        handleBlock, handleUnblock, isCommandBlocked, handleNoXocDia } = require('./commands/admin');
+        handleCode, handleDeleteCode, handleDeleteAllCodes, handleDonate, handleResetQuest,
+        handleBlock, handleUnblock, isCommandBlocked, handleNoXocDia, handleDiamond } = require('./commands/admin');
+const { handleInv } = require('./commands/inv');
+const { handleUnbox } = require('./commands/unbox');
 const { handleMShop } = require('./commands/shop');
 const { handleButtonClick } = require('./handlers/buttonHandler');
 const { handleVipBonus } = require('./services/vipbonus');
@@ -127,6 +129,8 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.dd')         return handleDiemDanh(message);
         if (cmd === '.daily')      return handleDaily(message);
         if (cmd === '.claimall')   return handleClaimAll(message);
+        if (cmd === '.inv')        return handleInv(message);
+        if (cmd === '.unbox')      return handleUnbox(message, args);
         if (cmd === '.mshop')      return handleMShop(message);
         if (cmd === '.vipbonus')   return handleVipBonus(message);
         if (cmd === '.code')       return handleCode(message, args);
@@ -141,6 +145,7 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.removevip')  return handleRemoveVip(message, args);
         if (cmd === '.givetitle')  return handleGiveTitle(message, args);
         if (cmd === '.donate')     return handleDonate(message, args);
+        if (cmd === '.diamond')    return handleDiamond(message, args);
         if (cmd === '.resetquest') return handleResetQuest(message, args);
         if (cmd === '.nohu')       return handleNoHu(message);
         if (cmd === '.noxocdia')   return handleNoXocDia(message);
@@ -286,14 +291,17 @@ client.on('interactionCreate', async (interaction) => {
             if (interaction.customId.startsWith('shop_goto_')) {
                 const tab = interaction.customId.replace('shop_goto_', '');
                 const pageInput = parseInt(interaction.fields.getTextInputValue('page_number')) || 1;
-                const { showVipPage, showTitlePage, VIP_ITEMS, TITLE_ITEMS } = require('./commands/shop');
+                const { showVipPage, showTitlePage, showFramePage, VIP_ITEMS, TITLE_ITEMS, FRAME_ITEMS } = require('./commands/shop');
                 const ITEMS_PER_PAGE = 8;
                 if (tab === 'vip') {
                     const total = Math.ceil(Object.keys(VIP_ITEMS).length / ITEMS_PER_PAGE);
                     return await showVipPage(interaction, Math.min(pageInput - 1, total - 1));
-                } else {
+                } else if (tab === 'title') {
                     const total = Math.ceil(Object.keys(TITLE_ITEMS).length / ITEMS_PER_PAGE);
                     return await showTitlePage(interaction, Math.min(pageInput - 1, total - 1));
+                } else {
+                    const total = Math.ceil(Object.keys(FRAME_ITEMS).length / ITEMS_PER_PAGE);
+                    return await showFramePage(interaction, Math.min(pageInput - 1, total - 1));
                 }
             }
 
@@ -377,4 +385,3 @@ process.on('SIGTERM', async () => {
 });
 
 client.login(TOKEN);
-
