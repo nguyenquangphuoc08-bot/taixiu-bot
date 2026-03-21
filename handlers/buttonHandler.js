@@ -34,26 +34,34 @@ async function handleButtonClick(interaction, bettingSession) {
             return await showTitlePage(interaction, 0);
         }
 
-        // shop_prev_vip_0 / shop_next_title_1
+        if (interaction.customId === 'shop_tab_frames') {
+            const { showFramePage } = require('../commands/shop');
+            return await showFramePage(interaction, 0);
+        }
+
+        // shop_prev_vip_0 / shop_next_title_1 / shop_next_frame_0
         if (interaction.customId.startsWith('shop_prev_') || interaction.customId.startsWith('shop_next_')) {
             const parts = interaction.customId.split('_');
-            const dir = parts[1];         // prev | next
-            const tab = parts[2];         // vip | title
+            const dir = parts[1];
+            const tab = parts[2]; // vip | title | frame
             const currentPage = parseInt(parts[3]) || 0;
             const newPage = dir === 'next' ? currentPage + 1 : currentPage - 1;
             if (tab === 'vip') {
                 const { showVipPage } = require('../commands/shop');
                 return await showVipPage(interaction, newPage);
-            } else {
+            } else if (tab === 'title') {
                 const { showTitlePage } = require('../commands/shop');
                 return await showTitlePage(interaction, newPage);
+            } else {
+                const { showFramePage } = require('../commands/shop');
+                return await showFramePage(interaction, newPage);
             }
         }
 
-        // shop_page_vip_0 → modal nhập trang
+        // shop_page_frame_0 → modal
         if (interaction.customId.startsWith('shop_page_')) {
             const parts = interaction.customId.split('_');
-            const tab = parts[2]; // vip | title
+            const tab = parts[2];
             const modal = new ModalBuilder()
                 .setCustomId(`shop_goto_${tab}`)
                 .setTitle('Nhập số trang');
@@ -77,6 +85,10 @@ async function handleButtonClick(interaction, bettingSession) {
         if (interaction.customId === 'buy_title') {
             const { buyTitle } = require('../commands/shop');
             return await buyTitle(interaction, interaction.values[0]);
+        }
+        if (interaction.customId === 'buy_frame') {
+            const { buyFrame } = require('../commands/shop');
+            return await buyFrame(interaction, interaction.values[0]);
         }
 
         // ===== TÀI XỈU =====
@@ -138,4 +150,3 @@ async function handleButtonClick(interaction, bettingSession) {
 }
 
 module.exports = { handleButtonClick };
-
