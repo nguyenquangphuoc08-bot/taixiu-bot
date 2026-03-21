@@ -137,7 +137,14 @@ async function handleButtonClick(interaction, bettingSession) {
                 return interaction.showModal(modal);
             }
             const modal = new ModalBuilder().setCustomId(`bet_modal_${type}`).setTitle('🎲 NHẬP SỐ TIỀN CƯỢC');
-            modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('bet_amount').setLabel(`💰 ${formatBalance(user.balance)} Mcoin`).setPlaceholder('VD: 1k, 5m, 10b').setStyle(TextInputStyle.Short).setRequired(true)));
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder().setCustomId('bet_amount').setLabel(`💰 Mcoin (có: ${formatBalance(user.balance)})`).setPlaceholder('VD: 1k, 5m, 10b | Bỏ trống = 0').setStyle(TextInputStyle.Short).setRequired(false)
+                ),
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder().setCustomId('bet_kc').setLabel(`💎 Kim Cương (có: ${user.diamonds || 0} KC)`).setPlaceholder('VD: 10, 100 | Bỏ trống = 0').setStyle(TextInputStyle.Short).setRequired(false)
+                )
+            );
             return interaction.showModal(modal);
         }
 
@@ -150,3 +157,4 @@ async function handleButtonClick(interaction, bettingSession) {
 }
 
 module.exports = { handleButtonClick };
+
