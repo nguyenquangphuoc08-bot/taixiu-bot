@@ -1,3 +1,4 @@
+// utils/database.js
 const fs = require('fs');
 const path = require('path');
 
@@ -84,6 +85,9 @@ function getUser(userId) {
             dailyQuests: { lastReset: Date.now(), quests: getDefaultQuests() },
             txWinningsToday: 0,
             xdWinningsToday: 0,
+            diamonds: 0,
+            boxes: 0,
+            frame: null,
         };
         saveDBDebounced();
     }
@@ -98,6 +102,9 @@ function getUser(userId) {
     if (user.totalWins === undefined) user.totalWins = 0;
     if (!user.txWinningsToday) user.txWinningsToday = 0;
     if (!user.xdWinningsToday) user.xdWinningsToday = 0;
+    if (!user.diamonds) user.diamonds = 0;
+    if (!user.boxes) user.boxes = 0;
+    if (user.frame === undefined) user.frame = null;
     if (!user.dailyQuests || !user.dailyQuests.lastReset || typeof user.dailyQuests.lastReset === 'string') {
         user.dailyQuests = { lastReset: Date.now(), quests: getDefaultQuests() };
         saveDBDebounced();
@@ -128,7 +135,9 @@ function fmtNum(num) {
     return num.toLocaleString('en-US');
 }
 
-// Phat thuong top, gui vao kenh va reset 0h VN
+// KC phat theo top
+const KC_REWARDS = [300, 200, 100, 50, 50];
+
 async function resetDailyTop(client) {
     const { TOP_CHANNEL_ID } = require('../config');
     const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
@@ -145,7 +154,7 @@ async function resetDailyTop(client) {
         } catch { return userId; }
     }
 
-    // TX top 5 - lay truoc khi reset
+    // TX top 5
     const txTop5raw = Object.entries(database.users)
         .map(([id, u]) => ({ id, win: u.txWinningsToday || 0 }))
         .filter(u => u.win > 0)
@@ -156,9 +165,9 @@ async function resetDailyTop(client) {
     for (let i = 0; i < txTop5raw.length; i++) {
         const entry = { ...txTop5raw[i] };
         entry.name = await getName(entry.id);
-        const reward = TOP_REWARDS[i] || 0;
-        if (reward > 0 && database.users[entry.id]) {
-            database.users[entry.id].balance += reward;
+        if (database.users[entry.id]) {
+            database.users[entry.id].balance += TOP_REWARDS[i] || 0;
+            database.users[entry.id].diamonds = (database.users[entry.id].diamonds || 0) + (KC_REWARDS[i] || 0);
         }
         txTop5.push(entry);
     }
@@ -174,9 +183,9 @@ async function resetDailyTop(client) {
     for (let i = 0; i < xdTop5raw.length; i++) {
         const entry = { ...xdTop5raw[i] };
         entry.name = await getName(entry.id);
-        const reward = TOP_REWARDS[i] || 0;
-        if (reward > 0 && database.users[entry.id]) {
-            database.users[entry.id].balance += reward;
+        if (database.users[entry.id]) {
+            database.users[entry.id].balance += TOP_REWARDS[i] || 0;
+            database.users[entry.id].diamonds = (database.users[entry.id].diamonds || 0) + (KC_REWARDS[i] || 0);
         }
         xdTop5.push(entry);
     }
@@ -188,33 +197,29 @@ async function resetDailyTop(client) {
     }
     await saveDBImmediate();
 
-    // Gui vao kenh TOP
     if (!client || !TOP_CHANNEL_ID) return;
     try {
         const channel = await client.channels.fetch(TOP_CHANNEL_ID);
         if (!channel) return;
 
         const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
-        // Lay ngay hom qua (truoc reset)
         const yesterday = new Date(vnNow.getTime() - 24 * 60 * 60 * 1000);
         const dateStr = yesterday.toLocaleDateString('vi-VN');
 
-        // Anh bang top
         const imgBuffer = await createTopImage(txTop5, xdTop5);
         await channel.send({ files: [new AttachmentBuilder(imgBuffer, { name: 'top.png' })] });
 
-        // Embed phat thuong
         function buildTopLines(top5) {
             if (top5.length === 0) return '_Không có ai hôm nay_';
             return top5.map((e, i) =>
-                `${MEDALS[i]} <@${e.id}> — Thắng: **${fmtNum(e.win)}** → +**${PRIZE_LABELS[i]}** Mcoin`
+                `${MEDALS[i]} <@${e.id}> — Thắng: **${fmtNum(e.win)}** → +**${PRIZE_LABELS[i]}** Mcoin + **${KC_REWARDS[i]}** 💎`
             ).join('\n');
         }
 
         const embed = new EmbedBuilder()
             .setTitle(`🏆 KẾT QUẢ TOP NGÀY ${dateStr}`)
             .setColor('#FFD700')
-            .setDescription('Tiền thưởng đã được cộng vào tài khoản!')
+            .setDescription('Tiền thưởng & Kim Cương đã được cộng vào tài khoản!')
             .addFields(
                 { name: '🎲 TÀI XỈU', value: buildTopLines(txTop5), inline: false },
                 { name: '🎴 XÓC ĐĨA', value: buildTopLines(xdTop5), inline: false }
@@ -223,7 +228,6 @@ async function resetDailyTop(client) {
             .setTimestamp();
 
         await channel.send({ embeds: [embed] });
-
     } catch (err) {
         console.error('resetDailyTop send error:', err);
     }
@@ -231,7 +235,6 @@ async function resetDailyTop(client) {
     console.log('✅ Reset daily top & phat thuong xong!');
 }
 
-// Check 0h VN moi phut
 setInterval(() => {
     const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
     if (vnNow.getUTCHours() === 0 && vnNow.getUTCMinutes() === 0) {
