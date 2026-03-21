@@ -232,6 +232,28 @@ async function handleNoXocDia(message) {
 }
 
 // ========================================
+// 💎 TẶNG KIM CƯƠNG
+// ========================================
+
+async function handleDiamond(message, args) {
+    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    const targetUser = message.mentions.users.first();
+    if (!targetUser) return message.reply('❌ Sử dụng: `.diamond @user [số KC]`');
+    const amount = parseInt(args[2]);
+    if (!amount || amount <= 0) return message.reply('❌ Số KC phải lớn hơn 0!');
+    const user = getUser(targetUser.id);
+    user.diamonds = (user.diamonds || 0) + amount;
+    saveDB();
+    const embed = new EmbedBuilder()
+        .setTitle('💎 TẶNG KIM CƯƠNG!')
+        .setColor('#00BFFF')
+        .setDescription(`Admin tặng **${amount} KC** cho <@${targetUser.id}>!\n💎 Kim Cương hiện có: **${user.diamonds} KC**`)
+        .setTimestamp();
+    await message.reply({ embeds: [embed] });
+    try { await targetUser.send(`💎 Admin tặng bạn **${amount} Kim Cương**!`); } catch {}
+}
+
+// ========================================
 // 💰 DONATE
 // ========================================
 
@@ -469,6 +491,7 @@ module.exports = {
     handleNoHu,
     handleNoXocDia,
     handleDonate,
+    handleDiamond,
     handleResetQuest,
     handleDbInfo,
     handleBackup,
@@ -479,4 +502,3 @@ module.exports = {
     handleUnblock,
     isCommandBlocked
 };
-
