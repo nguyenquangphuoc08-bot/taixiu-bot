@@ -3,7 +3,6 @@
 process.removeAllListeners('warning');
 
 const http = require('http');
-// Đã bổ sung các class Builder cần thiết từ discord.js
 const { 
     Client, 
     GatewayIntentBits, 
@@ -81,7 +80,6 @@ client.once('ready', async () => {
     try { cleanupSession(); console.log('🧹 Đã xóa phiên cược cũ'); } catch {}
     try { await restoreInterruptedSession(client); } catch {}
 
-    // Đăng ký slash commands
     try {
         const rest = new REST({ version: '10' }).setToken(TOKEN);
         for (const [guildId] of client.guilds.cache) {
@@ -96,7 +94,6 @@ client.once('ready', async () => {
     }
 });
 
-// Reset 0h VN moi phut
 setInterval(() => {
     const vnNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
     if (vnNow.getUTCHours() === 0 && vnNow.getUTCMinutes() === 0) {
@@ -169,41 +166,43 @@ client.on('messageCreate', async (message) => {
                 ? config.ADMIN_IDS.includes(message.author.id)
                 : message.author.id === config.ADMIN_ID;
 
-            // --- 1. Embed Trang Chủ ---
+            // --- 1. Embed Trang Chủ (Đã bỏ Avatar Bot) ---
             const homeEmbed = new EmbedBuilder()
                 .setColor(0xFEE75C)
-                .setTitle('ALL IN ONE')
+                .setTitle('ALL IN ONE ')
                 .setDescription(
-                    `• **Discord:** [Emzy Community]`
+                    `• **Discord:** [Emzy Community](https://discord.gg)\n\n` +
+                    `Chào mừng bạn đến với hệ thống Bot Rot! Bấm vào danh mục bên dưới để xem hướng dẫn chi tiết.`
                 )
                 .setImage('https://files.catbox.moe/845jxx.webp')
-                .setThumbnail(message.client.user.displayAvatarURL())
-                .setFooter({ 
-                    text: 'Bot Rot • Bấm danh sách dưới để xem hướng dẫn từng phần', 
-                    iconURL: message.client.user.displayAvatarURL() 
-                });
+                .setFooter({ text: 'Bot Rot • Emzy Community' });
 
             // --- 2. Tạo Select Menu ---
             const options = [
                 new StringSelectMenuOptionBuilder()
-                    .setLabel('Profile (Quay lại)')
-                    .setDescription('Quay lại thông tin tổng quan của bot Rot.')
+                    .setLabel('Trang Chủ')
+                    .setDescription('Quay lại thông tin tổng quan.')
                     .setValue('help_home')
                     .setEmoji('🏠'),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('Minigame')
-                    .setDescription('Các lệnh liên quan đến hệ thống minigame giải trí.')
+                    .setDescription('Tài Xỉu, Xóc Đĩa, Soi Cầu.')
                     .setValue('help_minigame')
-                    .setEmoji('🎮'),
+                    .setEmoji('🎲'),
                 new StringSelectMenuOptionBuilder()
-                    .setLabel('Mcoin & Giftcode')
-                    .setDescription('Các lệnh quản lý tiền tệ và mã quà tặng.')
-                    .setValue('help_economy')
-                    .setEmoji('💰'),
+                    .setLabel('Tài Khoản & Quà')
+                    .setDescription('Mcoin, Info, Điểm danh, Quả/Code, Nhiệm vụ.')
+                    .setValue('help_account')
+                    .setEmoji('👤'),
                 new StringSelectMenuOptionBuilder()
-                    .setLabel('Các loại Bảng Xếp hạng')
-                    .setDescription('Các lệnh hiển thị rank trong Emzy Community.')
-                    .setValue('help_leaderboard')
+                    .setLabel('Hành Trang & Kim Cương')
+                    .setDescription('Túi đồ, Mở hộp, Chi tiết Kim Cương (KC).')
+                    .setValue('help_inventory')
+                    .setEmoji('💎'),
+                new StringSelectMenuOptionBuilder()
+                    .setLabel('BXH & Thưởng Tự Động')
+                    .setDescription('Top server, Tặng tiền, Thưởng chat tự động.')
+                    .setValue('help_extra')
                     .setEmoji('🏆')
             ];
 
@@ -211,7 +210,7 @@ client.on('messageCreate', async (message) => {
                 options.push(
                     new StringSelectMenuOptionBuilder()
                         .setLabel('Bảng Lệnh Admin')
-                        .setDescription('Chỉ Admin mới có thể truy cập danh mục này.')
+                        .setDescription('Các lệnh quản trị hệ thống.')
                         .setValue('help_admin')
                         .setEmoji('⚙️')
                 );
@@ -229,7 +228,7 @@ client.on('messageCreate', async (message) => {
                 components: [row]
             });
 
-            // --- 3. Collector lắng nghe sự kiện tương tác ---
+            // --- 3. Collector lắng nghe chọn Menu ---
             const filter = i => i.customId === 'help_menu' && i.user.id === message.author.id;
             const collector = helpMessage.createMessageComponentCollector({ filter, time: 60000 });
 
@@ -245,28 +244,40 @@ client.on('messageCreate', async (message) => {
                             .setColor(0x00ff99)
                             .setTitle('🎲 HƯỚNG DẪN: MINIGAME')
                             .addFields(
-                                { name: '🎲 Tài Xỉu & Xóc Đĩa', value: '```\n.tx   → Tài Xỉu (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n.xd   → Xóc Đĩa (Chẵn/Lẻ/3🔴1⚪/4🔴)\n.sc   → Xem lịch sử kết quả\n```' }
+                                { name: '🎮 Danh Sách Trò Chơi', value: '```\n.tx → Tài Xỉu (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n      * Cược Mcoin + KC cùng lúc!\n.xd → Xóc Đĩa (Chẵn/Lẻ/3🔴1⚪/4🔴)\n.sc → Xem lịch sử kết quả (Soi cầu)\n```' }
                             )
                             .setFooter({ text: 'Bot Rot • Emzy Community' });
                         break;
 
-                    case 'help_economy':
+                    case 'help_account':
                         selectedEmbed
                             .setColor(0xFFD700)
-                            .setTitle('💰 HƯỚNG DẪN: MCOIN & GIFTCODE')
+                            .setTitle('👤 HƯỚNG DẪN: TÀI KHOẢN & QUÀ')
                             .addFields(
-                                { name: '👤 Tài Khoản', value: '```\n.mcoin → Xem profile & số dư\n.dd    → Điểm danh hằng ngày\n```' },
-                                { name: '🎁 Giftcode & Quà', value: '```\n.code <MÃ> → Nhập code nhận quà\n.inv        → Xem túi đồ\n```' }
+                                { name: '📊 Quản Lý Cá Nhân', value: '```\n.mcoin       → Xem profile & số dư\n.info        → Thống kê hoạt động cá nhân\n.setbg       → Đặt ảnh nền profile\n.dd          → Điểm danh hằng ngày nhận Mcoin\n```' },
+                                { name: '🎁 Nhiệm Vụ & Giftcode', value: '```\n.daily       → Xem danh sách nhiệm vụ hằng ngày\n.claimall    → Nhận toàn bộ thưởng nhiệm vụ\n.code        → Xem danh sách giftcode\n.code <MÃ>   → Nhập mã code nhận quà\n```' }
                             )
                             .setFooter({ text: 'Bot Rot • Emzy Community' });
                         break;
 
-                    case 'help_leaderboard':
+                    case 'help_inventory':
+                        selectedEmbed
+                            .setColor(0x9b59b6)
+                            .setTitle('💎 HƯỚNG DẪN: HÀNH TRANG & KIM CƯƠNG')
+                            .addFields(
+                                { name: '🎒 Hành Trang & Mở Hộp', value: '```\n.inv         → Xem túi đồ (Mcoin, KC, Hộp)\n.unbox       → Mở 1 hộp may mắn\n.unbox [số]  → Mở số lượng hộp tùy chọn\n.unbox all   → Mở tất cả hộp đang có\n```' },
+                                { name: '💎 Hệ Thống Kim Cương (KC)', value: '```\n• Bảng thưởng Top TX/XD mỗi ngày:\n  Top 1: 300 KC  | Top 2: 200 KC\n  Top 3: 100 KC  | Top 4-5: 50 KC\n• Công dụng KC:\n  - Mua VIP level 5+\n  - Cược trực tiếp trong .tx\n```' }
+                            )
+                            .setFooter({ text: 'Bot Rot • Emzy Community' });
+                        break;
+
+                    case 'help_extra':
                         selectedEmbed
                             .setColor(0x3498db)
-                            .setTitle('🏆 HƯỚNG DẪN: BẢNG XẾP HẠNG')
+                            .setTitle('🏆 HƯỚNG DẪN: BXH & THƯỞNG TỰ ĐỘNG')
                             .addFields(
-                                { name: '📊 Lệnh Rank', value: '```\n.top  → Bảng xếp hạng thắng hôm nay\n.info → Thống kê cá nhân\n```' }
+                                { name: '💸 Xếp Hạng & Giao Dịch', value: '```\n.top             → Xem bảng xếp hạng thắng hôm nay\n.tang @user [số] → Tặng Mcoin cho người chơi khác\n```' },
+                                { name: '💬 Thưởng Tích Cực Chat', value: '```\n• Mỗi 20 tin nhắn    : Nhận 1 - 10 triệu Mcoin\n• 1000 tin nhắn/tuần : Nhận 100 - 200 triệu Mcoin\n```' }
                             )
                             .setFooter({ text: 'Bot Rot • Emzy Community' });
                         break;
@@ -274,12 +285,15 @@ client.on('messageCreate', async (message) => {
                     case 'help_admin':
                         selectedEmbed
                             .setColor(0xff3333)
-                            .setTitle('⚙️ HƯỚNG DẪN: QUẢN LÝ ADMIN')
+                            .setTitle('⚙️ QUẢN LÝ ADMIN')
                             .addFields(
-                                { name: '🎁 Giftcode & VIP', value: '```\n/giftcode\n.givevip @user\n.nohu\n```' },
-                                { name: '🔧 Hệ Thống', value: '```\n.backup\n.restart\n.block\n```' }
+                                { name: '🎁 Giftcode', value: '```\n/giftcode ten tien [luot] [gio]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```' },
+                                { name: '👑 VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n.nohu      → Ván TX tiếp theo ra bộ ba\n.noxocdia  → Ván XD tiếp theo ra bộ ba\n```' },
+                                { name: '🚫 Block Lệnh Kênh', value: '```\n.block .xd .tx  → Block lệnh trong kênh\n.block          → Xem lệnh đang block\n.unblock .xd    → Bỏ block lệnh\n.unblock all    → Bỏ tất cả block\n```' },
+                                { name: '💰 Tiền & Quest', value: '```\n.donate @user [số]\n.diamond @user [số KC]\n.resetquest @user\n```' },
+                                { name: '🗄️ Database & Hệ Thống', value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```' }
                             )
-                            .setFooter({ text: 'Bot Rot • Emzy Community' });
+                            .setFooter({ text: 'Bot Rot • Emzy Community Admin' });
                         break;
                 }
 
@@ -290,12 +304,12 @@ client.on('messageCreate', async (message) => {
                 selectMenu.setDisabled(true);
                 helpMessage.edit({ components: [new ActionRowBuilder().addComponents(selectMenu)] }).catch(() => {});
             });
-        } // 👈 Đóng block lệnh .help
+        }
     } catch (err) {
         console.error('❌ Message error:', err);
         message.reply('❌ Có lỗi xảy ra!').catch(() => {});
     }
-}); // 👈 Đóng sự kiện client.on('messageCreate')
+});
 
 // ===== INTERACTION =====
 client.on('interactionCreate', async (interaction) => {
