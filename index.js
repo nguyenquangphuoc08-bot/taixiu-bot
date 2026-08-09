@@ -152,54 +152,167 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.restart' && message.author.id === ADMIN_ID) process.exit(0);
 
         if (cmd === '.help') {
-            const isAdmin = message.author.id === ADMIN_ID;
+    const isAdmin = Array.isArray(config.ADMIN_IDS) 
+        ? config.ADMIN_IDS.includes(message.author.id)
+        : message.author.id === config.ADMIN_ID;
 
-            const userEmbed = {
-                color: 0x00ff99,
-                title: '📋 HƯỚNG DẪN SỬ DỤNG BOT',
-                description: '**Chào mừng bạn đến với hệ thống Tài Xỉu!**',
-                fields: [
-                    { name: '🎲 Game', value: '```\n.tx   → Tài Xỉu (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n       Cược Mcoin + KC cùng lúc!\n.xd   → Xóc Đĩa (Chẵn/Lẻ/3🔴1⚪/4🔴)\n.sc   → Xem lịch sử kết quả\n.top  → Bảng xếp hạng thắng hôm nay\n```', inline: false },
-                    { name: '👤 Tài Khoản', value: '```\n.mcoin       → Xem profile & số dư\n.info        → Thống kê hoạt động\n.setbg       → Đặt ảnh nền profile\n.dd          → Điểm danh hằng ngày\n```', inline: false },
-                    { name: '🎁 Nhiệm Vụ & Quà', value: '```\n.daily       → Xem nhiệm vụ hằng ngày\n.claimall    → Nhận hết thưởng nhiệm vụ\n.inv         → Xem túi đồ (Mcoin/KC/Hộp)\n.unbox [n]   → Mở hộp may mắn\n```', inline: false },
-                    { name: '🎒 Hành Trang', value: '```\n.inv          → Xem túi đồ (Mcoin, KC, Hộp)\n.unbox        → Mở hộp may mắn\n.unbox [số]   → Mở nhiều hộp\n.unbox all    → Mở tất cả hộp\n```', inline: false },
-                    { name: '💎 Kim Cương', value: '```\nNhận KC: Top TX/XD mỗi ngày\nTop 1: 300KC | Top 2: 200KC\nTop 3: 100KC | Top 4-5: 50KC\nDùng KC để mua VIP 5+\nCó thể cược KC trong .tx\n```', inline: false },
-                    { name: '💸 Giao Dịch', value: '```\n.tang @user [số] → Tặng tiền cho người khác\n```', inline: false },
-                    { name: '🎁 Giftcode', value: '```\n.code            → Xem danh sách giftcode\n.code <MÃ>       → Nhập code nhận quà\n```', inline: false },
-                    { name: '🎉 Thưởng Tự Động', value: '```\n• Mỗi 20 tin nhắn:     1 - 10 triệu\n• 1000 tin nhắn/tuần:  100 - 200 triệu\n```', inline: false },
-                    { name: '🏆 Top Thắng', value: '```\nTop 1 TX/XD: +100m | Top 2: +50m\nTop 3: +30m | Top 4-5: +15m\nReset & phát thưởng lúc 0h VN\n```', inline: false }
-                ],
-                footer: { text: '🎮 Chúc bạn may mắn! | Reset nhiệm vụ lúc 0h mỗi ngày' },
-                timestamp: new Date()
-            };
+    // --- 1. Embed Trang Chủ ---
+    const homeEmbed = new EmbedBuilder()
+        .setColor(0xFEE75C)
+        .setTitle('1 VẠN CÂU HỎI VÌ SAO')
+        .setDescription(
+            `▌ **Owner:** \`ntt.u.qm\`\n` +
+            `• **Discord:** [Emzy Community](https://discord.gg)`
+        )
+        .setImage('https://i.imgur.com/8QZ8G9M.png') // Thay URL banner của bạn vào đây
+        .setThumbnail(message.client.user.displayAvatarURL())
+        .setFooter({ 
+            text: 'Bot Rot • Bấm danh sách dưới để xem hướng dẫn từng phần', 
+            iconURL: message.client.user.displayAvatarURL() 
+        });
 
-            const adminEmbed = {
-                color: 0xff3333,
-                title: '⚙️ BẢNG LỆNH ADMIN',
-                fields: [
-                    { name: '🎁 Quản Lý Giftcode', value: '```\n/giftcode ten tien [luot] [gio]\n.sendcode\n.delcode <MÃ>\n.delallcode\n```', inline: false },
-                    { name: '👑 Quản Lý VIP & Danh Hiệu', value: '```\n.givevip @user [1-10]\n.removevip @user\n.givetitle @user\n.nohu       → Ván TX tiếp theo ra bộ ba\n.noxocdia   → Ván XD tiếp theo ra bộ ba\n```', inline: false },
-                    { name: '🚫 Block Lệnh', value: '```\n.block .xd .tx   → Block lệnh trong kênh\n.block           → Xem lệnh đang block\n.unblock .xd     → Bỏ block lệnh\n.unblock all     → Bỏ tất cả\n```', inline: false },
-                    { name: '💰 Quản Lý Tiền & Quest', value: '```\n.donate @user [số]\n.diamond @user [số KC]\n.resetquest @user\n```', inline: false },
-                    { name: '🔧 Database', value: '```\n.dbinfo\n.backup\n.backupnow\n.restore\n.restart\n```', inline: false }
-                ],
-                footer: { text: '🔒 Chỉ Admin mới thấy bảng này' },
-                timestamp: new Date()
-            };
+    // --- 2. Tạo Select Menu ---
+    const options = [
+        new StringSelectMenuOptionBuilder()
+            .setLabel('Profile (Quay lại)')
+            .setDescription('Quay lại thông tin tổng quan của bot Rot.')
+            .setValue('help_home')
+            .setEmoji('🏠'),
+        new StringSelectMenuOptionBuilder()
+            .setLabel('Minigame')
+            .setDescription('Các lệnh liên quan đến hệ thống minigame giải trí.')
+            .setValue('help_minigame')
+            .setEmoji('🎮'),
+        new StringSelectMenuOptionBuilder()
+            .setLabel('Mcoin & Giftcode')
+            .setDescription('Các lệnh quản lý tiền tệ và mã quà tặng.')
+            .setValue('help_economy')
+            .setEmoji('💰'),
+        new StringSelectMenuOptionBuilder()
+            .setLabel('Các loại Bảng Xếp hạng')
+            .setDescription('Các lệnh hiển thị rank trong Emzy Community.')
+            .setValue('help_leaderboard')
+            .setEmoji('🏆')
+    ];
 
-            if (isAdmin) {
-                await message.reply({ embeds: [userEmbed, adminEmbed] });
-            } else {
-                await message.reply({ embeds: [userEmbed] });
-            }
+    if (isAdmin) {
+        options.push(
+            new StringSelectMenuOptionBuilder()
+                .setLabel('Bảng Lệnh Admin')
+                .setDescription('Chỉ Admin mới có thể truy cập danh mục này.')
+                .setValue('help_admin')
+                .setEmoji('⚙️')
+        );
+    }
+
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('help_menu')
+        .setPlaceholder('Chọn một danh mục lệnh để xem chi tiết...')
+        .addOptions(options);
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+    const helpMessage = await message.reply({
+        embeds: [homeEmbed],
+        components: [row]
+    });
+
+    // --- 3. Collector lắng nghe sự kiện tương tác ---
+    const filter = i => i.customId === 'help_menu' && i.user.id === message.author.id;
+    const collector = helpMessage.createMessageComponentCollector({ filter, time: 60000 });
+
+    collector.on('collect', async i => {
+        let selectedEmbed = new EmbedBuilder().setTimestamp();
+
+        switch (i.values[0]) {
+            case 'help_home':
+                return await i.update({ embeds: [homeEmbed], components: [row] });
+
+            case 'help_minigame':
+                selectedEmbed
+                    .setColor(0x00ff99)
+                    .setTitle('🎲 HƯỚNG DẪN: MINIGAME')
+                    .addFields(
+                        { name: '🎲 Tài Xỉu & Xóc Đĩa', value: '```\n.tx   → Tài Xỉu (Tài/Xỉu/Chẵn/Lẻ/Số/Tổng)\n.xd   → Xóc Đĩa (Chẵn/Lẻ/3🔴1⚪/4🔴)\n.sc   → Xem lịch sử kết quả\n```' }
+                    )
+                    .setFooter({ text: 'Bot Rot • Emzy Community' });
+                break;
+
+            case 'help_economy':
+                selectedEmbed
+                    .setColor(0xFFD700)
+                    .setTitle('💰 HƯỚNG DẪN: MCOIN & GIFTCODE')
+                    .addFields(
+                        { name: '👤 Tài Khoản', value: '```\n.mcoin → Xem profile & số dư\n.dd    → Điểm danh hằng ngày\n```' },
+                        { name: '🎁 Giftcode & Quà', value: '```\n.code <MÃ> → Nhập code nhận quà\n.inv        → Xem túi đồ\n```' }
+                    )
+                    .setFooter({ text: 'Bot Rot • Emzy Community' });
+                break;
+
+            case 'help_leaderboard':
+                selectedEmbed
+                    .setColor(0x3498db)
+                    .setTitle('🏆 HƯỚNG DẪN: BẢNG XẾP HẠNG')
+                    .addFields(
+                        { name: '📊 Lệnh Rank', value: '```\n.top  → Bảng xếp hạng thắng hôm nay\n.info → Thống kê cá nhân\n```' }
+                    )
+                    .setFooter({ text: 'Bot Rot • Emzy Community' });
+                break;
+
+            case 'help_admin':
+                selectedEmbed
+                    .setColor(0xff3333)
+                    .setTitle('⚙️ HƯỚNG DẪN: QUẢN LÝ ADMIN')
+                    .addFields(
+                        { name: '🎁 Giftcode & VIP', value: '```\n/giftcode\n.givevip @user\n.nohu\n```' },
+                        { name: '🔧 Hệ Thống', value: '```\n.backup\n.restart\n.block\n```' }
+                    )
+                    .setFooter({ text: 'Bot Rot • Emzy Community' });
+                break;
         }
 
-    } catch (err) {
-        console.error('❌ Message error:', err);
-        message.reply('❌ Có lỗi xảy ra!').catch(() => {});
-    }
-});
+        await i.update({ embeds: [selectedEmbed], components: [row] });
+    });
 
+    collector.on('end', () => {
+        selectMenu.setDisabled(true);
+        helpMessage.edit({ components: [new ActionRowBuilder().addComponents(selectMenu)] }).catch(() => {});
+    });
+}
+            // --- 2. Tạo Select Menu ---
+    const options = [
+        new StringSelectMenuOptionBuilder()
+            .setLabel('Profile (Quay lại)')
+            .setDescription('Quay lại thông tin tổng quan của bot Rot.')
+            .setValue('help_home')
+            .setEmoji('🏠'),
+        new StringSelectMenuOptionBuilder()
+            .setLabel('Minigame')
+            .setDescription('Các lệnh liên quan đến hệ thống minigame giải trí.')
+            .setValue('help_minigame')
+            .setEmoji('🎮'),
+        new StringSelectMenuOptionBuilder()
+            .setLabel('Mcoin & Giftcode')
+            .setDescription('Các lệnh quản lý tiền tệ và mã quà tặng.')
+            .setValue('help_economy')
+            .setEmoji('💰'),
+        new StringSelectMenuOptionBuilder()
+            .setLabel('Các loại Bảng Xếp hạng')
+            .setDescription('Các lệnh hiển thị rank trong Emzy Community.')
+            .setValue('help_leaderboard')
+            .setEmoji('🏆')
+    ];
+
+    // 👇 ĐÂY LÀ ĐOẠN IF KIỂM TRA ADMIN
+    if (isAdmin) {
+        options.push(
+            new StringSelectMenuOptionBuilder()
+                .setLabel('Bảng Lệnh Admin')
+                .setDescription('Chỉ Admin mới có thể truy cập danh mục này.')
+                .setValue('help_admin')
+                .setEmoji('⚙️')
+        );
+    }
 // ===== INTERACTION =====
 client.on('interactionCreate', async (interaction) => {
     try {
