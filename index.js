@@ -279,40 +279,6 @@ client.on('messageCreate', async (message) => {
         helpMessage.edit({ components: [new ActionRowBuilder().addComponents(selectMenu)] }).catch(() => {});
     });
 }
-            // --- 2. Tạo Select Menu ---
-    const options = [
-        new StringSelectMenuOptionBuilder()
-            .setLabel('Profile (Quay lại)')
-            .setDescription('Quay lại thông tin tổng quan của bot Rot.')
-            .setValue('help_home')
-            .setEmoji('🏠'),
-        new StringSelectMenuOptionBuilder()
-            .setLabel('Minigame')
-            .setDescription('Các lệnh liên quan đến hệ thống minigame giải trí.')
-            .setValue('help_minigame')
-            .setEmoji('🎮'),
-        new StringSelectMenuOptionBuilder()
-            .setLabel('Mcoin & Giftcode')
-            .setDescription('Các lệnh quản lý tiền tệ và mã quà tặng.')
-            .setValue('help_economy')
-            .setEmoji('💰'),
-        new StringSelectMenuOptionBuilder()
-            .setLabel('Các loại Bảng Xếp hạng')
-            .setDescription('Các lệnh hiển thị rank trong Emzy Community.')
-            .setValue('help_leaderboard')
-            .setEmoji('🏆')
-    ];
-
-    // 👇 ĐÂY LÀ ĐOẠN IF KIỂM TRA ADMIN
-    if (isAdmin) {
-        options.push(
-            new StringSelectMenuOptionBuilder()
-                .setLabel('Bảng Lệnh Admin')
-                .setDescription('Chỉ Admin mới có thể truy cập danh mục này.')
-                .setValue('help_admin')
-                .setEmoji('⚙️')
-        );
-    }
 // ===== INTERACTION =====
 client.on('interactionCreate', async (interaction) => {
     try {
