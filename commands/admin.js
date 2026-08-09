@@ -1,4 +1,4 @@
-// commands/admin.js - HỖ TRỢ UNLIMITED GIFTCODE
+// commands/admin.js - HỖ TRỢ NHIỀU ADMIN + UNLIMITED GIFTCODE
 
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { database, saveDB, DB_PATH, getUser } = require('../utils/database');
@@ -6,7 +6,12 @@ const giftcode = require('../giftcode');
 const fs = require('fs');
 const https = require('https');
 
-const { ADMIN_ID } = require('../config');
+const { ADMIN_IDS } = require('../config');
+
+// Kiểm tra người dùng có phải admin không
+function isAdmin(message) {
+    return ADMIN_IDS.includes(message.author.id);
+}
 
 function parseAmount(str) {
     str = str.toLowerCase().trim();
@@ -24,27 +29,57 @@ async function handleCode(message, args) {
     const code = args[1]?.toUpperCase();
 
     // ===== ADMIN TẠO CODE =====
-    if (message.author.id === ADMIN_ID && code && args[2]) {
+    if (isAdmin(message) && code && args[2]) {
         const amountStr = args[2];
-        let maxUses = args[3] ? (args[3].toLowerCase() === 'unlimit' ? -1 : parseInt(args[3])) : 100;
-        let customHours = args[4] ? (args[4].toLowerCase() === 'unlimit' ? -1 : parseInt(args[4])) : 24;
+
+        let maxUses = args[3]
+            ? (args[3].toLowerCase() === 'unlimit' ? -1 : parseInt(args[3]))
+            : 100;
+
+        let customHours = args[4]
+            ? (args[4].toLowerCase() === 'unlimit' ? -1 : parseInt(args[4]))
+            : 24;
 
         const amount = parseAmount(amountStr);
 
-        if (isNaN(amount) || amount < 1000000) return message.reply('❌ Số tiền phải >= 1,000,000 Mcoin!');
-        if (maxUses !== -1 && (isNaN(maxUses) || maxUses < 1)) return message.reply('❌ Số lượt phải >= 1 hoặc "unlimit"!');
-        if (customHours !== -1 && (isNaN(customHours) || customHours < 1 || customHours > 720)) return message.reply('❌ Số giờ phải từ 1-720 hoặc "unlimit"!');
+        if (isNaN(amount) || amount < 1000000)
+            return message.reply('❌ Số tiền phải >= 1,000,000 Mcoin!');
 
-        const newCode = giftcode.createGiftcodeCustom(message.author.id, code, amount, maxUses, customHours);
-        if (!newCode.success) return message.reply(`❌ ${newCode.message}`);
+        if (maxUses !== -1 && (isNaN(maxUses) || maxUses < 1))
+            return message.reply('❌ Số lượt phải >= 1 hoặc "unlimit"!');
 
-        const usesText = maxUses === -1 ? 'Unlimited' : `${maxUses} lượt`;
-        const timeText = customHours === -1 ? 'Vô hạn' : `${customHours} giờ`;
+        if (
+            customHours !== -1 &&
+            (isNaN(customHours) || customHours < 1 || customHours > 720)
+        )
+            return message.reply('❌ Số giờ phải từ 1-720 hoặc "unlimit"!');
+
+        const newCode = giftcode.createGiftcodeCustom(
+            message.author.id,
+            code,
+            amount,
+            maxUses,
+            customHours
+        );
+
+        if (!newCode.success)
+            return message.reply(`❌ ${newCode.message}`);
+
+        const usesText =
+            maxUses === -1 ? 'Unlimited' : `${maxUses} lượt`;
+
+        const timeText =
+            customHours === -1 ? 'Vô hạn' : `${customHours} giờ`;
 
         const embed = new EmbedBuilder()
             .setTitle('🎁 GIFTCODE MỚI ĐÃ TẠO!')
             .setColor('#f39c12')
-            .setDescription(`**Code:** \`${newCode.code}\`\n**Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin\n**Số lượt:** ${usesText}\n**Thời hạn:** ${timeText}`)
+            .setDescription(
+                `**Code:** \`${newCode.code}\`\n` +
+                `**Phần thưởng:** ${newCode.reward.toLocaleString('en-US')} Mcoin\n` +
+                `**Số lượt:** ${usesText}\n` +
+                `**Thời hạn:** ${timeText}`
+            )
             .setTimestamp();
 
         return message.reply({ embeds: [embed] });
@@ -52,17 +87,31 @@ async function handleCode(message, args) {
 
     // ===== HIỆN DANH SÁCH CODE =====
     if (!code) {
-        const { ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
+        const {
+            ButtonBuilder,
+            ButtonStyle,
+            ActionRowBuilder
+        } = require('discord.js');
+
         const activeCodes = giftcode.listActiveCodes();
 
-        if (activeCodes.length === 0) return message.reply('📭 Không có code nào!');
+        if (activeCodes.length === 0)
+            return message.reply('📭 Không có code nào!');
 
         let codeList = '';
         const buttons = [];
 
         activeCodes.forEach((gc, index) => {
-            const usesLeft = gc.maxUses === -1 ? '∞' : (gc.maxUses - gc.usedBy.length);
-            codeList += `**${index + 1}. \`${gc.code}\`** - ${gc.reward.toLocaleString('en-US')} Mcoin (${usesLeft} lượt)\n`;
+            const usesLeft =
+                gc.maxUses === -1
+                    ? '∞'
+                    : (gc.maxUses - gc.usedBy.length);
+
+            codeList +=
+                `**${index + 1}. \`${gc.code}\`** - ` +
+                `${gc.reward.toLocaleString('en-US')} Mcoin ` +
+                `(${usesLeft} lượt)\n`;
+
             if (buttons.length < 25) {
                 buttons.push(
                     new ButtonBuilder()
@@ -77,41 +126,76 @@ async function handleCode(message, args) {
         const embed = new EmbedBuilder()
             .setTitle('🎁 CODE MCOIN')
             .setColor('#9b59b6')
-            .setDescription(codeList + '\n📋 **Bấm nút để copy code!**')
+            .setDescription(
+                codeList + '\n📋 **Bấm nút để copy code!**'
+            )
             .setTimestamp();
 
         const rows = [];
+
         for (let i = 0; i < buttons.length; i += 5) {
-            rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
+            rows.push(
+                new ActionRowBuilder()
+                    .addComponents(buttons.slice(i, i + 5))
+            );
         }
 
-        return message.reply({ embeds: [embed], components: rows.slice(0, 5) });
+        return message.reply({
+            embeds: [embed],
+            components: rows.slice(0, 5)
+        });
     }
 
     // ===== NHẬP CODE =====
-    const result = giftcode.redeemGiftcode(code, message.author.id);
-    if (!result.success) return message.reply(result.message);
+    const result = giftcode.redeemGiftcode(
+        code,
+        message.author.id
+    );
+
+    if (!result.success)
+        return message.reply(result.message);
 
     const user = getUser(message.author.id);
+
     user.balance += result.reward;
+
     saveDB();
 
-    await message.reply(`✅ Nhận được ${result.reward.toLocaleString('en-US')} Mcoin!`);
+    await message.reply(
+        `✅ Nhận được ${result.reward.toLocaleString('en-US')} Mcoin!`
+    );
 }
 
+// ========================================
+// 🗑️ DELETE CODE
+// ========================================
+
 async function handleDeleteCode(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
+
     const code = args[1]?.toUpperCase();
-    if (!code) return message.reply('❌ Sử dụng: .delcode <CODE>');
+
+    if (!code)
+        return message.reply('❌ Sử dụng: .delcode <CODE>');
+
     const result = giftcode.deleteGiftcode(code);
-    if (!result.success) return message.reply(`❌ ${result.message}`);
+
+    if (!result.success)
+        return message.reply(`❌ ${result.message}`);
+
     await message.reply(`✅ Đã xóa code ${code}!`);
 }
 
 async function handleDeleteAllCodes(message) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
+
     const result = giftcode.deleteAllCodes();
-    await message.reply(`✅ Đã xóa ${result.count} code!`);
+
+    await message.reply(
+        `✅ Đã xóa ${result.count} code!`
+    );
 }
 
 // ========================================
@@ -119,58 +203,101 @@ async function handleDeleteAllCodes(message) {
 // ========================================
 
 async function handleGiveVip(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
 
     const targetUser = message.mentions.users.first();
     const vipLevel = parseInt(args[2]);
 
-    if (!targetUser || !vipLevel || vipLevel < 1 || vipLevel > 10)
-        return message.reply('❌ Sử dụng: .givevip @user [1-10]');
+    if (
+        !targetUser ||
+        !vipLevel ||
+        vipLevel < 1 ||
+        vipLevel > 10
+    ) {
+        return message.reply(
+            '❌ Sử dụng: .givevip @user [1-10]'
+        );
+    }
 
     const { VIP_ITEMS } = require('./shop');
     const vipItem = VIP_ITEMS[`vip${vipLevel}`];
-    if (!vipItem) return message.reply('❌ VIP level không hợp lệ!');
+
+    if (!vipItem)
+        return message.reply('❌ VIP level không hợp lệ!');
 
     const user = getUser(targetUser.id);
+
     user.vipLevel = vipLevel;
+
     user.vipBonus = {
         dailyBonus: vipItem.dailyBonus,
         betBonus: vipItem.betBonus,
         extraBonus: vipItem.extraBonus || 0
     };
+
     saveDB();
 
-    await message.reply(`✅ Đã cấp ${vipItem.name} cho <@${targetUser.id}>!`);
+    await message.reply(
+        `✅ Đã cấp ${vipItem.name} cho <@${targetUser.id}>!`
+    );
 }
 
 async function handleRemoveVip(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
 
     const targetUser = message.mentions.users.first();
-    if (!targetUser) return message.reply('❌ Sử dụng: .removevip @user');
+
+    if (!targetUser)
+        return message.reply(
+            '❌ Sử dụng: .removevip @user'
+        );
 
     const user = getUser(targetUser.id);
+
     user.vipLevel = 0;
     user.vipBonus = null;
+
     saveDB();
 
-    await message.reply(`✅ Đã xóa VIP của <@${targetUser.id}>!`);
+    await message.reply(
+        `✅ Đã xóa VIP của <@${targetUser.id}>!`
+    );
 }
 
 async function handleGiveTitle(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
 
     const targetUser = message.mentions.users.first();
-    if (!targetUser) return message.reply('❌ Sử dụng: .givetitle @user');
+
+    if (!targetUser)
+        return message.reply(
+            '❌ Sử dụng: .givetitle @user'
+        );
 
     const { TITLE_ITEMS } = require('./shop');
-    const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
+
+    const {
+        StringSelectMenuBuilder,
+        ActionRowBuilder
+    } = require('discord.js');
 
     const options = Object.values(TITLE_ITEMS).map(title => {
         let bonusText = `+${title.dailyBonus}% dd`;
-        if (title.betBonus > 0) bonusText += `, +${title.betBonus}% thắng`;
-        if (title.jackpotBonus > 0) bonusText += `, +${title.jackpotBonus}% jackpot`;
-        return { label: title.titleName, description: bonusText, value: `givetitle_${targetUser.id}_${title.id}` };
+
+        if (title.betBonus > 0)
+            bonusText += `, +${title.betBonus}% thắng`;
+
+        if (title.jackpotBonus > 0)
+            bonusText += `, +${title.jackpotBonus}% jackpot`;
+
+        return {
+            label: title.titleName,
+            description: bonusText,
+            value: `givetitle_${targetUser.id}_${title.id}`
+        };
     });
 
     const selectMenu = new StringSelectMenuBuilder()
@@ -181,10 +308,19 @@ async function handleGiveTitle(message, args) {
     const embed = new EmbedBuilder()
         .setTitle('👑 CẤP DANH HIỆU')
         .setColor('#e91e63')
-        .setDescription(`Chọn danh hiệu để cấp cho <@${targetUser.id}>:`)
-        .setFooter({ text: 'Chọn từ menu bên dưới' });
+        .setDescription(
+            `Chọn danh hiệu để cấp cho <@${targetUser.id}>:`
+        )
+        .setFooter({
+            text: 'Chọn từ menu bên dưới'
+        });
 
-    await message.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(selectMenu)] });
+    await message.reply({
+        embeds: [embed],
+        components: [
+            new ActionRowBuilder().addComponents(selectMenu)
+        ]
+    });
 }
 
 // ========================================
@@ -192,32 +328,48 @@ async function handleGiveTitle(message, args) {
 // ========================================
 
 async function handleNoHu(message) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
 
     const { setForceJackpot } = require('./game');
+
     setForceJackpot(true);
 
-    const { database } = require('../utils/database');
     const currentJackpot = database.jackpot || 0;
-    const chanceText = currentJackpot >= 3_000_000_000 ? '100%' : currentJackpot >= 1_000_000_000 ? '70%' : '5%';
+
+    const chanceText =
+        currentJackpot >= 3_000_000_000
+            ? '100%'
+            : currentJackpot >= 1_000_000_000
+                ? '70%'
+                : '5%';
 
     const embed = new EmbedBuilder()
         .setTitle('🎲 ĐÃ KÍCH HOẠT .NOHU!')
         .setColor('#FFD700')
-        .setDescription(`✅ **Ván TX tiếp theo xúc xắc sẽ ra bộ ba (111/222/.../666)!**\n\n🎰 Xác suất nổ hũ: **${chanceText}** (dựa theo hũ hiện tại)\n💰 Hũ hiện tại: **${currentJackpot.toLocaleString('en-US')}**\n\n⚠️ Tự động tắt sau ván đó.`)
+        .setDescription(
+            `✅ **Ván TX tiếp theo xúc xắc sẽ ra bộ ba (111/222/.../666)!**\n\n` +
+            `🎰 Xác suất nổ hũ: **${chanceText}**\n` +
+            `💰 Hũ hiện tại: **${currentJackpot.toLocaleString('en-US')}**\n\n` +
+            `⚠️ Tự động tắt sau ván đó.`
+        )
         .setTimestamp();
 
-    await message.reply({ embeds: [embed] });
+    await message.reply({
+        embeds: [embed]
+    });
 }
 
 // ========================================
-// 🎲 NỔ HŨ XD ADMIN
+// 🎲 NỔ HŨ XÓC ĐĨA ADMIN
 // ========================================
 
 async function handleNoXocDia(message) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
 
     const { setForceXDJackpot } = require('./xocdia');
+
     setForceXDJackpot(true);
 
     const currentJackpot = database.xdJackpot || 0;
@@ -225,10 +377,16 @@ async function handleNoXocDia(message) {
     const embed = new EmbedBuilder()
         .setTitle('🎲 ĐÃ KÍCH HOẠT .NOXOCDIA!')
         .setColor('#FFD700')
-        .setDescription(`✅ **Ván XD tiếp theo xúc xắc sẽ ra bộ ba!**\n\n💰 Hũ XD hiện tại: **${currentJackpot.toLocaleString('en-US')}**\n\n⚠️ Tự động tắt sau ván đó.`)
+        .setDescription(
+            `✅ **Ván XD tiếp theo xúc xắc sẽ ra bộ ba!**\n\n` +
+            `💰 Hũ XD hiện tại: **${currentJackpot.toLocaleString('en-US')}**\n\n` +
+            `⚠️ Tự động tắt sau ván đó.`
+        )
         .setTimestamp();
 
-    await message.reply({ embeds: [embed] });
+    await message.reply({
+        embeds: [embed]
+    });
 }
 
 // ========================================
@@ -236,21 +394,48 @@ async function handleNoXocDia(message) {
 // ========================================
 
 async function handleDiamond(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
+
     const targetUser = message.mentions.users.first();
-    if (!targetUser) return message.reply('❌ Sử dụng: `.diamond @user [số KC]`');
+
+    if (!targetUser)
+        return message.reply(
+            '❌ Sử dụng: `.diamond @user [số KC]`'
+        );
+
     const amount = parseInt(args[2]);
-    if (!amount || amount <= 0) return message.reply('❌ Số KC phải lớn hơn 0!');
+
+    if (!amount || amount <= 0)
+        return message.reply(
+            '❌ Số KC phải lớn hơn 0!'
+        );
+
     const user = getUser(targetUser.id);
-    user.diamonds = (user.diamonds || 0) + amount;
+
+    user.diamonds =
+        (user.diamonds || 0) + amount;
+
     saveDB();
+
     const embed = new EmbedBuilder()
         .setTitle('💎 TẶNG KIM CƯƠNG!')
         .setColor('#00BFFF')
-        .setDescription(`Admin tặng **${amount} KC** cho <@${targetUser.id}>!\n💎 Kim Cương hiện có: **${user.diamonds} KC**`)
+        .setDescription(
+            `Admin tặng **${amount} KC** cho <@${targetUser.id}>!\n` +
+            `💎 Kim Cương hiện có: **${user.diamonds} KC**`
+        )
         .setTimestamp();
-    await message.reply({ embeds: [embed] });
-    try { await targetUser.send(`💎 Admin tặng bạn **${amount} Kim Cương**!`); } catch {}
+
+    await message.reply({
+        embeds: [embed]
+    });
+
+    try {
+        await targetUser.send(
+            `💎 Admin tặng bạn **${amount} Kim Cương**!`
+        );
+    } catch {}
 }
 
 // ========================================
@@ -258,31 +443,59 @@ async function handleDiamond(message, args) {
 // ========================================
 
 async function handleDonate(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
 
     const targetUser = message.mentions.users.first();
-    if (!targetUser) return message.reply('❌ Sử dụng: .donate @user [số tiền]\nVD: .donate @ai 100m');
 
-    const amountStr = args[2]?.toLowerCase().trim();
-    if (!amountStr) return message.reply('❌ Nhập số tiền! VD: 100m, 5b');
+    if (!targetUser) {
+        return message.reply(
+            '❌ Sử dụng: .donate @user [số tiền]\nVD: .donate @ai 100m'
+        );
+    }
+
+    const amountStr =
+        args[2]?.toLowerCase().trim();
+
+    if (!amountStr)
+        return message.reply(
+            '❌ Nhập số tiền! VD: 100m, 5b'
+        );
 
     const amount = parseAmount(amountStr);
-    if (isNaN(amount) || amount <= 0) return message.reply('❌ Số tiền không hợp lệ!');
+
+    if (isNaN(amount) || amount <= 0)
+        return message.reply(
+            '❌ Số tiền không hợp lệ!'
+        );
 
     const user = getUser(targetUser.id);
+
     const oldBalance = user.balance;
+
     user.balance += amount;
+
     saveDB();
 
     const embed = new EmbedBuilder()
         .setTitle('💰 ADMIN TẶNG TIỀN!')
         .setColor('#2ecc71')
-        .setDescription(`Admin tặng **${amount.toLocaleString('en-US')} Mcoin** cho <@${targetUser.id}>!\n\n💰 Số dư cũ: ${oldBalance.toLocaleString('en-US')}\n✨ Số dư mới: **${user.balance.toLocaleString('en-US')}**`)
+        .setDescription(
+            `Admin tặng **${amount.toLocaleString('en-US')} Mcoin** cho <@${targetUser.id}>!\n\n` +
+            `💰 Số dư cũ: ${oldBalance.toLocaleString('en-US')}\n` +
+            `✨ Số dư mới: **${user.balance.toLocaleString('en-US')}**`
+        )
         .setTimestamp();
 
-    await message.reply({ embeds: [embed] });
+    await message.reply({
+        embeds: [embed]
+    });
 
-    try { await targetUser.send(`🎁 Admin tặng bạn **${amount.toLocaleString('en-US')} Mcoin**!`); } catch {}
+    try {
+        await targetUser.send(
+            `🎁 Admin tặng bạn **${amount.toLocaleString('en-US')} Mcoin**!`
+        );
+    } catch {}
 }
 
 // ========================================
@@ -290,23 +503,37 @@ async function handleDonate(message, args) {
 // ========================================
 
 async function handleResetQuest(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
 
     const targetUser = message.mentions.users.first();
-    if (!targetUser) return message.reply('❌ Sử dụng: `.resetquest @user`');
+
+    if (!targetUser)
+        return message.reply(
+            '❌ Sử dụng: `.resetquest @user`'
+        );
 
     const user = getUser(targetUser.id);
-    const { initDailyQuests } = require('../services/quest');
+
+    const { initDailyQuests } =
+        require('../services/quest');
+
     user.dailyQuests = initDailyQuests();
+
     saveDB();
 
     const embed = new EmbedBuilder()
         .setTitle('🔄 RESET NHIỆM VỤ THÀNH CÔNG!')
         .setColor('#2ecc71')
-        .setDescription(`Đã reset nhiệm vụ của <@${targetUser.id}>!\n\nNgười chơi có thể gõ \`.daily\` để xem nhiệm vụ mới.`)
+        .setDescription(
+            `Đã reset nhiệm vụ của <@${targetUser.id}>!\n\n` +
+            `Người chơi có thể gõ \`.daily\` để xem nhiệm vụ mới.`
+        )
         .setTimestamp();
 
-    await message.reply({ embeds: [embed] });
+    await message.reply({
+        embeds: [embed]
+    });
 }
 
 // ========================================
@@ -314,23 +541,50 @@ async function handleResetQuest(message, args) {
 // ========================================
 
 async function handleSendCode(message, GIFTCODE_CHANNEL_ID) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
 
     try {
-        const reward = Math.floor(Math.random() * 99000000 + 1000000);
-        const newCode = giftcode.createGiftcode(message.author.id, reward, 2);
-        const channel = await message.client.channels.fetch(GIFTCODE_CHANNEL_ID);
+        const reward =
+            Math.floor(
+                Math.random() * 99000000 + 1000000
+            );
+
+        const newCode =
+            giftcode.createGiftcode(
+                message.author.id,
+                reward,
+                2
+            );
+
+        const channel =
+            await message.client.channels.fetch(
+                GIFTCODE_CHANNEL_ID
+            );
 
         const embed = new EmbedBuilder()
             .setTitle('🎁 GIFTCODE MỚI!')
             .setColor('#f39c12')
-            .setDescription(`Code: \`${newCode.code}\`\nThưởng: ${newCode.reward.toLocaleString('en-US')} Mcoin\nGõ: \`.code ${newCode.code}\``)
+            .setDescription(
+                `Code: \`${newCode.code}\`\n` +
+                `Thưởng: ${newCode.reward.toLocaleString('en-US')} Mcoin\n` +
+                `Gõ: \`.code ${newCode.code}\``
+            )
             .setTimestamp();
 
-        await channel.send({ content: '@everyone', embeds: [embed] });
-        await message.reply(`✅ Đã phát code ${newCode.code}!`);
+        await channel.send({
+            content: '@everyone',
+            embeds: [embed]
+        });
+
+        await message.reply(
+            `✅ Đã phát code ${newCode.code}!`
+        );
+
     } catch (e) {
-        return message.reply(`❌ Lỗi: ${e.message}`);
+        return message.reply(
+            `❌ Lỗi: ${e.message}`
+        );
     }
 }
 
@@ -339,79 +593,200 @@ async function handleSendCode(message, GIFTCODE_CHANNEL_ID) {
 // ========================================
 
 async function handleDbInfo(message) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
 
-    const totalUsers = Object.keys(database.users).length;
-    const totalBalance = Object.values(database.users).reduce((sum, u) => sum + u.balance, 0);
+    const totalUsers =
+        Object.keys(database.users).length;
+
+    const totalBalance =
+        Object.values(database.users)
+            .reduce(
+                (sum, u) => sum + u.balance,
+                0
+            );
 
     const embed = new EmbedBuilder()
         .setTitle('🗄️ DATABASE INFO')
         .setColor('#3498db')
         .addFields(
-            { name: 'Người chơi', value: `${totalUsers}`, inline: true },
-            { name: 'Tổng tiền', value: `${totalBalance.toLocaleString('en-US')}`, inline: true },
-            { name: 'Hũ', value: `${(database.jackpot || 0).toLocaleString('en-US')}`, inline: true }
+            {
+                name: 'Người chơi',
+                value: `${totalUsers}`,
+                inline: true
+            },
+            {
+                name: 'Tổng tiền',
+                value: `${totalBalance.toLocaleString('en-US')}`,
+                inline: true
+            },
+            {
+                name: 'Hũ',
+                value: `${(database.jackpot || 0).toLocaleString('en-US')}`,
+                inline: true
+            }
         )
         .setTimestamp();
 
-    await message.reply({ embeds: [embed] });
+    await message.reply({
+        embeds: [embed]
+    });
 }
 
 async function handleBackup(message) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
-    const backup = JSON.stringify(database, null, 2);
-    const attachment = new AttachmentBuilder(Buffer.from(backup), { name: `backup_${Date.now()}.json` });
-    await message.reply({ content: '📦 Backup database:', files: [attachment] });
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
+
+    const backup =
+        JSON.stringify(database, null, 2);
+
+    const attachment =
+        new AttachmentBuilder(
+            Buffer.from(backup),
+            {
+                name: `backup_${Date.now()}.json`
+            }
+        );
+
+    await message.reply({
+        content: '📦 Backup database:',
+        files: [attachment]
+    });
 }
 
 async function handleBackupNow(message) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
+
     try {
-        const backup = JSON.stringify(database, null, 2);
-        const attachment = new AttachmentBuilder(Buffer.from(backup), { name: `manual_${Date.now()}.json` });
-        await message.reply({ files: [attachment] });
+        const backup =
+            JSON.stringify(database, null, 2);
+
+        const attachment =
+            new AttachmentBuilder(
+                Buffer.from(backup),
+                {
+                    name: `manual_${Date.now()}.json`
+                }
+            );
+
+        await message.reply({
+            files: [attachment]
+        });
+
     } catch (e) {
-        return message.reply(`❌ Lỗi: ${e.message}`);
+        return message.reply(
+            `❌ Lỗi: ${e.message}`
+        );
     }
 }
 
 async function handleRestore(message) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
-    return message.reply('📥 Gửi file .json + gõ "restore confirm"');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
+
+    return message.reply(
+        '📥 Gửi file .json + gõ "restore confirm"'
+    );
 }
 
 async function handleRestoreFile(message) {
-    if (message.author.id !== ADMIN_ID) return;
-    if (!message.content.toLowerCase().includes('restore confirm')) return;
-    if (message.attachments.size === 0) return;
+    if (!isAdmin(message))
+        return;
 
-    const attachment = message.attachments.first();
-    if (!attachment.name.endsWith('.json')) return message.reply('❌ File phải là .json!');
+    if (
+        !message.content
+            .toLowerCase()
+            .includes('restore confirm')
+    ) return;
 
-    const processingMsg = await message.reply('⏳ Đang restore...');
+    if (message.attachments.size === 0)
+        return;
+
+    const attachment =
+        message.attachments.first();
+
+    if (!attachment.name.endsWith('.json'))
+        return message.reply(
+            '❌ File phải là .json!'
+        );
+
+    const processingMsg =
+        await message.reply('⏳ Đang restore...');
 
     try {
-        const backupData = await new Promise((resolve, reject) => {
-            https.get(attachment.url, (res) => {
-                let data = '';
-                if (res.statusCode !== 200) { reject(new Error(`HTTP Error: ${res.statusCode}`)); return; }
-                res.setEncoding('utf8');
-                res.on('data', chunk => data += chunk);
-                res.on('end', () => {
-                    try { resolve(JSON.parse(data)); }
-                    catch (e) { reject(new Error('JSON không hợp lệ')); }
-                });
-            }).on('error', e => reject(new Error(`Lỗi tải: ${e.message}`)));
-        });
+        const backupData =
+            await new Promise((resolve, reject) => {
 
-        if (!backupData.users) return processingMsg.edit('❌ Thiếu cấu trúc users!');
+                https.get(
+                    attachment.url,
+                    (res) => {
 
-        Object.assign(database, backupData);
+                        let data = '';
+
+                        if (res.statusCode !== 200) {
+                            reject(
+                                new Error(
+                                    `HTTP Error: ${res.statusCode}`
+                                )
+                            );
+                            return;
+                        }
+
+                        res.setEncoding('utf8');
+
+                        res.on(
+                            'data',
+                            chunk => data += chunk
+                        );
+
+                        res.on(
+                            'end',
+                            () => {
+                                try {
+                                    resolve(
+                                        JSON.parse(data)
+                                    );
+                                } catch (e) {
+                                    reject(
+                                        new Error(
+                                            'JSON không hợp lệ'
+                                        )
+                                    );
+                                }
+                            }
+                        );
+                    }
+                ).on(
+                    'error',
+                    e => reject(
+                        new Error(
+                            `Lỗi tải: ${e.message}`
+                        )
+                    )
+                );
+            });
+
+        if (!backupData.users)
+            return processingMsg.edit(
+                '❌ Thiếu cấu trúc users!'
+            );
+
+        Object.assign(
+            database,
+            backupData
+        );
+
         saveDB();
 
-        await processingMsg.edit('✅ Restore thành công!');
+        await processingMsg.edit(
+            '✅ Restore thành công!'
+        );
+
     } catch (error) {
-        return processingMsg.edit(`❌ Lỗi: ${error.message}`);
+        return processingMsg.edit(
+            `❌ Lỗi: ${error.message}`
+        );
     }
 }
 
@@ -420,60 +795,181 @@ async function handleRestoreFile(message) {
 // ========================================
 
 async function handleBlock(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
-    if (!database.blockedCommands) database.blockedCommands = {};
-    const channelId = message.channel.id;
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
+
+    if (!database.blockedCommands)
+        database.blockedCommands = {};
+
+    const channelId =
+        message.channel.id;
 
     if (!args[1]) {
-        const blocked = database.blockedCommands[channelId] || [];
-        if (blocked.length === 0) return message.reply(`📋 Kênh này chưa block lệnh nào.\n\n**Cách dùng:**\n\`.block .xd .tx\` → Block lệnh\n\`.unblock .xd\` → Bỏ block\n\`.unblock all\` → Bỏ tất cả`);
-        return message.reply(`🚫 **Đang block:** ${blocked.map(c => `\`${c}\``).join(', ')}`);
+        const blocked =
+            database.blockedCommands[channelId] || [];
+
+        if (blocked.length === 0) {
+            return message.reply(
+                `📋 Kênh này chưa block lệnh nào.\n\n` +
+                `**Cách dùng:**\n` +
+                `\`.block .xd .tx\` → Block lệnh\n` +
+                `\`.unblock .xd\` → Bỏ block\n` +
+                `\`.unblock all\` → Bỏ tất cả`
+            );
+        }
+
+        return message.reply(
+            `🚫 **Đang block:** ` +
+            blocked
+                .map(c => `\`${c}\``)
+                .join(', ')
+        );
     }
 
-    const cmds = args.slice(1).map(c => c.toLowerCase().startsWith('.') ? c.toLowerCase() : '.' + c.toLowerCase());
-    if (!database.blockedCommands[channelId]) database.blockedCommands[channelId] = [];
-    const added = [], already = [];
+    const cmds =
+        args
+            .slice(1)
+            .map(c =>
+                c.toLowerCase().startsWith('.')
+                    ? c.toLowerCase()
+                    : '.' + c.toLowerCase()
+            );
+
+    if (!database.blockedCommands[channelId])
+        database.blockedCommands[channelId] = [];
+
+    const added = [];
+    const already = [];
+
     for (const cmd of cmds) {
-        if (!database.blockedCommands[channelId].includes(cmd)) { database.blockedCommands[channelId].push(cmd); added.push(cmd); }
-        else already.push(cmd);
+        if (
+            !database.blockedCommands[channelId]
+                .includes(cmd)
+        ) {
+            database.blockedCommands[channelId]
+                .push(cmd);
+
+            added.push(cmd);
+        } else {
+            already.push(cmd);
+        }
     }
+
     saveDB();
+
     let msg = '';
-    if (added.length) msg += `✅ Đã block: ${added.map(c => `\`${c}\``).join(', ')}\n`;
-    if (already.length) msg += `⚠️ Đã block rồi: ${already.map(c => `\`${c}\``).join(', ')}`;
-    return message.reply(msg || '❌ Không có gì thay đổi!');
+
+    if (added.length) {
+        msg +=
+            `✅ Đã block: ` +
+            added.map(c => `\`${c}\``).join(', ') +
+            '\n';
+    }
+
+    if (already.length) {
+        msg +=
+            `⚠️ Đã block rồi: ` +
+            already.map(c => `\`${c}\``).join(', ');
+    }
+
+    return message.reply(
+        msg || '❌ Không có gì thay đổi!'
+    );
 }
 
 async function handleUnblock(message, args) {
-    if (message.author.id !== ADMIN_ID) return message.reply('❌ Chỉ admin!');
-    if (!database.blockedCommands) database.blockedCommands = {};
-    const channelId = message.channel.id;
-    if (!args[1]) return message.reply('❌ Sử dụng: `.unblock .xd` hoặc `.unblock all`');
+    if (!isAdmin(message))
+        return message.reply('❌ Chỉ admin!');
 
-    if (args[1].toLowerCase() === 'all') {
+    if (!database.blockedCommands)
+        database.blockedCommands = {};
+
+    const channelId =
+        message.channel.id;
+
+    if (!args[1])
+        return message.reply(
+            '❌ Sử dụng: `.unblock .xd` hoặc `.unblock all`'
+        );
+
+    if (
+        args[1]
+            .toLowerCase() === 'all'
+    ) {
         database.blockedCommands[channelId] = [];
+
         saveDB();
-        return message.reply('✅ Đã bỏ block tất cả lệnh trong kênh này!');
+
+        return message.reply(
+            '✅ Đã bỏ block tất cả lệnh trong kênh này!'
+        );
     }
 
-    const cmds = args.slice(1).map(c => c.toLowerCase().startsWith('.') ? c.toLowerCase() : '.' + c.toLowerCase());
-    if (!database.blockedCommands[channelId]) return message.reply('📋 Kênh này chưa block lệnh nào!');
-    const removed = [], notFound = [];
+    const cmds =
+        args
+            .slice(1)
+            .map(c =>
+                c.toLowerCase().startsWith('.')
+                    ? c.toLowerCase()
+                    : '.' + c.toLowerCase()
+            );
+
+    if (!database.blockedCommands[channelId])
+        return message.reply(
+            '📋 Kênh này chưa block lệnh nào!'
+        );
+
+    const removed = [];
+    const notFound = [];
+
     for (const cmd of cmds) {
-        const idx = database.blockedCommands[channelId].indexOf(cmd);
-        if (idx !== -1) { database.blockedCommands[channelId].splice(idx, 1); removed.push(cmd); }
-        else notFound.push(cmd);
+        const idx =
+            database.blockedCommands[channelId]
+                .indexOf(cmd);
+
+        if (idx !== -1) {
+            database.blockedCommands[channelId]
+                .splice(idx, 1);
+
+            removed.push(cmd);
+        } else {
+            notFound.push(cmd);
+        }
     }
+
     saveDB();
+
     let msg = '';
-    if (removed.length) msg += `✅ Đã bỏ block: ${removed.map(c => `\`${c}\``).join(', ')}\n`;
-    if (notFound.length) msg += `⚠️ Không tìm thấy: ${notFound.map(c => `\`${c}\``).join(', ')}`;
-    return message.reply(msg || '❌ Không có gì thay đổi!');
+
+    if (removed.length) {
+        msg +=
+            `✅ Đã bỏ block: ` +
+            removed.map(c => `\`${c}\``).join(', ') +
+            '\n';
+    }
+
+    if (notFound.length) {
+        msg +=
+            `⚠️ Không tìm thấy: ` +
+            notFound.map(c => `\`${c}\``).join(', ');
+    }
+
+    return message.reply(
+        msg || '❌ Không có gì thay đổi!'
+    );
 }
 
+// ========================================
+// 🔒 CHECK BLOCK
+// ========================================
+
 function isCommandBlocked(channelId, cmd) {
-    if (!database.blockedCommands) return false;
-    return (database.blockedCommands[channelId] || []).includes(cmd.toLowerCase());
+    if (!database.blockedCommands)
+        return false;
+
+    return (
+        database.blockedCommands[channelId] || []
+    ).includes(cmd.toLowerCase());
 }
 
 // ========================================
@@ -500,5 +996,6 @@ module.exports = {
     handleRestoreFile,
     handleBlock,
     handleUnblock,
-    isCommandBlocked
+    isCommandBlocked,
+    isAdmin
 };
