@@ -894,8 +894,6 @@ client.on('messageCreate', async (message) => {
                                             '.dbinfo\n' +
                                             '.backup\n' +
                                             '.backupnow\n' +
-                                            '.restore\n' +
-                                            '.restart\n' +
                                             '```'
                                     }
                                 )
