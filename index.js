@@ -166,10 +166,10 @@ client.on('messageCreate', async (message) => {
                 ? config.ADMIN_IDS.includes(message.author.id)
                 : message.author.id === config.ADMIN_ID;
 
-            // --- 1. Embed Trang Chủ (Đã bỏ Avatar Bot) ---
+            // --- 1. Embed Trang Chủ ---
             const homeEmbed = new EmbedBuilder()
                 .setColor(0xFEE75C)
-                .setTitle('ALL IN ONE ')
+                .setTitle('ALL IN ONE')
                 .setDescription(
                     `• **Discord:** [Emzy Community](https://discord.gg)\n\n` +
                     `Chào mừng bạn đến với hệ thống Bot Rot! Bấm vào danh mục bên dưới để xem hướng dẫn chi tiết.`
@@ -191,7 +191,7 @@ client.on('messageCreate', async (message) => {
                     .setEmoji('🎲'),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('Tài Khoản & Quà')
-                    .setDescription('Mcoin, Info, Điểm danh, Quả/Code, Nhiệm vụ.')
+                    .setDescription('Mcoin, Info, Điểm danh, Giftcode, Nhiệm vụ.')
                     .setValue('help_account')
                     .setEmoji('👤'),
                 new StringSelectMenuOptionBuilder()
@@ -360,6 +360,9 @@ client.on('interactionCreate', async (interaction) => {
 
         // ===== BUTTONS & SELECT MENUS =====
         if (interaction.isButton() || interaction.isStringSelectMenu()) {
+
+            // ĐẢM BẢO BỎ QUA MENU HELP ĐỂ DÀNH CHO COLLECTOR TRONG LỆNH .HELP XỬ LÝ
+            if (interaction.customId === 'help_menu') return;
 
             if (interaction.isButton() && interaction.customId.startsWith('copy_code_')) {
                 const code = interaction.customId.replace('copy_code_', '');
