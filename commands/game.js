@@ -42,8 +42,16 @@ function rollDiceWeighted(jackpot) {
     const face = () => Math.floor(Math.random() * 6) + 1;
     if (jackpot < 1_000_000_000) return rollDice();
     const rand = Math.random() * 100;
-    if (rand < 20) { const d = face(); return { dice1: d, dice2: d, dice3: d, total: d * 3 }; }
-    if (rand < 60) { const d = face(); const d3 = face(); const arr = [d, d, d3].sort(() => Math.random() - 0.5); return { dice1: arr[0], dice2: arr[1], dice3: arr[2], total: arr[0]+arr[1]+arr[2] }; }
+    if (rand < 20) { 
+        const d = face(); 
+        return { dice1: d, dice2: d, dice3: d, total: d * 3 }; 
+    }
+    if (rand < 60) { 
+        const d = face(); 
+        const d3 = face(); 
+        const arr = [d, d, d3].sort(() => Math.random() - 0.5); 
+        return { dice1: arr[0], dice2: arr[1], dice3: arr[2], total: arr[0] + arr[1] + arr[2] }; 
+    }
     return rollDice();
 }
 
@@ -55,7 +63,15 @@ async function handleTaiXiu(message, client) {
     saveDB();
 
     const jackpotDisplay = formatNumber(database.jackpot || 0);
-    await message.channel.send({ embeds: [new EmbedBuilder().setTitle('🎰 HŨ TÀI XỈU').setColor('#FFD700').setDescription(`💰 **${jackpotDisplay}** Mcoin`).setFooter({ text: 'Nổ khi ra bộ ba' })] });
+    await message.channel.send({ 
+        embeds: [
+            new EmbedBuilder()
+                .setTitle('🎰 HŨ TÀI XỈU')
+                .setColor('#FFD700')
+                .setDescription(`💰 **${jackpotDisplay}** Mcoin`)
+                .setFooter({ text: 'Nổ khi ra bộ ba' })
+        ] 
+    });
 
     bettingSession = { channelId: message.channel.id, bets: {}, startTime: Date.now(), duration: 30000, messageId: null, phienNumber };
     database.activeBettingSession = { channelId: message.channel.id, bets: {}, startTime: Date.now() };
@@ -87,12 +103,12 @@ async function handleTaiXiu(message, client) {
         timeLeft--;
         if (timeLeft > 0) {
             mainEmbed.spliceFields(0, 1, { name: '⏰ Thời gian còn lại', value: `**${timeLeft}** giây`, inline: false });
-            let taiC=0, xiuC=0, chanC=0, leC=0, otherC=0;
+            let taiC = 0, xiuC = 0, chanC = 0, leC = 0, otherC = 0;
             Object.values(bettingSession.bets).forEach(bet => {
-                if (bet.type==='tai') taiC++;
-                else if (bet.type==='xiu') xiuC++;
-                else if (bet.type==='chan') chanC++;
-                else if (bet.type==='le') leC++;
+                if (bet.type === 'tai') taiC++;
+                else if (bet.type === 'xiu') xiuC++;
+                else if (bet.type === 'chan') chanC++;
+                else if (bet.type === 'le') leC++;
                 else otherC++;
             });
             tongCuocEmbed.setDescription(`**Tài:** ${taiC} | **Xỉu:** ${xiuC}\n**Chẵn:** ${chanC} | **Lẻ:** ${leC}\n**Số/Tổng:** ${otherC}`);
@@ -132,10 +148,21 @@ async function animateResult(sentMessage, client) {
 
         const result = checkResult(total);
 
-        // Animation
+        // Animation mở bát
         const frame1 = createBowlLift(dice1, dice2, dice3, 0);
         if (frame1) {
-            await sentMessage.edit({ embeds: [new EmbedBuilder().setTitle(`🎲 PHIÊN #${phienNumber} - TÔ ĐANG NÂNG...`).setColor('#f39c12').setDescription('👀 **Chuẩn bị xem kết quả!**').setImage('attachment://lift.png').setTimestamp()], files: [new AttachmentBuilder(frame1, { name: 'lift.png' })], components: [] }).catch(() => {});
+            await sentMessage.edit({ 
+                embeds: [
+                    new EmbedBuilder()
+                        .setTitle(`🎲 PHIÊN #${phienNumber} - TÔ ĐANG NÂNG...`)
+                        .setColor('#f39c12')
+                        .setDescription('👀 **Chuẩn bị xem kết quả!**')
+                        .setImage('attachment://lift.png')
+                        .setTimestamp()
+                ], 
+                files: [new AttachmentBuilder(frame1, { name: 'lift.png' })], 
+                components: [] 
+            }).catch(() => {});
         }
         await sleep(500);
         for (let i = 25; i <= 100; i += 25) {
@@ -162,10 +189,10 @@ async function animateResult(sentMessage, client) {
 
             if (bet.amount > 0) database.jackpot = (database.jackpot || 0) + Math.floor(bet.amount * 0.05);
 
-            if (bet.type === 'tai' && result.tai)        { win = true; winMultiplier = 1.9; user.tai++; }
-            else if (bet.type === 'xiu' && result.xiu)  { win = true; winMultiplier = 1.9; user.xiu++; }
-            else if (bet.type === 'chan' && result.chan) { win = true; winMultiplier = 1.9; user.chan++; }
-            else if (bet.type === 'le' && result.le)    { win = true; winMultiplier = 1.9; user.le++; }
+            if (bet.type === 'tai' && result.tai)        { win = true; winMultiplier = 1.9; user.tai = (user.tai || 0) + 1; }
+            else if (bet.type === 'xiu' && result.xiu)  { win = true; winMultiplier = 1.9; user.xiu = (user.xiu || 0) + 1; }
+            else if (bet.type === 'chan' && result.chan) { win = true; winMultiplier = 1.9; user.chan = (user.chan || 0) + 1; }
+            else if (bet.type === 'le' && result.le)    { win = true; winMultiplier = 1.9; user.le = (user.le || 0) + 1; }
             else if (bet.type === 'number') {
                 let count = [dice1, dice2, dice3].filter(d => d === bet.value).length;
                 if (count > 0) { win = true; winMultiplier = count === 1 ? 1.9 : count === 2 ? 2.8 : 3.6; user.numberWins = (user.numberWins || 0) + 1; }
@@ -177,7 +204,7 @@ async function animateResult(sentMessage, client) {
 
             const vipIcon = getVipIcon(user.vipLevel);
             const vipDisplay = vipIcon ? `${vipIcon} | ` : '';
-            let betTypeDisplay = { tai:'Tài', xiu:'Xỉu', chan:'Chẵn', le:'Lẻ', number:`Số ${bet.value}`, total:`Tổng ${bet.value}` }[bet.type] || bet.type;
+            let betTypeDisplay = { tai: 'Tài', xiu: 'Xỉu', chan: 'Chẵn', le: 'Lẻ', number: `Số ${bet.value}`, total: `Tổng ${bet.value}` }[bet.type] || bet.type;
 
             let resultLine = `${vipDisplay}<@${userId}> | ${betTypeDisplay}`;
 
@@ -188,7 +215,8 @@ async function animateResult(sentMessage, client) {
                     if (totalVipBonus > 0) winAmount += Math.floor(winAmount * totalVipBonus / 100);
                     const titleBetBonus = user.titleBonus?.betBonus || 0;
                     if (titleBetBonus > 0) winAmount += Math.floor(winAmount * titleBetBonus / 100);
-                    // Frame bonus
+                    
+                    // Frame bonus (5%)
                     if (user.frame === 'fire' || user.frame === 'green') {
                         winAmount += Math.floor(winAmount * 5 / 100);
                     }
@@ -201,7 +229,7 @@ async function animateResult(sentMessage, client) {
                 }
             }
 
-            // KC bet
+            // Cược Kim Cương (KC)
             if (bet.kcAmount > 0) {
                 if (win) {
                     const kcWin = Math.floor(bet.kcAmount * 1.9);
@@ -276,4 +304,3 @@ function getBettingSession() { return bettingSession; }
 function setBettingSession(session) { bettingSession = session; }
 
 module.exports = { handleTaiXiu, handleSoiCau, setForceJackpot, getBettingSession, setBettingSession, cleanupSession };
-
