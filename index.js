@@ -17,7 +17,9 @@ const {
 } = require('discord.js');
 
 const config = require('./config');
-const { TOKEN, ADMIN_ID, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = config;
+const { TOKEN, ADMIN_IDS, GIFTCODE_CHANNEL_ID, BACKUP_CHANNEL_ID } = config;
+
+const isAdmin = (userId) => ADMIN_IDS.includes(userId);
 const { saveDB, getUser, resetDailyTop } = require('./utils/database');
 const { autoBackup, backupOnShutdown, restoreInterruptedSession } = require('./services/backup');
 
@@ -159,7 +161,7 @@ client.on('messageCreate', async (message) => {
         if (cmd === '.resetquest') return handleResetQuest(message, args);
         if (cmd === '.nohu')       return handleNoHu(message);
         if (cmd === '.noxocdia')   return handleNoXocDia(message);
-        if (cmd === '.restart' && message.author.id === ADMIN_ID) process.exit(0);
+        if (cmd === '.restart' && isAdmin(message.author.id)) process.exit(0);
 
         if (cmd === '.help') {
             const isAdmin = Array.isArray(config.ADMIN_IDS) 
@@ -316,10 +318,12 @@ client.on('interactionCreate', async (interaction) => {
     try {
 
         // ===== SLASH COMMAND /giftcode =====
-        if (interaction.isChatInputCommand() && interaction.commandName === 'giftcode') {
-            if (interaction.user.id !== ADMIN_ID) {
-                return interaction.reply({ content: '❌ Chỉ admin mới dùng được!', ephemeral: true });
-            }
+        if (!isAdmin(interaction.user.id)) {
+    return interaction.reply({
+        content: '❌ Chỉ admin mới dùng được!',
+        ephemeral: true
+    });
+        }
 
             const ten    = interaction.options.getString('ten').toUpperCase();
             const tienStr = interaction.options.getString('tien');
@@ -370,9 +374,12 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             if (interaction.isStringSelectMenu() && interaction.customId === 'admin_givetitle') {
-                if (interaction.user.id !== ADMIN_ID) {
-                    return interaction.reply({ content: '❌ Chỉ admin!', ephemeral: true });
-                }
+               if (!isAdmin(interaction.user.id)) {
+    return interaction.reply({
+        content: '❌ Chỉ admin!',
+        ephemeral: true
+    });
+               }
                 const value = interaction.values[0];
                 const parts = value.split('_');
                 const targetUserId = parts[1];
